@@ -1,0 +1,14 @@
+pipeline_id: generic_document_v1
+domain_profile: generic
+input_modality: document
+description: "Default pipeline for new applications - handles PDFs, DOCX, text files"
+steps:
+  - agent: document_parser
+  - agent: markdown_cleaning
+  - agent: chunking
+    config:
+      chunk_size: 512
+      overlap: 50
+  - agent: embedding
+  - agent: indexing
+  - agent: lineage

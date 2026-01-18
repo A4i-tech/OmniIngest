@@ -1,0 +1,16 @@
+pipeline_id: document_v1
+domain_profile: generic
+input_modality: document
+description: "Standard pipeline with markdown cleaning and page-based chunking"
+steps:
+  - agent: document_parser
+  - agent: text_parser
+    config:
+      normalize_whitespace: true
+  - agent: markdown_cleaning
+  - agent: page_chunking
+  - agent: enrichment
+  - agent: embedding
+  - agent: indexing
+    config:
+      vector_store_kind: lancedb

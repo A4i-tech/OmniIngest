@@ -1,0 +1,17 @@
+pipeline_id: noisy_v1
+domain_profile: generic
+input_modality: document
+description: "Pipeline optimized for noisy/boilerplate HTML and poor formatting"
+steps:
+  - agent: text_parser
+    config:
+      strip_html: true
+      normalize_whitespace: true
+  - agent: markdown_cleaning
+    config:
+      prompt_template: "Extract only the core lesson content from this noisy data. Remove all navigation, footers, and ads. Output cleaned markdown.\n\n{text}"
+  - agent: quality
+    config:
+      prompt_template: "Verify if this cleaned content is readable and coherent. Return JSON with 'score' and 'feedback'.\n\n{text}"
+  - agent: embedding
+  - agent: indexing

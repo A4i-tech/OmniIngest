@@ -1,0 +1,18 @@
+pipeline_id: seeds_audio_v1
+domain_profile: accessibility_seeds
+input_modality: audio
+description: "SEEDS audio ingestion for IVR recordings and podcasts with timed chunking"
+steps:
+  - agent: audio_parser
+  - agent: transcription_post_processor
+  - agent: timed_chunking
+    config:
+      segment_duration_ms: 60000
+      pause_threshold_ms: 500
+  - agent: enrichment
+    config:
+      prompt_template: "Analyze this audio transcript and extract: summary, keywords, and key themes.\n\nTranscript: {text}\n\nReturn JSON with 'summary', 'tags', and 'themes' fields."
+  - agent: keyword_indexing
+  - agent: embedding
+  - agent: indexing
+  - agent: lineage

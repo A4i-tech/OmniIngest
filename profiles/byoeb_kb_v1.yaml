@@ -1,0 +1,23 @@
+pipeline_id: byoeb_kb_v1
+domain_profile: health_byoeb
+input_modality: text
+description: "BYOEB knowledge base ingestion for healthcare FAQ and document content"
+steps:
+  - agent: text_parser
+    config:
+      strip_html: true
+      normalize_whitespace: true
+  - agent: markdown_cleaning
+  - agent: enrichment
+    config:
+      prompt_template: "Analyze this healthcare content and extract: summary, keywords, and any medical entities mentioned.\n\nContent: {text}\n\nReturn JSON with 'summary', 'tags', and 'entities' fields."
+  - agent: chunking
+    config:
+      chunk_size: 1024
+      overlap: 100
+  - agent: embedding
+  - agent: indexing
+  - agent: quality
+    config:
+      min_quality_score: 0.8
+  - agent: lineage

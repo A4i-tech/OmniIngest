@@ -1,0 +1,77 @@
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+import yaml
+
+from omni_ingest.core.model import IngestionContext, StepStatus
+from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config
+
+RESOURCES_DIR = Path(__file__).parent.parent / "resources"
+
+
+@pytest.mark.asyncio
+async def test_byoeb_ingestion_and_search(tmp_path):
+    config = {
+        "store": {"type": "in_memory"},
+        "steps": [
+            {"agent": "text_parser"},
+            {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
+            {"agent": "embedding", "config": {"provider": "openai", "model": "text-embedding-3-small"}},
+            {"agent": "indexing", "config": {"vector_store": "in_memory"}},
+        ],
+    }
+    config_path = tmp_path / "pipeline.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    pipeline = create_pipeline_from_config(str(config_path))
+
+    tid = uuid4()
+
+    blueberries_path = RESOURCES_DIR / "blueberries-are-now-green.txt"
+    if not blueberries_path.exists():
+        pytest.skip("Blueberries resource file not found")
+
+    with open(blueberries_path) as f:
+        content = f.read()
+
+    ctx1 = IngestionContext(tenant_id=tid, metadata={"text": content, "file_path": str(blueberries_path)})
+    res1 = await pipeline.run(ctx1)
+    assert res1[-1].status == StepStatus.SUCCESS
+
+    indexing_step = next(s for s in pipeline.steps if s.name == "indexing")
+    vector_store = indexing_step.store  # type: ignore
+
+    patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"
+    if not patients_path.exists():
+        pytest.skip("Patients resource file not found")
+
+    with open(patients_path) as f:
+        content2 = f.read()
+
+    ctx2 = IngestionContext(tenant_id=tid, metadata={"text": content2, "file_path": str(patients_path)})
+    res2 = await pipeline.run(ctx2)
+    assert res2[-1].status == StepStatus.SUCCESS
+
+    class DummyMetadataStore:
+        async def list_knowledge_items(self, *args, **kwargs): return []
+        async def get_knowledge_item(self, *args, **kwargs): return None
+        async def create_knowledge_item(self, *args, **kwargs): return uuid4()
+        async def create_chunk(self, *args, **kwargs): return "chunk_id"
+        async def create_pipeline_run(self, *args, **kwargs): return uuid4()
+        async def update_pipeline_run(self, *args, **kwargs): pass
+        async def create_step_run(self, *args, **kwargs): return uuid4()
+        async def update_step_run(self, *args, **kwargs): pass
+
+    adapter = KnowledgeBaseAdapter(metadata_store=DummyMetadataStore(), vector_store=vector_store)  # type: ignore
+
+    results = await adapter.query_text(tenant_id=str(tid), query="what color are blueberries", k=3)
+    assert len(results) > 0
+    assert any("blueberries" in r.content.lower() for r in results)
+    assert not any("jaipur" in r.content.lower() for r in results)
+
+    results_j = await adapter.query_text(tenant_id=str(tid), query="Jaipur Protocol", k=3)
+    assert len(results_j) > 0
+    assert any("jaipur" in r.content.lower() for r in results_j)
+    assert not any("blueberries" in r.content.lower() for r in results_j)

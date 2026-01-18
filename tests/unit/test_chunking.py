@@ -1,0 +1,100 @@
+import pytest
+
+from omni_ingest.agent.chunking import SentenceChunkingAgent
+from omni_ingest.core.model import IngestionContext, StepStatus
+
+
+@pytest.mark.asyncio
+async def test_chunking_with_default_params():
+    agent = SentenceChunkingAgent()
+
+    assert agent.chunk_size == 512
+    assert agent.overlap == 50
+
+    ctx = IngestionContext(metadata={"text": "Hello world. This is a test. Another sentence."})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["chunk_size"] == 512
+    assert len(result.items) >= 1
+
+
+@pytest.mark.asyncio
+async def test_chunking_with_custom_params():
+    agent = SentenceChunkingAgent(chunk_size=100, overlap=20)
+
+    assert agent.chunk_size == 100
+    assert agent.overlap == 20
+
+    long_text = "This is a sentence. " * 20
+    ctx = IngestionContext(metadata={"text": long_text})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["count"] > 1
+
+
+@pytest.mark.asyncio
+async def test_chunking_respects_sentence_boundaries():
+    agent = SentenceChunkingAgent(chunk_size=50, overlap=10)
+
+    text = "First sentence here. Second sentence follows. Third one too."
+    ctx = IngestionContext(metadata={"text": text})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    for item in result.items:
+        assert not item.content.startswith(" ")
+
+
+@pytest.mark.asyncio
+async def test_chunking_short_text():
+    agent = SentenceChunkingAgent(chunk_size=500, overlap=50)
+
+    short_text = "This is a short text."
+    ctx = IngestionContext(metadata={"text": short_text})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["count"] == 1
+    assert result.items[0].content == short_text
+
+
+@pytest.mark.asyncio
+async def test_chunking_includes_position_metadata():
+    agent = SentenceChunkingAgent(chunk_size=50, overlap=0)
+
+    text = "First part. Second part. Third part."
+    ctx = IngestionContext(metadata={"text": text})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    for item in result.items:
+        assert "source_idx" in item.metadata
+        assert "char_start" in item.metadata
+
+
+@pytest.mark.asyncio
+async def test_chunking_empty_text():
+    agent = SentenceChunkingAgent()
+
+    ctx = IngestionContext(metadata={})
+    result = await agent.run(ctx)
+    assert result.status == StepStatus.SKIPPED
+
+    ctx = IngestionContext(metadata={"text": ""})
+    result = await agent.run(ctx)
+    assert result.status == StepStatus.SKIPPED
+
+
+@pytest.mark.asyncio
+async def test_chunking_whitespace_normalization():
+    agent = SentenceChunkingAgent()
+
+    text = "Hello    world.\n\n\nThis   has   extra    spaces."
+    ctx = IngestionContext(metadata={"text": text})
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    for item in result.items:
+        assert "  " not in item.content

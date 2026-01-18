@@ -1,0 +1,12 @@
+pipeline_id: governance_v1
+domain_profile: generic
+input_modality: document
+description: "Standard pipeline with mandatory data lineage audit"
+steps:
+  - agent: document_parser
+  - agent: text_parser
+  - agent: chunking
+  - agent: lineage
+  - agent: embedding
+  - agent: indexing
+  - agent: ingestion_logger

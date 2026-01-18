@@ -1,0 +1,50 @@
+site_name: OmniIngest
+site_description: Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines.
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            extensions:
+              - griffe_pydantic
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_if_no_docstring: false
+            members_order: alphabetical
+            separate_signature: true
+            show_signature_annotations: true
+            docstring_section_style: table
+            docstring_style: google
+            show_attribute_docstring: true
+            summary: true
+
+nav:
+  - Home: index.md
+  - Reference: api.md

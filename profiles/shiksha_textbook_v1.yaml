@@ -1,0 +1,22 @@
+pipeline_id: shiksha_textbook_v1
+domain_profile: education_shiksha
+input_modality: document
+description: "Shiksha Copilot textbook ingestion with learning outcome extraction and KG building"
+steps:
+  - agent: document_parser
+  - agent: markdown_cleaning
+  - agent: learning_outcome
+    config:
+      provider: openai
+      model: gpt-4o
+  - agent: kg_builder
+    config:
+      model: gpt-4o
+  - agent: page_chunking
+    config:
+      chunk_size: 2048
+  - agent: embedding
+  - agent: indexing
+  - agent: graph_indexing
+  - agent: quality
+  - agent: lineage

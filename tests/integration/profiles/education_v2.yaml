@@ -1,0 +1,18 @@
+pipeline_id: education_v2
+domain_profile: education
+input_modality: document
+description: "Advanced education pipeline with quality verification and FAQ generation"
+steps:
+  - agent: document_parser
+  - agent: chunking
+  - agent: learning_outcome
+  - agent: quality
+  - agent: faq_generation
+  - agent: enrichment
+  - agent: embedding
+  - agent: indexing
+    config:
+      vector_store_kind: lancedb
+  - agent: kg_builder
+  - agent: graph_indexing
+  - agent: ingestion_logger

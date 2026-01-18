@@ -1,0 +1,27 @@
+pipeline_id: textbook_v1
+domain_profile: education
+input_modality: document
+description: "Education-focused pipeline for textbook ingestion with LO extraction and graph indexing"
+steps:
+  - agent: document_parser
+  - agent: text_parser
+    config:
+      normalize_whitespace: true
+  - agent: chunking
+    config:
+      chunk_size: 1024
+      overlap: 100
+  - agent: learning_outcome
+  - agent: enrichment
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+  - agent: embedding
+    config:
+      provider: "openai"
+      model: "text-embedding-3-large"
+  - agent: indexing
+    config:
+      vector_store_kind: lancedb
+  - agent: kg_builder
+  - agent: graph_indexing
