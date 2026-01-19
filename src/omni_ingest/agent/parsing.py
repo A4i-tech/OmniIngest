@@ -13,7 +13,7 @@ from pypdf import PdfReader
 
 from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -39,7 +39,7 @@ class _HTMLTextExtractor(HTMLParser):
         return " ".join(self.text_parts)
 
 
-@register_step("text_parser")
+@step("text_parser")
 class TextParserAgent(BaseModel, Step):
     """
     Normalizes raw text and extracts content from HTML documents.
@@ -49,7 +49,6 @@ class TextParserAgent(BaseModel, Step):
     downstream processing.
     """
 
-    name: str = Field("text_parser", description="The internal name used to identify this step")
     strip_html: bool = Field(True, description="Should we remove HTML tags (like <div> or <p>) from the input?")
     normalize_whitespace: bool = Field(True, description="Should we clean up messy spaces, tabs, and extra newlines?")
 
@@ -72,7 +71,7 @@ class TextParserAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"original_length": len(raw), "parsed_length": len(text)})
 
 
-@register_step("document_parser")
+@step("document_parser")
 class DocumentParserAgent(BaseModel, Step):
     """
     Extracts text content from various document file formats.
@@ -81,8 +80,6 @@ class DocumentParserAgent(BaseModel, Step):
     and DOCX, to retrieve the underlying text data for further analysis
     within the ingestion pipeline.
     """
-
-    name: str = Field("document_parser", description="The internal name for this document reading step")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw, path = ctx.metadata.get("raw_data"), ctx.metadata.get("file_path")
@@ -113,7 +110,7 @@ class DocumentParserAgent(BaseModel, Step):
             return StepResult(status=StepStatus.FAILURE, error=str(e))
 
 
-@register_step("audio_parser")
+@step("audio_parser")
 class AudioParserAgent(BaseModel, Step):
     """
     Transcribes audio data into text format using automated speech recognition.
@@ -122,8 +119,6 @@ class AudioParserAgent(BaseModel, Step):
     synchronized text transcripts. The output includes word-level
     metadata suitable for temporal analysis of the content.
     """
-
-    name: str = Field("audio_parser", description="The internal name for your transcription step")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (audio_path := ctx.metadata.get("audio_path")):

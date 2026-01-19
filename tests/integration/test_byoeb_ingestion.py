@@ -1,3 +1,4 @@
+from omni_ingest.core.pipeline import lookup_step_id
 from pathlib import Path
 from uuid import uuid4
 
@@ -40,7 +41,7 @@ async def test_byoeb_ingestion_and_search(tmp_path):
     res1 = await pipeline.run(ctx1)
     assert res1[-1].status == StepStatus.SUCCESS
 
-    indexing_step = next(s for s in pipeline.steps if s.name == "indexing")
+    indexing_step = next(s for s in pipeline.steps if lookup_step_id(s) == "indexing")
     vector_store = indexing_step.store  # type: ignore
 
     patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"

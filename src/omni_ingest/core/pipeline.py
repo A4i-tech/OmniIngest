@@ -57,7 +57,7 @@ class PipelineRunner:
         error_msg = None
 
         for step in self.steps:
-            sid = await ctx.store.create_step_run(ctx.run_id, step.name) if ctx.store else None
+            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step)) if ctx.store else None
             try:
                 res = await step.run(ctx)
                 results.append(res)
@@ -86,30 +86,39 @@ class PipelineRunner:
         return results
 
 
-_STEP_REGISTRY: dict[str, type[Step]] = {}
+_STEP_FACTORY: dict[str, type[Step]] = {}
 
 
-def register_step(name: str):
+def step(id: str):
     """
     Decorator to register a Step class in the global registry.
 
     Args:
-        name: The name used to identify this step in configurations.
+        id: The name used to identify this step in configurations.
     """
 
     def decorator(cls: type):
         if not issubclass(cls, Step):
             raise TypeError(f"Class {cls.__name__} must inherit from Step")
-        _STEP_REGISTRY[name] = cls
+        if cls in _STEP_FACTORY.values():
+            raise ValueError(f"Step {id} already registered")
+        _STEP_FACTORY[id] = cls
         return cls
 
     return decorator
 
 
-def get_step_class(name: str) -> type[Step]:
-    if name not in _STEP_REGISTRY:
-        raise ValueError(f"Step {name} not found")
-    return _STEP_REGISTRY[name]
+def get_step_class(id: str) -> type[Step]:
+    if id not in _STEP_FACTORY:
+        raise ValueError(f"Step {id} not found")
+    return _STEP_FACTORY[id]
+
+
+def lookup_step_id(step: Step) -> str | None:
+    for k, v in _STEP_FACTORY.items():
+        if v == step.__class__:
+            return k
+    return None
 
 
 def create_pipeline_from_config(config_path: str) -> PipelineRunner:

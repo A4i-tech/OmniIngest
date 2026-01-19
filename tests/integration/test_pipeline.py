@@ -15,15 +15,11 @@ from omni_ingest.core.model import IngestionContext, Step, StepResult, StepStatu
 
 
 class EchoStep(Step):
-    name: str = "echo_step"
-
     async def run(self, ctx: IngestionContext) -> StepResult:
         return StepResult(status=StepStatus.SUCCESS, metadata={"echo": "echo"})
 
 
 class FailingStep(Step):
-    name: str = "failing_step"
-
     async def run(self, ctx: IngestionContext) -> StepResult:
         return StepResult(status=StepStatus.FAILURE, error="Boom")
 

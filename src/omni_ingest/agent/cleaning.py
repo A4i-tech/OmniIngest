@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
 def _get_openai_client(provider: str):
@@ -22,7 +22,7 @@ def _get_openai_client(provider: str):
     return AsyncOpenAI(api_key=key)
 
 
-@register_step("markdown_cleaning")
+@step("markdown_cleaning")
 class MarkdownCleaningAgent(BaseModel, Step):
     """
     Standardizes Markdown formatting and removes non-essential content.
@@ -33,7 +33,6 @@ class MarkdownCleaningAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("markdown_cleaning", description="The internal name for this cleaning step")
     provider: str = Field("openai", description="The AI service to use (e.g., 'openai' or 'azure')")
     model: str = Field("gpt-4o", description="The specific AI model version to use")
     prompt_template: str = Field(
@@ -67,7 +66,7 @@ class MarkdownCleaningAgent(BaseModel, Step):
             return StepResult(status=StepStatus.FAILURE, error=str(e))
 
 
-@register_step("transcription_post_processor")
+@step("transcription_post_processor")
 class TranscriptionPostProcessorAgent(BaseModel, Step):
     """
     Refines automated speech-to-text transcripts for improved accuracy.
@@ -78,7 +77,6 @@ class TranscriptionPostProcessorAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("transcription_post_processor", description="Internal step name")
     provider: str = Field("openai", description="The AI service to use")
     model: str = Field("gpt-4o", description="The AI model used for proofreading")
 

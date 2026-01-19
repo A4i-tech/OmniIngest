@@ -69,8 +69,6 @@ class IngestionContext(BaseModel):
 
 
 class Step(ABC):
-    name: str
-    """Unique identifier for the processing step."""
 
     @abstractmethod
     async def run(self, ctx: IngestionContext) -> StepResult:

@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
-@register_step("embedding")
+@step("embedding")
 class EmbeddingAgent(BaseModel, Step):
     """
     Generates vector embeddings for KnowledgeItems to facilitate semantic search.
@@ -22,7 +22,6 @@ class EmbeddingAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("embedding", description="Internal name for this embedding step")
     provider: str = Field("openai", description="The AI service used to generate vectors (e.g., 'openai')")
     model: str = Field("text-embedding-3-small", description="The specific mathematical model to use")
 
@@ -58,7 +57,7 @@ class EmbeddingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(ctx.items)})
 
 
-@register_step("indexing")
+@step("indexing")
 class VectorIndexingAgent(BaseModel, Step):
     """
     Persists KnowledgeItems into a vector storage system.
@@ -69,7 +68,6 @@ class VectorIndexingAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("indexing", description="Internal step name")
     store: Any = Field(..., description="The physical database where data will be saved")
     vector_store_kind: str = Field("lancedb", description="The type of database (e.g., 'lancedb' or 'qdrant')")
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
@@ -93,7 +91,7 @@ class VectorIndexingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"count": len(ctx.items)})
 
 
-@register_step("keyword_indexing")
+@step("keyword_indexing")
 class KeywordIndexingAgent(BaseModel, Step):
     """
     Identifies and indexes searchable keywords from KnowledgeItems.
@@ -104,7 +102,6 @@ class KeywordIndexingAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("keyword_indexing", description="Internal step name")
     provider: str = Field("openai", description="The AI service to use")
     model: str = Field("gpt-4o", description="The AI model version used for keyword extraction")
 
@@ -150,13 +147,12 @@ class KeywordIndexingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"items_processed": len(ctx.items)})
 
 
-@register_step("graph_indexing")
+@step("graph_indexing")
 class GraphIndexingAgent(BaseModel, Step):
     """
     Indexes extracted knowledge graph data into a graph database.
     """
 
-    name: str = Field("graph_indexing", description="Internal step name")
     graph_store: Any = Field(..., description="The GraphStore implementation to use")
 
     async def run(self, ctx: IngestionContext) -> StepResult:

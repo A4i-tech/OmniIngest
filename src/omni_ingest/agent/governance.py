@@ -6,10 +6,10 @@ from typing import Any
 from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
-@register_step("ingestion_logger")
+@step("ingestion_logger")
 class IngestionLoggerAgent(BaseModel, Step):
     """
     Records operational metadata for ingestion pipeline execution.
@@ -18,8 +18,6 @@ class IngestionLoggerAgent(BaseModel, Step):
     and item counts—to the metadata store, providing a record for
     monitoring and auditing purposes.
     """
-
-    name: str = Field("ingestion_logger", description="Internal name for this logging step")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.store or not ctx.run_id:
@@ -33,7 +31,7 @@ class IngestionLoggerAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata=audit_entry)
 
 
-@register_step("lineage")
+@step("lineage")
 class DataLineageAgent(BaseModel, Step):
     """
     Maintains data provenance and lineage information for KnowledgeItems.
@@ -42,8 +40,6 @@ class DataLineageAgent(BaseModel, Step):
     history of each KnowledgeItem, ensuring traceability from the source
     data to the finalized index.
     """
-
-    name: str = Field("lineage", description="Internal step name")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         lineage = {
@@ -60,7 +56,7 @@ class DataLineageAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata=lineage)
 
 
-@register_step("quality")
+@step("quality")
 class QualityVerifierAgent(BaseModel, Step):
     """
     Evaluates the quality of extracted text based on predefined criteria.
@@ -72,7 +68,6 @@ class QualityVerifierAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("quality", description="Internal step name")
     provider: str = Field("openai", description="The AI service used for verification")
     model: str = Field("gpt-4o", description="The AI model used for scoring")
     sample_size: int = Field(3, description="The number of items to sample for quality verification")

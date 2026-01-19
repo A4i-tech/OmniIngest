@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
 def _get_openai_client(provider: str):
@@ -23,7 +23,7 @@ def _get_openai_client(provider: str):
     return AsyncOpenAI(api_key=key)
 
 
-@register_step("enrichment")
+@step("enrichment")
 class DomainEnrichmentAgent(BaseModel, Step):
     """
     Augments KnowledgeItems with generated summaries and thematic tags.
@@ -34,7 +34,6 @@ class DomainEnrichmentAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("enrichment", description="Internal name for this enrichment step")
     provider: str = Field("openai", description="The AI service to use (e.g., 'openai' or 'azure')")
     model: str = Field("gpt-4o", description="The AI model version used for analysis")
     prompt_template: str = Field("Analyze text and provide JSON summary/tags. Content: {text}", description="LLM prompt template")
@@ -69,7 +68,7 @@ class DomainEnrichmentAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"enriched_count": len(ctx.items)})
 
 
-@register_step("learning_outcome")
+@step("learning_outcome")
 class LearningOutcomeExtractionAgent(BaseModel, Step):
     """
     Extracts educational learning outcomes from instructional content.
@@ -80,7 +79,6 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("learning_outcome", description="Internal step name")
     provider: str = Field("openai", description="The AI service to use")
     model: str = Field("gpt-4o", description="The AI model used for extraction")
 
@@ -119,7 +117,7 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"extracted_for": len(ctx.items)})
 
 
-@register_step("kg_builder")
+@step("kg_builder")
 class KnowledgeGraphBuilderAgent(BaseModel, Step):
     """
     Identifies and extracts relational data for knowledge graph construction.
@@ -130,7 +128,6 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("kg_builder", description="Internal step name")
     provider: str = Field("openai", description="The AI service to use")
     model: str = Field("gpt-4o", description="The AI model used for graph building")
 
@@ -170,7 +167,7 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"nodes": len(all_nodes), "edges": len(all_edges)})
 
 
-@register_step("faq_generation")
+@step("faq_generation")
 class FAQGenerationAgent(BaseModel, Step):
     """
     Generates frequently asked questions (FAQs) from extracted content.
@@ -181,7 +178,6 @@ class FAQGenerationAgent(BaseModel, Step):
     """
 
     model_config = {"arbitrary_types_allowed": True}
-    name: str = Field("faq_generation", description="Internal name for the FAQ generation step")
     provider: str = Field("openai", description="The AI service used for generation")
     model: str = Field("gpt-4o", description="The AI model version used for generation")
 

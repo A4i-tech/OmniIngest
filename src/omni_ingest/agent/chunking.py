@@ -7,10 +7,10 @@ from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 from pypdf import PdfReader
 
 from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
-from ..core.pipeline import register_step
+from ..core.pipeline import step
 
 
-@register_step("chunking")
+@step("chunking")
 class SentenceChunkingAgent(BaseModel, Step):
     """
     Segments text into discrete chunks while maintaining sentence boundaries.
@@ -20,7 +20,6 @@ class SentenceChunkingAgent(BaseModel, Step):
     to preserve contextual integrity for subsequent search operations.
     """
 
-    name: str = Field("chunking", description="The internal name for this chunking step")
     chunk_size: PositiveInt = Field(512, description="The maximum number of characters we should put in one piece")
     overlap: NonNegativeInt = Field(50, description="How many characters should carry over from one piece to the next?")
 
@@ -53,7 +52,7 @@ class SentenceChunkingAgent(BaseModel, Step):
         )
 
 
-@register_step("page_chunking")
+@step("page_chunking")
 class PageChunkingAgent(BaseModel, Step):
     """
     Partitions PDF documents based on their original page layout.
@@ -62,8 +61,6 @@ class PageChunkingAgent(BaseModel, Step):
     in a PDF source, maintaining the hierarchical structure of the
     input document.
     """
-
-    name: str = Field("page_chunking", description="Internal step name")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         path, raw = ctx.metadata.get("file_path"), ctx.metadata.get("raw_data")
@@ -86,7 +83,7 @@ class PageChunkingAgent(BaseModel, Step):
             return StepResult(status=StepStatus.FAILURE, error=str(e))
 
 
-@register_step("timed_chunking")
+@step("timed_chunking")
 class TimedChunkingAgent(BaseModel, Step):
     """
     Segments audio transcription data into temporal blocks.
@@ -96,7 +93,6 @@ class TimedChunkingAgent(BaseModel, Step):
     audiovisual datasets.
     """
 
-    name: str = Field("timed_chunking", description="Internal step name")
     segment_duration_ms: PositiveInt = Field(30000, description="Target length of time block in ms")
     overlap_ms: NonNegativeInt = Field(0, description="Should time blocks overlap at the edges?")
     pause_threshold_ms: PositiveInt | None = Field(None, description="Optional: break block if silence for this long")
