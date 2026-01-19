@@ -18,5 +18,5 @@ The framework is organized around three primary components:
 
 ## Getting Started
 - **[Quick Start](https://github.com/A4i-tech/OmniIngest)**: Overview of installation and basic usage.
-- [API Reference](api.md)**: Detailed documentation for internal modules, classes, and agents.
+- **[API Reference](api.md)**: Detailed documentation for internal modules, classes, and agents.
 - **[Architecture Guide](https://github.com/A4i-tech/OmniIngest#-architecture)**: Detailed information on the system design and implementation.
