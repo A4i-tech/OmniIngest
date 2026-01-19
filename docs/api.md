@@ -6,3 +6,4 @@
       show_root_heading: true
       show_source: true
       show_submodules: true
+      heading_level: 2

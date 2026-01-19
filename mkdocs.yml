@@ -21,6 +21,10 @@ theme:
   features:
     - navigation.sections
     - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    - toc.integrate
+    - toc.follow
     - content.code.copy
     - content.code.annotate
 
@@ -43,8 +47,10 @@ plugins:
             docstring_section_style: table
             docstring_style: google
             show_attribute_docstring: true
+            show_root_full_path: false
+            show_symbol_type_toc: true
             summary: true
 
 nav:
-  - Home: index.md
-  - Reference: api.md
+  - Home: README.md
+  - API Reference: api.md
