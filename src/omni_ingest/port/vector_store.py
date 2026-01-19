@@ -22,7 +22,7 @@ class LanceDBVectorStore(VectorStore):
 
     def __init__(self, table_name: str, db_path: str | None = None, vector_size: int = 1536):
         self.table_name, self.vector_size = table_name, vector_size
-        self.db_path = db_path or settings.lancedb_path
+        self.db_path = db_path or settings.lancedb_path.resolve()
         self._db, self._table = None, None
 
     async def _get_table(self) -> Any:

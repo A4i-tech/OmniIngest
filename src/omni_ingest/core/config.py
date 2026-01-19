@@ -6,44 +6,44 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import Field, SecretStr
+from pydantic import AnyHttpUrl, DirectoryPath, NewPath, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Global application settings, loaded from environment variables or .env file."""
 
-    database_url: str = Field("sqlite+aiosqlite:///./omni_ingest.db", description="SQLAlchemy connection string")
+    database_url: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
-    azure_storage_connection_string: str | None = Field(None, description="Azure Blob Storage connection string")
+    azure_storage_connection_string: str | None = None
     """Azure Blob Storage connection string"""
 
-    openai_api_key: SecretStr | None = Field(None, description="API key for OpenAI services")
+    openai_api_key: SecretStr | None = None
     """API key for OpenAI services"""
 
-    openai_model: str = Field("text-embedding-3-small", description="Default model for embeddings")
+    openai_model: str = "text-embedding-3-small"
     """Default model for embeddings"""
 
-    azure_openai_api_key: SecretStr | None = Field(None, description="API key for Azure OpenAI")
+    azure_openai_api_key: SecretStr | None = None
     """API key for Azure OpenAI"""
 
-    azure_openai_endpoint: str | None = Field(None, description="Endpoint for Azure OpenAI")
+    azure_openai_endpoint: str | None = None
     """Endpoint for Azure OpenAI"""
 
-    qdrant_url: str = Field("http://localhost:6333", description="URL for Qdrant vector database")
+    qdrant_url: AnyHttpUrl = AnyHttpUrl("http://localhost:6333")
     """URL for Qdrant vector database"""
 
-    qdrant_api_key: SecretStr | None = Field(None, description="API key for Qdrant")
+    qdrant_api_key: SecretStr | None = None
     """API key for Qdrant"""
 
-    lancedb_path: str = Field("./lancedb_data", description="Local path for LanceDB storage")
+    lancedb_path: DirectoryPath | NewPath = DirectoryPath("./lancedb_data")
     """Local path for LanceDB storage"""
 
-    azure_speech_key: SecretStr | None = Field(None, description="Azure Speech SDK subscription key")
+    azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""
 
-    azure_speech_region: str | None = Field(None, description="Azure Speech SDK service region")
+    azure_speech_region: str | None = None
     """Azure Speech SDK service region"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
