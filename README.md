@@ -1,7 +1,7 @@
 # OmniIngest
 
 [![License](https://img.shields.io/github/license/A4i-tech/OmniIngest)](https://github.com/A4i-tech/OmniIngest/blob/a4i/main/LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/release/python-3130/)
+[![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/release/python-3130/) <!-- [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/9f6bf6c997ed2c171aed62e1c1583f2d/raw/omni_ingest.json)](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml) TODO: Uncomment after setting up COVERAGE_GIST_ID var and COVERAGE_GIST_TOKEN secret -->
 [![CI](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml/badge.svg?branch=a4i/main)](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml)
 
 Modern AI agents need high-quality data to work well. This framework helps you turn messy docs, audio, and web content into clean, search-ready data using modular pipelines. It is the "pre-processing" layer for your RAG or agentic memory.

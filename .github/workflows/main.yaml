@@ -11,8 +11,8 @@ on:
       - a4i/staging
   workflow_dispatch:
     inputs:
-      run_integration_tests:
-        description: 'Run integration tests'
+      run_tests:
+        description: 'Run all tests'
         required: false
         type: boolean
         default: false
@@ -60,6 +60,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/a4i/staging')
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -101,13 +102,14 @@ jobs:
           path: site/
           retention-days: 7
 
-  integration-tests:
-    name: Integration Tests
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
-    needs: [unit-tests]
     if: |
-      (github.event_name == 'workflow_dispatch' && inputs.run_integration_tests) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging')
+      (github.event_name == 'workflow_dispatch' && inputs.run_tests) ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/a4i/staging'))
+    outputs:
+      coverage-pct: ${{ steps.coverage.outputs.coverage-pct }}
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -119,13 +121,29 @@ jobs:
         run: uv python install 3.13
       - name: Install dependencies
         run: uv sync --all-extras --dev
-      - name: Run integration tests
+      - name: Run all tests
         env:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: uv run pytest tests/integration
+        run: uv run pytest
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(jq -r '.totals.percent_covered' coverage.json | awk '{print int($1+0.999)}')
+          echo "coverage-pct=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+      - name: Upload coverage badge
+        if: ${{ vars.COVERAGE_GIST_ID != '' }}
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.COVERAGE_GIST_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: omni_ingest.json
+          label: coverage
+          message: ${{ steps.coverage.outputs.coverage-pct }}%
+          color: ${{ steps.coverage.outputs.coverage-pct > 80 && 'brightgreen' || steps.coverage.outputs.coverage-pct > 60 && 'yellow' || 'red' }}
 
   deploy-docs:
     name: Deploy Documentation
