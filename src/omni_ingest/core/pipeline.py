@@ -21,13 +21,7 @@ class PipelineRunner:
     lifecycle of the ingestion process, including error handling and status reporting.
     """
 
-    def __init__(
-        self,
-        steps: list[Step],
-        pipeline_version_id: UUID | None = None,
-        vector_store: VectorStore | None = None,
-        graph_store: Any | None = None,
-    ):
+    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None):
         self.steps = steps
         self.pipeline_version_id = pipeline_version_id
         self.vector_store = vector_store
@@ -62,9 +56,7 @@ class PipelineRunner:
                 res = await step.run(ctx)
                 results.append(res)
                 if sid and ctx.store:
-                    await ctx.store.update_step_run(
-                        sid, status=res.status.value, metadata=res.metadata, error=res.error
-                    )
+                    await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
                 if res.status == StepStatus.FAILURE:
                     final_status = "failed"
                     error_msg = res.error
@@ -79,9 +71,7 @@ class PipelineRunner:
                 break
 
         if run_id and ctx.store:
-            await ctx.store.update_pipeline_run(
-                run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg
-            )
+            await ctx.store.update_pipeline_run(run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
 
         return results
 
@@ -149,9 +139,7 @@ def _create_vector_store(c: dict[str, Any]):
     if t == "lancedb":
         from ..port.vector_store import LanceDBVectorStore
 
-        return LanceDBVectorStore(
-            table_name=c.get("table", "default_vectors"), db_path=c.get("path"), vector_size=c.get("vector_size", 1536)
-        )
+        return LanceDBVectorStore(table_name=c.get("table", "default_vectors"), db_path=c.get("path"), vector_size=c.get("vector_size", 1536))
     if t == "qdrant":
         from ..port.vector_store import QdrantVectorStore
 
@@ -186,11 +174,7 @@ def _resolve_step_kwargs(cls: type, conf: dict[str, Any], resources: dict[str, A
         sig = inspect.signature(cls.__init__)
     except (ValueError, TypeError):
         return {}
-    return {
-        p: conf[p] if p in conf else resources[p]
-        for p in sig.parameters
-        if p != "self" and (p in conf or p in resources)
-    }
+    return {p: conf[p] if p in conf else resources[p] for p in sig.parameters if p != "self" and (p in conf or p in resources)}
 
 
 class KnowledgeBaseAdapter:
@@ -208,15 +192,11 @@ class KnowledgeBaseAdapter:
         self.metadata_store = metadata_store
         self.vector_store = vector_store
 
-    async def list_items(
-        self, tenant_id: str | UUID, domain_profile: str | None = None, **filters
-    ) -> list[KnowledgeItem]:
+    async def list_items(self, tenant_id: str | UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         tid = UUID(str(tenant_id))
         return await self.metadata_store.list_knowledge_items(tenant_id=tid, domain_profile=domain_profile, **filters)
 
-    async def query(
-        self, tenant_id: str, query: list[float], k: int = 5, domain_profile: str | None = None
-    ) -> list[KnowledgeItem]:
+    async def query(self, tenant_id: str, query: list[float], k: int = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
         return await self.vector_store.search(query, k=k, tenant_id=tenant_id)
 
     async def get(self, item_id: str) -> KnowledgeItem | None:

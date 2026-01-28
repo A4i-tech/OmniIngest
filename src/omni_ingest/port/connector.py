@@ -22,11 +22,7 @@ class AzureBlobConnector(SourceConnector):
         container = self._client.get_container_client(self.container)
         resources = []
         async for blob in container.list_blobs(name_starts_with=prefix):
-            resources.append(
-                SourceResource(
-                    id=blob.name, uri=f"azure://{self.container}/{blob.name}", metadata=dict(blob.metadata or {})
-                )
-            )
+            resources.append(SourceResource(id=blob.name, uri=f"azure://{self.container}/{blob.name}", metadata=dict(blob.metadata or {})))
         return resources
 
     async def fetch(self, blob_name: str) -> bytes:

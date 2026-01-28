@@ -94,9 +94,7 @@ class MetadataStore(Protocol):
         """Records the start of a pipeline run."""
         ...
 
-    async def update_pipeline_run(
-        self, run_id: Any, status: str, completed_at: Any = None, error: str | None = None
-    ) -> None:
+    async def update_pipeline_run(self, run_id: Any, status: str, completed_at: Any = None, error: str | None = None) -> None:
         """Updates the status of a pipeline run."""
         ...
 
@@ -104,9 +102,7 @@ class MetadataStore(Protocol):
         """Records the start of a pipeline step."""
         ...
 
-    async def update_step_run(
-        self, step_id: Any, status: str, metadata: dict[str, Any] | None = None, error: str | None = None
-    ) -> None:
+    async def update_step_run(self, step_id: Any, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
         """Updates the status and metadata of a step run."""
         ...
 
@@ -153,9 +149,7 @@ class MetadataStore(Protocol):
         """Retrieves a specific chunk."""
         ...
 
-    async def list_knowledge_items(
-        self, tenant_id: Any, domain_profile: str | None = None, **filters
-    ) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: Any, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         """Lists knowledge items for a tenant."""
         ...
 
@@ -175,8 +169,6 @@ class MetadataStore(Protocol):
         """Creates or updates a pipeline definition."""
         ...
 
-    async def upsert_pipeline_version(
-        self, pipeline_id: Any, version: str, yaml_profile_name: str, is_default: bool = False
-    ) -> Any:
+    async def upsert_pipeline_version(self, pipeline_id: Any, version: str, yaml_profile_name: str, is_default: bool = False) -> Any:
         """Creates or updates a pipeline version."""
         ...

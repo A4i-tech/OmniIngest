@@ -59,9 +59,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return r.id
 
-    async def update_pipeline_run(
-        self, run_id: UUID, status: str, completed_at: Any | None = None, error: str | None = None
-    ) -> None:
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any | None = None, error: str | None = None) -> None:
         async with self.session_factory() as s:
             r = await s.get(PipelineRun, run_id)
             if r:
@@ -74,16 +72,12 @@ class SQLAlchemyMetadataStore(MetadataStore):
 
     async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
         async with self.session_factory() as s:
-            st = PipelineStepRun(
-                pipeline_run_id=run_id, step_name=step_name, status="running", started_at=datetime.now(UTC)
-            )
+            st = PipelineStepRun(pipeline_run_id=run_id, step_name=step_name, status="running", started_at=datetime.now(UTC))
             s.add(st)
             await s.commit()
             return st.id
 
-    async def update_step_run(
-        self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None
-    ) -> None:
+    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
         async with self.session_factory() as s:
             st = await s.get(PipelineStepRun, step_id)
             if st:
@@ -171,17 +165,13 @@ class SQLAlchemyMetadataStore(MetadataStore):
 
     async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
         async with self.session_factory() as s:
-            return list(
-                (await s.execute(select(Chunk).where(Chunk.knowledge_item_id == knowledge_item_id))).scalars().all()
-            )
+            return list((await s.execute(select(Chunk).where(Chunk.knowledge_item_id == knowledge_item_id))).scalars().all())
 
     async def get_chunk(self, chunk_id: str) -> Chunk | None:
         async with self.session_factory() as s:
             return await s.get(Chunk, chunk_id)
 
-    async def list_knowledge_items(
-        self, tenant_id: UUID, domain_profile: str | None = None, **filters
-    ) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         async with self.session_factory() as s:
             q = select(KnowledgeItemRecord).where(KnowledgeItemRecord.tenant_id == tenant_id)
             if domain_profile:
@@ -216,23 +206,11 @@ class SQLAlchemyMetadataStore(MetadataStore):
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         async with self.session_factory() as s:
-            return (
-                await s.execute(
-                    select(PipelineVersion)
-                    .join(Pipeline)
-                    .where(Pipeline.name == pipeline_name, PipelineVersion.version == version)
-                )
-            ).scalar_one_or_none()
+            return (await s.execute(select(PipelineVersion).join(Pipeline).where(Pipeline.name == pipeline_name, PipelineVersion.version == version))).scalar_one_or_none()
 
     async def get_default_pipeline_version(self, pipeline_name: str) -> PipelineVersion | None:
         async with self.session_factory() as s:
-            return (
-                await s.execute(
-                    select(PipelineVersion)
-                    .join(Pipeline)
-                    .where(Pipeline.name == pipeline_name, PipelineVersion.is_default)
-                )
-            ).scalar_one_or_none()
+            return (await s.execute(select(PipelineVersion).join(Pipeline).where(Pipeline.name == pipeline_name, PipelineVersion.is_default))).scalar_one_or_none()
 
     async def upsert_pipeline(self, name: str, domain_profile: str) -> UUID:
         async with self.session_factory() as s:
@@ -245,30 +223,16 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return p.id
 
-    async def upsert_pipeline_version(
-        self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False
-    ) -> UUID:
+    async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         async with self.session_factory() as s:
-            pv = (
-                await s.execute(
-                    select(PipelineVersion).where(
-                        PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.version == version
-                    )
-                )
-            ).scalar_one_or_none()
+            pv = (await s.execute(select(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.version == version))).scalar_one_or_none()
             if not pv:
-                pv = PipelineVersion(
-                    pipeline_id=pipeline_id, version=version, yaml_profile_name=yaml_profile_name, is_default=is_default
-                )
+                pv = PipelineVersion(pipeline_id=pipeline_id, version=version, yaml_profile_name=yaml_profile_name, is_default=is_default)
                 s.add(pv)
             else:
                 pv.yaml_profile_name, pv.is_default = yaml_profile_name, is_default
             await s.flush()
             if is_default:
-                await s.execute(
-                    update(PipelineVersion)
-                    .where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.id != pv.id)
-                    .values(is_default=False)
-                )
+                await s.execute(update(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.id != pv.id).values(is_default=False))
             await s.commit()
             return pv.id
