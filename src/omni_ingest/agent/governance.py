@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -19,6 +19,7 @@ class IngestionLoggerAgent(BaseModel, Step):
     monitoring and auditing purposes.
     """
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.store or not ctx.run_id:
             return StepResult(status=StepStatus.SKIPPED, error="No store/run context")
@@ -41,6 +42,7 @@ class DataLineageAgent(BaseModel, Step):
     data to the finalized index.
     """
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         lineage = {
             "run_id": str(ctx.run_id),
@@ -82,6 +84,7 @@ class QualityVerifierAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to verify")
@@ -99,27 +102,28 @@ Samples:
         for i, item in enumerate(samples):
             prompt += f"\n--- Sample {i + 1} ---\n{item.content[:500]}\n"
 
-        try:
-            res = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-            )
-            import json
+        res = await client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+        )
+        import json
 
-            data = json.loads(res.choices[0].message.content)
-            score = data.get("overall_score", 0)
-            passed = score >= self.min_quality_score
+        data = json.loads(res.choices[0].message.content)
+        score = data.get("overall_score", 0)
+        passed = score >= self.min_quality_score
 
-            if not passed:
-                error_msg = f"Quality check failed: score {score:.2f} < {self.min_quality_score}"
-                return StepResult(status=StepStatus.FAILURE, error=error_msg, metadata={"quality_score": score, "issues": data.get("issues", [])})
-
-            ctx.metadata["quality_report"] = data
+        if not passed:
+            error_msg = f"Quality check failed: score {score:.2f} < {self.min_quality_score}"
             return StepResult(
-                status=StepStatus.SUCCESS,
-                items=ctx.items,
-                metadata={"quality_score": score, "samples_checked": len(samples), "issues": data.get("issues", [])},
+                status=StepStatus.FAILURE,
+                error=error_msg,
+                metadata={"quality_score": score, "issues": data.get("issues", [])},
             )
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=f"Quality verification failed: {e}")
+
+        ctx.metadata["quality_report"] = data
+        return StepResult(
+            status=StepStatus.SUCCESS,
+            items=ctx.items,
+            metadata={"quality_score": score, "samples_checked": len(samples), "issues": data.get("issues", [])},
+        )

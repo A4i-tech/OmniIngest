@@ -7,7 +7,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -41,18 +41,16 @@ class EmbeddingAgent(BaseModel, Step):
                 self._client = AsyncOpenAI(api_key=key)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to embed")
 
         client = self._get_client()
         texts = [i.content for i in ctx.items]
-        try:
-            res = await client.embeddings.create(model=self.model, input=texts)
-            for item, emb in zip(ctx.items, res.data, strict=True):
-                item.metadata["embedding"] = emb.embedding
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=f"Embedding failed: {e}")
+        res = await client.embeddings.create(model=self.model, input=texts)
+        for item, emb in zip(ctx.items, res.data, strict=True):
+            item.metadata["embedding"] = emb.embedding
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(ctx.items)})
 
@@ -72,6 +70,7 @@ class VectorIndexingAgent(BaseModel, Step):
     vector_store_kind: str = Field("lancedb", description="The type of database (e.g., 'lancedb' or 'qdrant')")
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items")
@@ -121,28 +120,24 @@ class KeywordIndexingAgent(BaseModel, Step):
                 self._client = AsyncOpenAI(api_key=key)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for keywords")
 
         client = self._get_client()
-        prompt_tmpl = (
-            "Extract 5-10 descriptive keywords from the text. Return JSON array of strings.\n\nContent: {text}"
-        )
+        prompt_tmpl = "Extract 5-10 descriptive keywords from the text. Return JSON array of strings.\n\nContent: {text}"
 
         for item in ctx.items:
-            try:
-                res = await client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                    response_format={"type": "json_object"},
-                )
-                data = json.loads(res.choices[0].message.content)
-                keywords = data.get("keywords") or list(data.values())[0]
-                if isinstance(keywords, list):
-                    item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
-            except Exception as e:
-                return StepResult(status=StepStatus.FAILURE, error=f"Keyword extraction failed: {e}")
+            res = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
+                response_format={"type": "json_object"},
+            )
+            data = json.loads(res.choices[0].message.content)
+            keywords = data.get("keywords") or list(data.values())[0]
+            if isinstance(keywords, list):
+                item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
 
         return StepResult(status=StepStatus.SUCCESS, metadata={"items_processed": len(ctx.items)})
 
@@ -155,6 +150,7 @@ class GraphIndexingAgent(BaseModel, Step):
 
     graph_store: Any = Field(..., description="The GraphStore implementation to use")
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         kg_data = ctx.metadata.get("kg_data")
         if not kg_data or not ctx.items:

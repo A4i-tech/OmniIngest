@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 from pypdf import PdfReader
 
-from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -23,6 +23,7 @@ class SentenceChunkingAgent(BaseModel, Step):
     chunk_size: PositiveInt = Field(512, description="The maximum number of characters we should put in one piece")
     overlap: NonNegativeInt = Field(50, description="How many characters should carry over from one piece to the next?")
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (text := ctx.metadata.get("text")):
             return StepResult(status=StepStatus.SKIPPED, error="No text")
@@ -31,20 +32,12 @@ class SentenceChunkingAgent(BaseModel, Step):
             end = min(pos + self.chunk_size, len(text))
             if end < len(text):
                 chunk = text[pos:end]
-                breaks = [
-                    chunk.rfind(p) + len(p) - 1
-                    for p in [". ", "! ", "? ", ".\n", "!\n", "?\n"]
-                    if chunk.rfind(p) > self.chunk_size // 2
-                ]
+                breaks = [chunk.rfind(p) + len(p) - 1 for p in [". ", "! ", "? ", ".\n", "!\n", "?\n"] if chunk.rfind(p) > self.chunk_size // 2]
                 if breaks:
                     end = pos + max(breaks) + 1
             chunks.append((text[pos:end].strip(), pos))
             pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
-        ctx.items = [
-            KnowledgeItem(content=c, tenant_id=ctx.tenant_id, metadata={"source_idx": i, "char_start": p})
-            for i, (c, p) in enumerate(chunks)
-            if c
-        ]
+        ctx.items = [KnowledgeItem(content=c, tenant_id=ctx.tenant_id, metadata={"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
         return StepResult(
             status=StepStatus.SUCCESS,
             items=ctx.items,
@@ -62,25 +55,19 @@ class PageChunkingAgent(BaseModel, Step):
     input document.
     """
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         path, raw = ctx.metadata.get("file_path"), ctx.metadata.get("raw_data")
         if not path and not raw:
             return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
-        try:
-            if path:
-                reader = PdfReader(path)
-            elif raw is not None:
-                reader = PdfReader(io.BytesIO(raw))
-            else:
-                return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
-            ctx.items = [
-                KnowledgeItem(content=p.extract_text(), metadata={"page": i + 1})
-                for i, p in enumerate(reader.pages)
-                if p.extract_text().strip()
-            ]
-            return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items)})
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=str(e))
+        if path:
+            reader = PdfReader(path)
+        elif raw is not None:
+            reader = PdfReader(io.BytesIO(raw))
+        else:
+            return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
+        ctx.items = [KnowledgeItem(content=p.extract_text(), metadata={"page": i + 1}) for i, p in enumerate(reader.pages) if p.extract_text().strip()]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items)})
 
 
 @step("timed_chunking")
@@ -109,6 +96,7 @@ class TimedChunkingAgent(BaseModel, Step):
     def pause_threshold_ticks(self) -> int | None:
         return self.pause_threshold_ms * 10000 if self.pause_threshold_ms else None
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         words = ctx.metadata.get("word_timestamps")
         if not words:

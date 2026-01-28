@@ -6,7 +6,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -36,8 +36,7 @@ class MarkdownCleaningAgent(BaseModel, Step):
     provider: str = Field("openai", description="The AI service to use (e.g., 'openai' or 'azure')")
     model: str = Field("gpt-4o", description="The specific AI model version to use")
     prompt_template: str = Field(
-        "Clean the following markdown text by fixing formatting issues, removing "
-        "boilerplate, and ensuring consistency. Output ONLY the cleaned markdown.\n\n{text}",
+        "Clean the following markdown text by fixing formatting issues, removing boilerplate, and ensuring consistency. Output ONLY the cleaned markdown.\n\n{text}",
         description="The instructions we send to the AI editor",
     )
 
@@ -48,22 +47,16 @@ class MarkdownCleaningAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         text = ctx.metadata.get("text")
         if not text:
             return StepResult(status=StepStatus.SKIPPED, error="No text to clean")
-        try:
-            client = self._get_client()
-            resp = await client.chat.completions.create(
-                model=self.model, messages=[{"role": "user", "content": self.prompt_template.format(text=text)}]
-            )
-            cleaned = resp.choices[0].message.content
-            ctx.metadata["text"] = cleaned
-            return StepResult(
-                status=StepStatus.SUCCESS, metadata={"original_len": len(text), "cleaned_len": len(cleaned)}
-            )
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=str(e))
+        client = self._get_client()
+        resp = await client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": self.prompt_template.format(text=text)}])
+        cleaned = resp.choices[0].message.content or ""
+        ctx.metadata["text"] = cleaned
+        return StepResult(status=StepStatus.SUCCESS, metadata={"original_len": len(text), "cleaned_len": len(cleaned)})
 
 
 @step("transcription_post_processor")
@@ -87,20 +80,13 @@ class TranscriptionPostProcessorAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         text = ctx.metadata.get("text")
         if not text:
             return StepResult(status=StepStatus.SKIPPED, error="No transcript")
-        prompt = (
-            "Improve the following audio transcript by fixing punctuation and correcting "
-            f"common STT errors. Output ONLY the improved text.\n\n{text}"
-        )
-        try:
-            client = self._get_client()
-            resp = await client.chat.completions.create(
-                model=self.model, messages=[{"role": "user", "content": prompt}]
-            )
-            ctx.metadata["text"] = resp.choices[0].message.content
-            return StepResult(status=StepStatus.SUCCESS)
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=str(e))
+        prompt = f"Improve the following audio transcript by fixing punctuation and correcting common STT errors. Output ONLY the improved text.\n\n{text}"
+        client = self._get_client()
+        resp = await client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": prompt}])
+        ctx.metadata["text"] = resp.choices[0].message.content
+        return StepResult(status=StepStatus.SUCCESS)

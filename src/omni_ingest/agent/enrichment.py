@@ -7,7 +7,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel, Field, PrivateAttr
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -46,25 +46,23 @@ class DomainEnrichmentAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to enrich")
         client = self._get_client()
         for item in ctx.items:
             prompt = self.prompt_template.format(text=item.content)
-            try:
-                res = await client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": self.response_format},
-                )
-                if self.response_format == "json_object":
-                    data = json.loads(res.choices[0].message.content)
-                    item.metadata.update(data)
-                else:
-                    item.metadata["enrichment"] = res.choices[0].message.content
-            except Exception as e:
-                return StepResult(status=StepStatus.FAILURE, error=f"Enrichment failed: {e}")
+            res = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": self.response_format},
+            )
+            if self.response_format == "json_object":
+                data = json.loads(res.choices[0].message.content)
+                item.metadata.update(data)
+            else:
+                item.metadata["enrichment"] = res.choices[0].message.content
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"enriched_count": len(ctx.items)})
 
 
@@ -89,6 +87,7 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if ctx.domain_profile != "education":
             return StepResult(status=StepStatus.SKIPPED, error="Not an education domain")
@@ -96,24 +95,18 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
             return StepResult(status=StepStatus.SKIPPED, error="No items for LO extraction")
 
         client = self._get_client()
-        prompt_tmpl = (
-            "Extract a list of learning outcomes from the following educational content. "
-            "Return a JSON array of strings.\n\nContent: {text}"
-        )
+        prompt_tmpl = "Extract a list of learning outcomes from the following educational content. Return a JSON array of strings.\n\nContent: {text}"
 
         for item in ctx.items:
-            try:
-                res = await client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                    response_format={"type": "json_object"},
-                )
-                data = json.loads(res.choices[0].message.content)
-                lo = data.get("learning_outcomes") or data.get("outcomes") or list(data.values())[0]
-                if isinstance(lo, list):
-                    item.metadata["learning_outcomes"] = lo
-            except Exception as e:
-                return StepResult(status=StepStatus.FAILURE, error=f"LO extraction failed: {e}")
+            res = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
+                response_format={"type": "json_object"},
+            )
+            data = json.loads(res.choices[0].message.content)
+            lo = data.get("learning_outcomes") or data.get("outcomes") or list(data.values())[0]
+            if isinstance(lo, list):
+                item.metadata["learning_outcomes"] = lo
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"extracted_for": len(ctx.items)})
 
 
@@ -138,30 +131,24 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for KG extraction")
 
         client = self._get_client()
-        prompt_tmpl = (
-            "Directly extract entities and their relationships from the following text into "
-            "a graph format. Return JSON with 'nodes' (id, label, properties) and 'edges' "
-            "(source, target, type).\n\nContent: {text}"
-        )
+        prompt_tmpl = "Directly extract entities and their relationships from the following text into a graph format. Return JSON with 'nodes' (id, label, properties) and 'edges' (source, target, type).\n\nContent: {text}"
 
         all_nodes, all_edges = [], []
         for item in ctx.items:
-            try:
-                res = await client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                    response_format={"type": "json_object"},
-                )
-                data = json.loads(res.choices[0].message.content)
-                all_nodes.extend(data.get("nodes", []))
-                all_edges.extend(data.get("edges", []))
-            except Exception as e:
-                return StepResult(status=StepStatus.FAILURE, error=f"KG extraction failed: {e}")
+            res = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
+                response_format={"type": "json_object"},
+            )
+            data = json.loads(res.choices[0].message.content)
+            all_nodes.extend(data.get("nodes", []))
+            all_edges.extend(data.get("edges", []))
 
         ctx.metadata["kg_data"] = {"nodes": all_nodes, "edges": all_edges}
         return StepResult(status=StepStatus.SUCCESS, metadata={"nodes": len(all_nodes), "edges": len(all_edges)})
@@ -188,29 +175,24 @@ class FAQGenerationAgent(BaseModel, Step):
             self._client = _get_openai_client(self.provider)
         return self._client
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for FAQ generation")
         combined = "\n".join(i.content[:1000] for i in ctx.items[:5])
         prompt = (
-            "Generate 3-5 frequently asked questions and answers based on the following text. "
-            "Return a JSON object containing an 'faqs' key with an array of objects "
-            "mapping 'q' to the question and 'a' to the answer.\n\n"
-            f"Content: {combined}"
+            f"Generate 3-5 frequently asked questions and answers based on the following text. Return a JSON object containing an 'faqs' key with an array of objects mapping 'q' to the question and 'a' to the answer.\n\nContent: {combined}"
         )
-        try:
-            client = self._get_client()
-            resp = await client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that generates FAQs in JSON format."},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-            )
-            data = json.loads(resp.choices[0].message.content)
-            faqs = data.get("faqs", [])
-            ctx.metadata["faqs"] = faqs
-            return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs)})
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=f"FAQ generation failed: {e}")
+        client = self._get_client()
+        resp = await client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that generates FAQs in JSON format."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(resp.choices[0].message.content)
+        faqs = data.get("faqs", [])
+        ctx.metadata["faqs"] = faqs
+        return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs)})

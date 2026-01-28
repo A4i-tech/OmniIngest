@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
@@ -52,6 +52,7 @@ class TextParserAgent(BaseModel, Step):
     strip_html: bool = Field(True, description="Should we remove HTML tags (like <div> or <p>) from the input?")
     normalize_whitespace: bool = Field(True, description="Should we clean up messy spaces, tabs, and extra newlines?")
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw = ctx.metadata.get("raw_text") or ctx.metadata.get("text")
         if not raw:
@@ -81,33 +82,31 @@ class DocumentParserAgent(BaseModel, Step):
     within the ingestion pipeline.
     """
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw, path = ctx.metadata.get("raw_data"), ctx.metadata.get("file_path")
         if not raw and not path:
             return StepResult(status=StepStatus.SKIPPED, error="No data/path")
-        try:
-            if path:
-                ext = path.lower()
-                if ext.endswith(".pdf"):
-                    text = "\n".join(p.extract_text() for p in PdfReader(path).pages)
-                elif ext.endswith(".docx"):
-                    text = "\n".join(p.text for p in Document(path).paragraphs)
-                else:
-                    with open(path, encoding="utf-8") as f:
-                        text = f.read()
+        if path:
+            ext = path.lower()
+            if ext.endswith(".pdf"):
+                text = "\n".join(p.extract_text() for p in PdfReader(path).pages)
+            elif ext.endswith(".docx"):
+                text = "\n".join(p.text for p in Document(path).paragraphs)
             else:
-                if raw is None:
-                    return StepResult(status=StepStatus.SKIPPED, error="No data")
-                if raw.startswith(b"%PDF"):
-                    text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
-                elif raw.startswith(b"PK\x03\x04"):
-                    text = "\n".join(p.text for p in Document(io.BytesIO(raw)).paragraphs)
-                else:
-                    text = raw.decode("utf-8")
-            ctx.metadata["text"] = text
-            return StepResult(status=StepStatus.SUCCESS, metadata={"parsed_length": len(text)})
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=str(e))
+                with open(path, encoding="utf-8") as f:
+                    text = f.read()
+        else:
+            if raw is None:
+                return StepResult(status=StepStatus.SKIPPED, error="No data")
+            if raw.startswith(b"%PDF"):
+                text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
+            elif raw.startswith(b"PK\x03\x04"):
+                text = "\n".join(p.text for p in Document(io.BytesIO(raw)).paragraphs)
+            else:
+                text = raw.decode("utf-8")
+        ctx.metadata["text"] = text
+        return StepResult(status=StepStatus.SUCCESS, metadata={"parsed_length": len(text)})
 
 
 @step("audio_parser")
@@ -120,6 +119,7 @@ class AudioParserAgent(BaseModel, Step):
     metadata suitable for temporal analysis of the content.
     """
 
+    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (audio_path := ctx.metadata.get("audio_path")):
             return StepResult(status=StepStatus.SKIPPED, error="No audio_path")
