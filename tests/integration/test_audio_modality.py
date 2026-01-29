@@ -56,4 +56,4 @@ async def test_audio_parser_with_real_azure(skip_if_no_azure_speech, tmp_path):
     ctx = IngestionContext(metadata={"audio_path": str(audio_file)})
 
     res = await agent.run(ctx)
-    assert res.status in (StepStatus.SUCCESS, StepStatus.SKIPPED)
+    assert res.status == StepStatus.SUCCESS

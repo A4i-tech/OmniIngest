@@ -82,7 +82,7 @@ async def test_audio_v2_pipeline(skip_if_no_openai, store, tenant, profiles_dir,
     ctx = IngestionContext(tenant_id=tenant.id, store=store, metadata={"audio_path": str(audio_file)})
 
     results = await runner.run(ctx)
-    assert results[-1].status in (StepStatus.SUCCESS, StepStatus.SKIPPED)
+    assert results[-1].status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio
@@ -101,9 +101,7 @@ async def test_governance_v1_pipeline(skip_if_no_openai, store, tenant, profiles
 async def test_health_v1_pipeline(skip_if_no_openai, store, tenant, profiles_dir):
     path = os.path.join(profiles_dir, "health_v1.yaml")
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(
-        tenant_id=tenant.id, store=store, metadata={"text": "The patient was diagnosed with type 2 diabetes."}
-    )
+    ctx = IngestionContext(tenant_id=tenant.id, store=store, metadata={"text": "The patient was diagnosed with type 2 diabetes."})
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS
