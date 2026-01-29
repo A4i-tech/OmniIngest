@@ -25,8 +25,8 @@ class AzureBlobConnector(SourceConnector):
             resources.append(SourceResource(id=blob.name, uri=f"azure://{self.container}/{blob.name}", metadata=dict(blob.metadata or {})))
         return resources
 
-    async def fetch(self, blob_name: str) -> bytes:
-        blob_client = self._client.get_blob_client(self.container, blob_name)
+    async def fetch(self, resource_id: str) -> bytes:
+        blob_client = self._client.get_blob_client(self.container, resource_id)
         stream = await blob_client.download_blob()
         return await stream.readall()
 
@@ -42,9 +42,9 @@ class HttpUrlConnector(SourceConnector):
     async def list_resources(self, filters: dict[str, Any] | None = None) -> list[SourceResource]:
         return []
 
-    async def fetch(self, url: str) -> bytes:
+    async def fetch(self, resource_id: str) -> bytes:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, follow_redirects=True)
+            resp = await client.get(resource_id, follow_redirects=True)
             resp.raise_for_status()
             return resp.content
 

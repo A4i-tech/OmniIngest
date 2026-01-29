@@ -1,6 +1,7 @@
 """Protocol definitions (Abstract Base Classes) for framework extensibility."""
 
 from typing import Any, Protocol, runtime_checkable
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -37,7 +38,7 @@ class VectorStore(Protocol):
         """Persists or updates knowledge items in the store."""
         ...
 
-    async def search(self, query: list[float], k: int = 5, tenant_id: str | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         """Searches for items similar to the given query vector."""
         ...
 
@@ -90,25 +91,25 @@ class MetadataStore(Protocol):
         """Creates a new tenant."""
         ...
 
-    async def create_pipeline_run(self, tenant_id: Any, pipeline_version_id: Any, source_uri: str) -> Any:
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str) -> Any:
         """Records the start of a pipeline run."""
         ...
 
-    async def update_pipeline_run(self, run_id: Any, status: str, completed_at: Any = None, error: str | None = None) -> None:
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any = None, error: str | None = None) -> None:
         """Updates the status of a pipeline run."""
         ...
 
-    async def create_step_run(self, run_id: Any, step_name: str) -> Any:
+    async def create_step_run(self, run_id: UUID, step_name: str) -> Any:
         """Records the start of a pipeline step."""
         ...
 
-    async def update_step_run(self, step_id: Any, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
+    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
         """Updates the status and metadata of a step run."""
         ...
 
     async def create_knowledge_item(
         self,
-        tenant_id: Any,
+        tenant_id: UUID,
         domain_profile: str,
         modality: str,
         source_uri: str,
@@ -123,15 +124,15 @@ class MetadataStore(Protocol):
         """Persists a new knowledge item."""
         ...
 
-    async def get_knowledge_item(self, item_id: Any) -> KnowledgeItem | None:
+    async def get_knowledge_item(self, item_id: UUID) -> KnowledgeItem | None:
         """Retrieves a knowledge item by ID."""
         ...
 
     async def create_chunk(
         self,
-        chunk_id: str,
+        chunk_id: UUID,
         knowledge_item_id: Any,
-        tenant_id: Any,
+        tenant_id: UUID,
         text: str,
         vector_store_kind: str,
         vector_store_space: str,
@@ -145,15 +146,15 @@ class MetadataStore(Protocol):
         """Retrieves all chunks for a specific knowledge item."""
         ...
 
-    async def get_chunk(self, chunk_id: str) -> Any:
+    async def get_chunk(self, chunk_id: UUID) -> Any:
         """Retrieves a specific chunk."""
         ...
 
-    async def list_knowledge_items(self, tenant_id: Any, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         """Lists knowledge items for a tenant."""
         ...
 
-    async def list_chunks(self, tenant_id: Any, **filters) -> list[Any]:
+    async def list_chunks(self, tenant_id: UUID, **filters) -> list[Any]:
         """Lists chunks for a tenant."""
         ...
 
@@ -169,6 +170,6 @@ class MetadataStore(Protocol):
         """Creates or updates a pipeline definition."""
         ...
 
-    async def upsert_pipeline_version(self, pipeline_id: Any, version: str, yaml_profile_name: str, is_default: bool = False) -> Any:
+    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> Any:
         """Creates or updates a pipeline version."""
         ...

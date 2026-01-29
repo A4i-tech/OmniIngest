@@ -33,7 +33,7 @@ async def test_discovery_adapter_unified_search():
     ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, content="Content", metadata={"embedding": [0.1] * 1536})
     await vstore.upsert([ki])
 
-    results = await adapter.query(tenant_id=str(tenant_id), query=[0.1] * 1536)
+    results = await adapter.query(tenant_id=tenant_id, query=[0.1] * 1536)
     assert len(results) >= 1
     assert results[0].id == item_id
 
@@ -45,12 +45,8 @@ async def test_discovery_adapter_isolation_and_filters():
     adapter = KnowledgeBaseAdapter(mstore, InMemoryVectorStore())
 
     t1, t2 = uuid4(), uuid4()
-    await mstore.create_knowledge_item(
-        tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content="c1"
-    )
-    await mstore.create_knowledge_item(
-        tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content="c2"
-    )
+    await mstore.create_knowledge_item(tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content="c1")
+    await mstore.create_knowledge_item(tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content="c2")
 
     items_t1 = await adapter.list_items(tenant_id=t1)
     assert len(items_t1) == 1

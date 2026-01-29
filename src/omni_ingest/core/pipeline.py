@@ -194,19 +194,18 @@ class KnowledgeBaseAdapter:
         self.vector_store = vector_store
         self.embedder = embedder or Embedder("openai:text-embedding-3-small")
 
-    async def list_items(self, tenant_id: str | UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
-        tid = UUID(str(tenant_id))
-        return await self.metadata_store.list_knowledge_items(tenant_id=tid, domain_profile=domain_profile, **filters)
+    async def list_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+        return await self.metadata_store.list_knowledge_items(tenant_id=tenant_id, domain_profile=domain_profile, **filters)
 
-    async def query(self, tenant_id: str, query: list[float], k: int = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
+    async def query(self, tenant_id: UUID, query: list[float], k: int = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
         return await self.vector_store.search(query, k=k, tenant_id=tenant_id)
 
-    async def get(self, item_id: str) -> KnowledgeItem | None:
+    async def get(self, item_id: UUID) -> KnowledgeItem | None:
         return await self.metadata_store.get_knowledge_item(item_id)
 
     async def query_text(
         self,
-        tenant_id: str,
+        tenant_id: UUID,
         query: str,
         k: int = 5,
         domain_profile: str | None = None,

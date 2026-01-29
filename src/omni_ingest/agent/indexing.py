@@ -58,7 +58,7 @@ class VectorIndexingAgent(BaseModel, Step):
         if ctx.store and (pid := ctx.metadata.get("knowledge_item_id")):
             for i in ctx.items:
                 await ctx.store.create_chunk(
-                    chunk_id=str(i.id),
+                    chunk_id=i.id,
                     knowledge_item_id=pid,
                     tenant_id=ctx.tenant_id,
                     text=i.content,

@@ -139,9 +139,9 @@ class SQLAlchemyMetadataStore(MetadataStore):
 
     async def create_chunk(
         self,
-        chunk_id: str,
+        chunk_id: UUID,
         knowledge_item_id: Any,
-        tenant_id: Any,
+        tenant_id: UUID,
         text: str,
         vector_store_kind: str,
         vector_store_space: str,
@@ -150,7 +150,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     ) -> str:
         async with self.session_factory() as s:
             c = Chunk(
-                id=chunk_id,
+                id=str(chunk_id),
                 knowledge_item_id=knowledge_item_id,
                 tenant_id=tenant_id,
                 text=text,
@@ -167,7 +167,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
         async with self.session_factory() as s:
             return list((await s.execute(select(Chunk).where(Chunk.knowledge_item_id == knowledge_item_id))).scalars().all())
 
-    async def get_chunk(self, chunk_id: str) -> Chunk | None:
+    async def get_chunk(self, chunk_id: UUID) -> Chunk | None:
         async with self.session_factory() as s:
             return await s.get(Chunk, chunk_id)
 
@@ -223,7 +223,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return p.id
 
-    async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
+    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         async with self.session_factory() as s:
             pv = (await s.execute(select(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.version == version))).scalar_one_or_none()
             if not pv:

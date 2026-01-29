@@ -1,4 +1,5 @@
 import tempfile
+from uuid import UUID
 
 import pytest
 import yaml
@@ -86,7 +87,7 @@ async def test_knowledge_base_adapter_search_text():
     with patch.object(adapter.embedder, "embed_query", new_callable=AsyncMock) as mock_embed:
         mock_embed.return_value.embeddings = [[0.1] * 1536]
 
-        await adapter.query_text("tenant-1", "query")
+        await adapter.query_text(UUID("461724ce-ce7f-4a11-8db0-a03c2d1093d0"), "query")
 
         mock_embed.assert_awaited_once_with("query")
         mock_vector.search.assert_awaited_once()

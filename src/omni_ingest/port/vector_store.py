@@ -62,7 +62,7 @@ class LanceDBVectorStore(VectorStore):
         if data:
             t.add(data, mode="overwrite")
 
-    async def search(self, query: list[float], k: int = 5, tenant_id: str | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         t = await self._get_table()
         q = t.search(query).limit(k)
         if tenant_id:
@@ -123,7 +123,7 @@ class QdrantVectorStore(VectorStore):
         await self._ensure()
         pts = [
             PointStruct(
-                id=str(i.id),
+                id=i.id,
                 vector=i.metadata["embedding"],
                 payload={
                     "content": i.content,
@@ -138,10 +138,10 @@ class QdrantVectorStore(VectorStore):
         if pts:
             await self._client.upsert(self.col, pts)
 
-    async def search(self, q: list[float], k: int = 5, tenant_id: str | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         await self._ensure()
-        filt = Filter(must=[FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id))]) if tenant_id else None
-        res = await self._client.search(self.col, q, query_filter=filt, limit=k)  # type: ignore
+        filt = Filter(must=[FieldCondition(key="tenant_id", match=MatchValue(value=str(tenant_id)))]) if tenant_id else None
+        res = await self._client.search(self.col, query, query_filter=filt, limit=k)  # type: ignore
         return [
             KnowledgeItem(
                 id=r.id,

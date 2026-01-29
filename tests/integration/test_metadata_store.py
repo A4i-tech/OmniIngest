@@ -53,9 +53,7 @@ async def test_knowledge_item_crud(store):
 async def test_chunk_crud(store):
     tenant = await store.create_tenant("chunk_test_tenant", "Chunk Test Tenant")
 
-    item_id = await store.create_knowledge_item(
-        tenant_id=tenant.id, domain_profile="generic", modality="text", source_uri="file://test.txt"
-    )
+    item_id = await store.create_knowledge_item(tenant_id=tenant.id, domain_profile="generic", modality="text", source_uri="file://test.txt")
 
     chunk1_id = await store.create_chunk(
         chunk_id="chunk_001",
@@ -100,9 +98,7 @@ async def test_pipeline_run_tracking(store):
     tenant = await store.create_tenant("run_test_tenant", "Run Test Tenant")
     pipeline_version_id = uuid4()
 
-    run_id = await store.create_pipeline_run(
-        tenant_id=tenant.id, pipeline_version_id=pipeline_version_id, source_uri="s3://bucket/file.pdf"
-    )
+    run_id = await store.create_pipeline_run(tenant_id=tenant.id, pipeline_version_id=pipeline_version_id, source_uri="s3://bucket/file.pdf")
 
     assert run_id is not None
 
@@ -113,9 +109,7 @@ async def test_pipeline_run_tracking(store):
 
     await store.update_step_run(step2_id, status="failure", error="OpenAI API rate limit exceeded")
 
-    await store.update_pipeline_run(
-        run_id, status="failed", completed_at=datetime.now(UTC), error="Pipeline failed at embedding step"
-    )
+    await store.update_pipeline_run(run_id, status="failed", completed_at=datetime.now(UTC), error="Pipeline failed at embedding step")
 
 
 @pytest.mark.asyncio
@@ -150,14 +144,13 @@ async def test_pipeline_registration(store):
 
 @pytest.mark.asyncio
 async def test_indexing_agent_registers_chunks(store, tenant):
-    ki_id = await store.create_knowledge_item(
-        tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt"
-    )
+    ki_id = await store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     vstore = InMemoryVectorStore()
     agent = VectorIndexingAgent(store=vstore, vector_store_kind="memory", vector_store_space="test_space")
     item = KnowledgeItem(content="Chunk 1", metadata={"embedding": [0.1] * 1536})
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=store, metadata={"knowledge_item_id": ki_id})
-    assert (await agent.run(ctx)).status == StepStatus.SUCCESS
+    res = await agent.run(ctx)
+    assert res.status == StepStatus.SUCCESS, f"Step failed: {res.error}"
     chunks = await store.get_chunks_by_knowledge_item(ki_id)
     assert len(chunks) == 1
     assert chunks[0].text == "Chunk 1"

@@ -81,12 +81,12 @@ async def test_byoeb_ingestion_and_search(tmp_path):
 
     adapter = KnowledgeBaseAdapter(metadata_store=DummyMetadataStore(), vector_store=vector_store)  # type: ignore
 
-    results = await adapter.query_text(tenant_id=str(tid), query="what color are blueberries", k=3)
+    results = await adapter.query_text(tenant_id=tid, query="what color are blueberries", k=3)
     assert len(results) > 0
     assert any("blueberries" in r.content.lower() for r in results)
     assert not any("jaipur" in r.content.lower() for r in results)
 
-    results_j = await adapter.query_text(tenant_id=str(tid), query="Jaipur Protocol", k=3)
+    results_j = await adapter.query_text(tenant_id=tid, query="Jaipur Protocol", k=3)
     assert len(results_j) > 0
     assert any("jaipur" in r.content.lower() for r in results_j)
     assert not any("blueberries" in r.content.lower() for r in results_j)
