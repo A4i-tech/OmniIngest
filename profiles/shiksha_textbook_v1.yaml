@@ -7,11 +7,10 @@ steps:
   - agent: markdown_cleaning
   - agent: learning_outcome
     config:
-      provider: openai
-      model: gpt-4o
+      model: "openai:gpt-4o"
   - agent: kg_builder
     config:
-      model: gpt-4o
+      model: "openai:gpt-4o"
   - agent: page_chunking
     config:
       chunk_size: 2048

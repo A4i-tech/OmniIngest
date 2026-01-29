@@ -1,9 +1,8 @@
-"""Agents for ensuring data quality, lineage tracking, and audit logging."""
-
 from datetime import UTC, datetime
-from typing import Any
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models import KnownModelName
 
 from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
@@ -58,6 +57,11 @@ class DataLineageAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata=lineage)
 
 
+class QualityReport(BaseModel):
+    overall_score: float = Field(..., description="float between 0 and 1")
+    issues: list[str] = Field(..., description="list of strings describing any problems found")
+
+
 @step("quality")
 class QualityVerifierAgent(BaseModel, Step):
     """
@@ -69,27 +73,15 @@ class QualityVerifierAgent(BaseModel, Step):
     threshold.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service used for verification")
-    model: str = Field("gpt-4o", description="The AI model used for scoring")
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for verification")
     sample_size: int = Field(3, description="The number of items to sample for quality verification")
     min_quality_score: float = Field(0.7, description="The minimum acceptable quality score (range 0.0 to 1.0)")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        from .cleaning import _get_openai_client
-
-        if self._client is None:
-            self._client = _get_openai_client(self.provider)
-        return self._client
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to verify")
 
-        client = self._get_client()
         samples = ctx.items[: self.sample_size]
 
         prompt = """Evaluate the quality of the following extracted text samples.
@@ -102,15 +94,9 @@ Samples:
         for i, item in enumerate(samples):
             prompt += f"\n--- Sample {i + 1} ---\n{item.content[:500]}\n"
 
-        res = await client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-        )
-        import json
-
-        data = json.loads(res.choices[0].message.content)
-        score = data.get("overall_score", 0)
+        res = await Agent(self.model, output_type=QualityReport).run(prompt)
+        data = res.output
+        score = data.overall_score
         passed = score >= self.min_quality_score
 
         if not passed:
@@ -118,12 +104,12 @@ Samples:
             return StepResult(
                 status=StepStatus.FAILURE,
                 error=error_msg,
-                metadata={"quality_score": score, "issues": data.get("issues", [])},
+                metadata={"quality_score": score, "issues": data.issues},
             )
 
-        ctx.metadata["quality_report"] = data
+        ctx.metadata["quality_report"] = data.model_dump()
         return StepResult(
             status=StepStatus.SUCCESS,
             items=ctx.items,
-            metadata={"quality_score": score, "samples_checked": len(samples), "issues": data.get("issues", [])},
+            metadata={"quality_score": score, "samples_checked": len(samples), "issues": data.issues},
         )

@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from omni_ingest.core.protocol import MetadataStore
+
 
 class StepStatus(str, Enum):
     PENDING = "pending"
@@ -78,7 +80,7 @@ class IngestionContext(BaseModel):
     domain_profile: str = Field("default", description="The configuration profile being executed")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Shared state or context across steps")
     items: list[KnowledgeItem] = Field(default_factory=list, description="The working set of knowledge items")
-    store: Any | None = Field(None, description="Reference to a storage engine or backend")
+    store: MetadataStore | None = Field(None, description="Reference to a storage engine or backend")
 
 
 class Step(ABC):

@@ -1,4 +1,3 @@
-from omni_ingest.core.pipeline import lookup_step_id
 from pathlib import Path
 from uuid import uuid4
 
@@ -6,7 +5,7 @@ import pytest
 import yaml
 
 from omni_ingest.core.model import IngestionContext, StepStatus
-from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config
+from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config, lookup_step_id
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
@@ -18,7 +17,7 @@ async def test_byoeb_ingestion_and_search(tmp_path):
         "steps": [
             {"agent": "text_parser"},
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
-            {"agent": "embedding", "config": {"provider": "openai", "model": "text-embedding-3-small"}},
+            {"agent": "embedding", "config": {"provider": "openai", "model": "openai:text-embedding-3-small"}},
             {"agent": "indexing", "config": {"vector_store": "in_memory"}},
         ],
     }
@@ -56,14 +55,29 @@ async def test_byoeb_ingestion_and_search(tmp_path):
     assert res2[-1].status == StepStatus.SUCCESS
 
     class DummyMetadataStore:
-        async def list_knowledge_items(self, *args, **kwargs): return []
-        async def get_knowledge_item(self, *args, **kwargs): return None
-        async def create_knowledge_item(self, *args, **kwargs): return uuid4()
-        async def create_chunk(self, *args, **kwargs): return "chunk_id"
-        async def create_pipeline_run(self, *args, **kwargs): return uuid4()
-        async def update_pipeline_run(self, *args, **kwargs): pass
-        async def create_step_run(self, *args, **kwargs): return uuid4()
-        async def update_step_run(self, *args, **kwargs): pass
+        async def list_knowledge_items(self, *args, **kwargs):
+            return []
+
+        async def get_knowledge_item(self, *args, **kwargs):
+            return None
+
+        async def create_knowledge_item(self, *args, **kwargs):
+            return uuid4()
+
+        async def create_chunk(self, *args, **kwargs):
+            return "chunk_id"
+
+        async def create_pipeline_run(self, *args, **kwargs):
+            return uuid4()
+
+        async def update_pipeline_run(self, *args, **kwargs):
+            pass
+
+        async def create_step_run(self, *args, **kwargs):
+            return uuid4()
+
+        async def update_step_run(self, *args, **kwargs):
+            pass
 
     adapter = KnowledgeBaseAdapter(metadata_store=DummyMetadataStore(), vector_store=vector_store)  # type: ignore
 

@@ -13,12 +13,10 @@ steps:
       overlap: 50
   - agent: enrichment
     config:
-      provider: "openai"
-      model: "gpt-4o"
+      model: "openai:gpt-4o"
   - agent: embedding
     config:
-      provider: "openai"
-      model: "text-embedding-3-small"
+      model: "openai:text-embedding-3-small"
   - agent: indexing
     config:
       vector_store_kind: lancedb

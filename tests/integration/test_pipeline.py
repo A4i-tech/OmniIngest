@@ -5,13 +5,9 @@ import yaml
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import EmbeddingAgent, VectorIndexingAgent
-from omni_ingest.core.config import settings
-from omni_ingest.core.model import IngestionContext, StepResult, StepStatus
+from omni_ingest.core.model import IngestionContext, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import PipelineRunner, create_pipeline_from_config
 from omni_ingest.port.vector_store import InMemoryVectorStore
-
-
-from omni_ingest.core.model import IngestionContext, Step, StepResult, StepStatus
 
 
 class EchoStep(Step):
@@ -40,8 +36,6 @@ async def test_pipeline_failure_stops_execution():
 
 @pytest.mark.asyncio
 async def test_embedding_agent_standalone():
-    if not settings.openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set")
     from omni_ingest.core.model import KnowledgeItem
 
     item = KnowledgeItem(content="hello world", metadata={})
@@ -51,8 +45,6 @@ async def test_embedding_agent_standalone():
 
 @pytest.mark.asyncio
 async def test_full_ingestion_flow():
-    if not settings.openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set")
     store = InMemoryVectorStore()
     steps = [SentenceChunkingAgent(), EmbeddingAgent(), VectorIndexingAgent(store=store)]
 
@@ -62,8 +54,6 @@ async def test_full_ingestion_flow():
 
 @pytest.mark.asyncio
 async def test_yaml_pipeline_factory():
-    if not settings.openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set")
     config = {"steps": [{"agent": "chunking"}, {"agent": "embedding"}, {"agent": "indexing"}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:

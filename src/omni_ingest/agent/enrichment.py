@@ -1,26 +1,18 @@
 """Agents for augmenting knowledge items with metadata, summaries, and thematic tags."""
 
-import json
 from typing import Any
 
-from openai import AsyncAzureOpenAI, AsyncOpenAI
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models import KnownModelName
 
-from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
 
-def _get_openai_client(provider: str):
-    if provider == "azure":
-        key = settings.azure_openai_api_key.get_secret_value() if settings.azure_openai_api_key else None
-        return AsyncAzureOpenAI(
-            api_key=key,
-            api_version="2024-02-01",
-            azure_endpoint=str(settings.azure_openai_endpoint) if settings.azure_openai_endpoint else "",
-        )
-    key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-    return AsyncOpenAI(api_key=key)
+class DomainEnrichmentResult(BaseModel):
+    summary: str
+    tags: list[str]
 
 
 @step("enrichment")
@@ -33,37 +25,24 @@ class DomainEnrichmentAgent(BaseModel, Step):
     improved categorization and searchability.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service to use (e.g., 'openai' or 'azure')")
-    model: str = Field("gpt-4o", description="The AI model version used for analysis")
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for analysis")
     prompt_template: str = Field("Analyze text and provide JSON summary/tags. Content: {text}", description="LLM prompt template")
     response_format: str = Field("json_object", description="The technical format the AI should use for its answer")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            self._client = _get_openai_client(self.provider)
-        return self._client
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to enrich")
-        client = self._get_client()
+        agent = Agent(self.model, output_type=DomainEnrichmentResult)
         for item in ctx.items:
             prompt = self.prompt_template.format(text=item.content)
-            res = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": self.response_format},
-            )
-            if self.response_format == "json_object":
-                data = json.loads(res.choices[0].message.content)
-                item.metadata.update(data)
-            else:
-                item.metadata["enrichment"] = res.choices[0].message.content
+            res = await agent.run(prompt)
+            item.metadata.update(res.output.model_dump())
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"enriched_count": len(ctx.items)})
+
+
+class LearningOutcomes(BaseModel):
+    learning_outcomes: list[str] = Field(..., description="A list of learning outcomes")
 
 
 @step("learning_outcome")
@@ -76,16 +55,7 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
     representation of teaching goals.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service to use")
-    model: str = Field("gpt-4o", description="The AI model used for extraction")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            self._client = _get_openai_client(self.provider)
-        return self._client
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for extraction")
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
@@ -94,20 +64,30 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for LO extraction")
 
-        client = self._get_client()
-        prompt_tmpl = "Extract a list of learning outcomes from the following educational content. Return a JSON array of strings.\n\nContent: {text}"
+        agent = Agent(self.model, output_type=LearningOutcomes)
+        prompt_tmpl = "Extract a list of learning outcomes from the following educational content. Content: {text}"
 
         for item in ctx.items:
-            res = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                response_format={"type": "json_object"},
-            )
-            data = json.loads(res.choices[0].message.content)
-            lo = data.get("learning_outcomes") or data.get("outcomes") or list(data.values())[0]
-            if isinstance(lo, list):
-                item.metadata["learning_outcomes"] = lo
+            res = await agent.run(prompt_tmpl.format(text=item.content))
+            item.metadata["learning_outcomes"] = res.output.learning_outcomes
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"extracted_for": len(ctx.items)})
+
+
+class KGNode(BaseModel):
+    id: str
+    label: str
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class KGEdge(BaseModel):
+    source: str
+    target: str
+    type: str
+
+
+class KGData(BaseModel):
+    nodes: list[KGNode]
+    edges: list[KGEdge]
 
 
 @step("kg_builder")
@@ -120,38 +100,34 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step):
     into a graph database.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service to use")
-    model: str = Field("gpt-4o", description="The AI model used for graph building")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            self._client = _get_openai_client(self.provider)
-        return self._client
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for graph building")
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for KG extraction")
 
-        client = self._get_client()
-        prompt_tmpl = "Directly extract entities and their relationships from the following text into a graph format. Return JSON with 'nodes' (id, label, properties) and 'edges' (source, target, type).\n\nContent: {text}"
+        agent = Agent(self.model, output_type=KGData)
+        prompt_tmpl = "Directly extract entities and their relationships from the following text into a graph format. Content: {text}"
 
         all_nodes, all_edges = [], []
         for item in ctx.items:
-            res = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                response_format={"type": "json_object"},
-            )
-            data = json.loads(res.choices[0].message.content)
-            all_nodes.extend(data.get("nodes", []))
-            all_edges.extend(data.get("edges", []))
+            res = await agent.run(prompt_tmpl.format(text=item.content))
+            data = res.output
+            all_nodes.extend([n.model_dump() for n in data.nodes])
+            all_edges.extend([e.model_dump() for e in data.edges])
 
         ctx.metadata["kg_data"] = {"nodes": all_nodes, "edges": all_edges}
         return StepResult(status=StepStatus.SUCCESS, metadata={"nodes": len(all_nodes), "edges": len(all_edges)})
+
+
+class FAQItem(BaseModel):
+    q: str = Field(..., description="The question")
+    a: str = Field(..., description="The answer")
+
+
+class FAQList(BaseModel):
+    faqs: list[FAQItem]
 
 
 @step("faq_generation")
@@ -164,35 +140,18 @@ class FAQGenerationAgent(BaseModel, Step):
     automated FAQ generation for finalized knowledge bases.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service used for generation")
-    model: str = Field("gpt-4o", description="The AI model version used for generation")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            self._client = _get_openai_client(self.provider)
-        return self._client
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for generation")
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for FAQ generation")
+
+        agent = Agent(self.model, output_type=FAQList, system_prompt="You are a helpful assistant that generates FAQs in JSON format.")
         combined = "\n".join(i.content[:1000] for i in ctx.items[:5])
-        prompt = (
-            f"Generate 3-5 frequently asked questions and answers based on the following text. Return a JSON object containing an 'faqs' key with an array of objects mapping 'q' to the question and 'a' to the answer.\n\nContent: {combined}"
-        )
-        client = self._get_client()
-        resp = await client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that generates FAQs in JSON format."},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-        )
-        data = json.loads(resp.choices[0].message.content)
-        faqs = data.get("faqs", [])
+        prompt = f"Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {combined}"
+        res = await agent.run(prompt)
+        data = res.output
+        faqs = [f.model_dump() for f in data.faqs]
         ctx.metadata["faqs"] = faqs
         return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs)})

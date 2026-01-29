@@ -1,12 +1,12 @@
 """Agents for generating embeddings and persisting data to vector and graph stores."""
 
-import json
 from typing import Any
 
-from openai import AsyncAzureOpenAI, AsyncOpenAI
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
+from pydantic_ai.models import KnownModelName
 
-from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
 from ..core.pipeline import step
 
@@ -21,36 +21,17 @@ class EmbeddingAgent(BaseModel, Step):
     within a vector database.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service used to generate vectors (e.g., 'openai')")
-    model: str = Field("text-embedding-3-small", description="The specific mathematical model to use")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            if self.provider == "azure":
-                key = settings.azure_openai_api_key.get_secret_value() if settings.azure_openai_api_key else None
-                self._client = AsyncAzureOpenAI(
-                    api_key=key,
-                    api_version="2024-02-01",
-                    azure_endpoint=str(settings.azure_openai_endpoint) if settings.azure_openai_endpoint else "",
-                )
-            else:
-                key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-                self._client = AsyncOpenAI(api_key=key)
-        return self._client
+    model: KnownEmbeddingModelName = Field("openai:text-embedding-3-small", description="Model to use for embedding")
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to embed")
 
-        client = self._get_client()
         texts = [i.content for i in ctx.items]
-        res = await client.embeddings.create(model=self.model, input=texts)
-        for item, emb in zip(ctx.items, res.data, strict=True):
-            item.metadata["embedding"] = emb.embedding
+        res = await Embedder(self.model).embed_documents(texts)
+        for item, emb in zip(ctx.items, res.embeddings, strict=True):
+            item.metadata["embedding"] = emb
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(ctx.items)})
 
@@ -65,7 +46,6 @@ class VectorIndexingAgent(BaseModel, Step):
     is indexed and available for retrieval by AI applications.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
     store: Any = Field(..., description="The physical database where data will be saved")
     vector_store_kind: str = Field("lancedb", description="The type of database (e.g., 'lancedb' or 'qdrant')")
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
@@ -90,6 +70,10 @@ class VectorIndexingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"count": len(ctx.items)})
 
 
+class Keywords(BaseModel):
+    keywords: list[str] = Field(..., description="A list of 5-10 descriptive keywords")
+
+
 @step("keyword_indexing")
 class KeywordIndexingAgent(BaseModel, Step):
     """
@@ -100,44 +84,20 @@ class KeywordIndexingAgent(BaseModel, Step):
     operations.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
-    provider: str = Field("openai", description="The AI service to use")
-    model: str = Field("gpt-4o", description="The AI model version used for keyword extraction")
-
-    _client: Any = PrivateAttr(default=None)
-
-    def _get_client(self):
-        if self._client is None:
-            if self.provider == "azure":
-                key = settings.azure_openai_api_key.get_secret_value() if settings.azure_openai_api_key else None
-                self._client = AsyncAzureOpenAI(
-                    api_key=key,
-                    api_version="2024-02-01",
-                    azure_endpoint=str(settings.azure_openai_endpoint) if settings.azure_openai_endpoint else "",
-                )
-            else:
-                key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-                self._client = AsyncOpenAI(api_key=key)
-        return self._client
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for keyword extraction")
 
     @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for keywords")
 
-        client = self._get_client()
-        prompt_tmpl = "Extract 5-10 descriptive keywords from the text. Return JSON array of strings.\n\nContent: {text}"
+        prompt_tmpl = "Extract 5-10 descriptive keywords from the text. Content: {text}"
 
+        agent = Agent(self.model, output_type=Keywords)
         for item in ctx.items:
-            res = await client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt_tmpl.format(text=item.content)}],
-                response_format={"type": "json_object"},
-            )
-            data = json.loads(res.choices[0].message.content)
-            keywords = data.get("keywords") or list(data.values())[0]
-            if isinstance(keywords, list):
-                item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
+            res = await agent.run(prompt_tmpl.format(text=item.content))
+            keywords = res.output.keywords
+            item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
 
         return StepResult(status=StepStatus.SUCCESS, metadata={"items_processed": len(ctx.items)})
 

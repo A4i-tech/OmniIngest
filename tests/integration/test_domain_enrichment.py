@@ -4,36 +4,29 @@ import pytest
 
 from omni_ingest.agent.enrichment import DomainEnrichmentAgent, LearningOutcomeExtractionAgent
 from omni_ingest.agent.indexing import GraphIndexingAgent
-from omni_ingest.core.config import settings
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, StepStatus
 
 
-@pytest.fixture
-def skip_if_no_openai():
-    if not settings.openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set")
-
-
 @pytest.mark.asyncio
-async def test_domain_enrichment_flow(skip_if_no_openai):
+async def test_domain_enrichment_flow():
     agent = DomainEnrichmentAgent()
     item = KnowledgeItem(content="Sample text about machine learning and neural networks.")
     ctx = IngestionContext(items=[item])
 
     res = await agent.run(ctx)
-    assert res.status == StepStatus.SUCCESS
+    assert res.status == StepStatus.SUCCESS, f"Step failed: {res.error}"
     assert "summary" in item.metadata
     assert "tags" in item.metadata and len(item.metadata["tags"]) > 0
 
 
 @pytest.mark.asyncio
-async def test_learning_outcome_extraction(skip_if_no_openai):
+async def test_learning_outcome_extraction():
     ed_agent = LearningOutcomeExtractionAgent()
     item = KnowledgeItem(content="The student will learn about Newton's laws of motion.")
     ctx = IngestionContext(items=[item], domain_profile="education")
 
     res = await ed_agent.run(ctx)
-    assert res.status == StepStatus.SUCCESS
+    assert res.status == StepStatus.SUCCESS, f"Step failed: {res.error}"
     assert "learning_outcomes" in item.metadata
 
 

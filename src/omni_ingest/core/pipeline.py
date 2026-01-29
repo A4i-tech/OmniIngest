@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 import yaml
+from pydantic_ai.embeddings import Embedder
 
 from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
@@ -51,7 +52,7 @@ class PipelineRunner:
         error_msg = None
 
         for step in self.steps:
-            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step)) if ctx.store else None
+            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step) or "unknown") if ctx.store else None
             try:
                 res = await step.run(ctx)
                 results.append(res)
@@ -188,9 +189,10 @@ class KnowledgeBaseAdapter:
 
     from .protocol import MetadataStore
 
-    def __init__(self, metadata_store: MetadataStore, vector_store: VectorStore):
+    def __init__(self, metadata_store: "MetadataStore", vector_store: VectorStore, embedder: Embedder | None = None):
         self.metadata_store = metadata_store
         self.vector_store = vector_store
+        self.embedder = embedder or Embedder("openai:text-embedding-3-small")
 
     async def list_items(self, tenant_id: str | UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         tid = UUID(str(tenant_id))
@@ -208,29 +210,10 @@ class KnowledgeBaseAdapter:
         query: str,
         k: int = 5,
         domain_profile: str | None = None,
-        provider: str = "openai",
-        model: str = "text-embedding-3-small",
     ) -> list[KnowledgeItem]:
-        client = _get_openai_client(provider)
         try:
-            res = await client.embeddings.create(model=model, input=[query])
-            emb = res.data[0].embedding
+            res = await self.embedder.embed_query(query)
+            emb = list(res.embeddings[0])
         except Exception as e:
             raise RuntimeError(f"Embedding failed: {e}") from e
         return await self.query(tenant_id, emb, k=k, domain_profile=domain_profile)
-
-
-def _get_openai_client(provider: str):
-    from openai import AsyncAzureOpenAI, AsyncOpenAI
-
-    from .config import settings
-
-    if provider == "azure":
-        key = settings.azure_openai_api_key.get_secret_value() if settings.azure_openai_api_key else None
-        return AsyncAzureOpenAI(
-            api_key=key,
-            api_version="2024-02-01",
-            azure_endpoint=str(settings.azure_openai_endpoint) if settings.azure_openai_endpoint else "",
-        )
-    key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-    return AsyncOpenAI(api_key=key)

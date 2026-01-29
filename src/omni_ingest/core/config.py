@@ -19,18 +19,6 @@ class Settings(BaseSettings):
     azure_storage_connection_string: str | None = None
     """Azure Blob Storage connection string"""
 
-    openai_api_key: SecretStr | None = None
-    """API key for OpenAI services"""
-
-    openai_model: str = "text-embedding-3-small"
-    """Default model for embeddings"""
-
-    azure_openai_api_key: SecretStr | None = None
-    """API key for Azure OpenAI"""
-
-    azure_openai_endpoint: str | None = None
-    """Endpoint for Azure OpenAI"""
-
     qdrant_url: AnyHttpUrl = AnyHttpUrl("http://localhost:6333")
     """URL for Qdrant vector database"""
 

@@ -8,12 +8,6 @@ from omni_ingest.core.pipeline import create_pipeline_from_config
 
 
 @pytest.fixture
-def skip_if_no_openai():
-    if not settings.openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set")
-
-
-@pytest.fixture
 def profiles_dir():
     return "tests/integration/profiles"
 
@@ -42,7 +36,7 @@ async def test_profiles_instantiation(p, profiles_dir):
 
 
 @pytest.mark.asyncio
-async def test_education_v2_pipeline(skip_if_no_openai, store, tenant, profiles_dir):
+async def test_education_v2_pipeline(store, tenant, profiles_dir):
     path = os.path.join(profiles_dir, "education_v2.yaml")
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(
@@ -53,7 +47,7 @@ async def test_education_v2_pipeline(skip_if_no_openai, store, tenant, profiles_
     )
 
     results = await runner.run(ctx)
-    assert results[-1].status == StepStatus.SUCCESS
+    assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
 
     assert len(ctx.items) > 0
     assert "learning_outcomes" in ctx.items[0].metadata
@@ -61,7 +55,7 @@ async def test_education_v2_pipeline(skip_if_no_openai, store, tenant, profiles_
 
 
 @pytest.mark.asyncio
-async def test_audio_v2_pipeline(skip_if_no_openai, store, tenant, profiles_dir, tmp_path):
+async def test_audio_v2_pipeline(store, tenant, profiles_dir, tmp_path):
     if not settings.azure_speech_key or not settings.azure_speech_region:
         pytest.skip("AZURE_SPEECH_KEY or AZURE_SPEECH_REGION not set for audio pipeline")
 
@@ -82,27 +76,27 @@ async def test_audio_v2_pipeline(skip_if_no_openai, store, tenant, profiles_dir,
     ctx = IngestionContext(tenant_id=tenant.id, store=store, metadata={"audio_path": str(audio_file)})
 
     results = await runner.run(ctx)
-    assert results[-1].status == StepStatus.SUCCESS
+    assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
 
 
 @pytest.mark.asyncio
-async def test_governance_v1_pipeline(skip_if_no_openai, store, tenant, profiles_dir):
+async def test_governance_v1_pipeline(store, tenant, profiles_dir):
     path = os.path.join(profiles_dir, "governance_v1.yaml")
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(tenant_id=tenant.id, store=store, metadata={"text": "Audit this file for compliance."})
 
     results = await runner.run(ctx)
-    assert results[-1].status == StepStatus.SUCCESS
+    assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
 
     assert any(r.metadata and "timestamp" in r.metadata for r in results)
 
 
 @pytest.mark.asyncio
-async def test_health_v1_pipeline(skip_if_no_openai, store, tenant, profiles_dir):
+async def test_health_v1_pipeline(store, tenant, profiles_dir):
     path = os.path.join(profiles_dir, "health_v1.yaml")
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(tenant_id=tenant.id, store=store, metadata={"text": "The patient was diagnosed with type 2 diabetes."})
 
     results = await runner.run(ctx)
-    assert results[-1].status == StepStatus.SUCCESS
+    assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
     assert len(ctx.items) > 0

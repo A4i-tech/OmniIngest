@@ -9,17 +9,14 @@ from omni_ingest.agent.cleaning import (
     TranscriptionPostProcessorAgent,
 )
 from omni_ingest.agent.enrichment import (
-    DomainEnrichmentAgent,
     FAQGenerationAgent,
-    KnowledgeGraphBuilderAgent,
     LearningOutcomeExtractionAgent,
 )
 from omni_ingest.agent.governance import (
     DataLineageAgent,
-    IngestionLoggerAgent,
     QualityVerifierAgent,
 )
-from omni_ingest.agent.indexing import EmbeddingAgent, GraphIndexingAgent, VectorIndexingAgent
+from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, StepStatus
 
 
@@ -32,12 +29,11 @@ def ctx(store):
 async def test_markdown_cleaning_agent(ctx):
     agent = MarkdownCleaningAgent()
     ctx.metadata["text"] = "## Raw"
-    
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = "## Clean"
+
+    with patch("omni_ingest.agent.cleaning.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = "## Clean"
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.SUCCESS
         assert ctx.metadata["text"] == "## Clean"
 
@@ -46,12 +42,11 @@ async def test_markdown_cleaning_agent(ctx):
 async def test_transcription_post_processor_agent(ctx):
     agent = TranscriptionPostProcessorAgent()
     ctx.metadata["text"] = "hello"
-    
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = "Hello"
+
+    with patch("omni_ingest.agent.cleaning.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = "Hello"
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.SUCCESS
         assert ctx.metadata["text"] == "Hello"
 
@@ -60,13 +55,15 @@ async def test_transcription_post_processor_agent(ctx):
 async def test_quality_verifier_agent_success(ctx):
     agent = QualityVerifierAgent(min_quality_score=0.7)
     ctx.items = [KnowledgeItem(content="test content", metadata={})]
-    
-    mock_response = '{"overall_score": 0.9, "issues": []}'
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = mock_response
+
+    from omni_ingest.agent.governance import QualityReport
+
+    mock_output = QualityReport(overall_score=0.9, issues=[])
+
+    with patch("omni_ingest.agent.governance.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = mock_output
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.SUCCESS
         assert "quality_report" in ctx.metadata
         assert ctx.metadata["quality_report"]["overall_score"] == 0.9
@@ -76,15 +73,17 @@ async def test_quality_verifier_agent_success(ctx):
 async def test_quality_verifier_agent_failure(ctx):
     agent = QualityVerifierAgent(min_quality_score=0.7)
     ctx.items = [KnowledgeItem(content="bad content", metadata={})]
-    
-    mock_response = '{"overall_score": 0.4, "issues": ["too short"]}'
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = mock_response
+
+    from omni_ingest.agent.governance import QualityReport
+
+    mock_output = QualityReport(overall_score=0.4, issues=["too short"])
+
+    with patch("omni_ingest.agent.governance.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = mock_output
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.FAILURE
-        assert "Quality check failed" in result.error
+        assert result.error is not None and "Quality check failed" in result.error
         assert result.metadata["quality_score"] == 0.4
 
 
@@ -92,13 +91,15 @@ async def test_quality_verifier_agent_failure(ctx):
 async def test_faq_generation_agent(ctx):
     agent = FAQGenerationAgent()
     ctx.items = [KnowledgeItem(content="context for faq", metadata={})]
-    
-    mock_response = '{"faqs": [{"q": "What is this?", "a": "A test."}]}'
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = mock_response
+
+    from omni_ingest.agent.enrichment import FAQItem, FAQList
+
+    mock_output = FAQList(faqs=[FAQItem(q="What is this?", a="A test.")])
+
+    with patch("omni_ingest.agent.enrichment.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = mock_output
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.SUCCESS
         assert "faqs" in ctx.metadata
         assert len(ctx.metadata["faqs"]) == 1
@@ -110,13 +111,15 @@ async def test_learning_outcome_extraction_agent(ctx):
     agent = LearningOutcomeExtractionAgent()
     ctx.domain_profile = "education"
     ctx.items = [KnowledgeItem(content="educational content", metadata={})]
-    
-    mock_response = '{"learning_outcomes": ["Understand testing"]}'
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_oa:
-        mock_oa.return_value.choices = [MagicMock()]
-        mock_oa.return_value.choices[0].message.content = mock_response
+
+    from omni_ingest.agent.enrichment import LearningOutcomes
+
+    mock_output = LearningOutcomes(learning_outcomes=["Understand testing"])
+
+    with patch("omni_ingest.agent.enrichment.Agent.run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value.output = mock_output
         result = await agent.run(ctx)
-        
+
         assert result.status == StepStatus.SUCCESS
         assert "learning_outcomes" in ctx.items[0].metadata
         assert ctx.items[0].metadata["learning_outcomes"] == ["Understand testing"]
@@ -142,17 +145,6 @@ async def test_page_chunking_agent(ctx):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
         assert len(ctx.items) == 1
-
-
-@pytest.mark.asyncio
-async def test_embedding_agent(ctx):
-    agent = EmbeddingAgent()
-    ctx.items = [KnowledgeItem(content="test", metadata={})]
-    with patch("openai.resources.embeddings.AsyncEmbeddings.create", new_callable=AsyncMock) as mock_emb:
-        mock_emb.return_value.data = [MagicMock(embedding=[0.1] * 1536)]
-        result = await agent.run(ctx)
-        assert result.status == StepStatus.SUCCESS
-        assert "embedding" in ctx.items[0].metadata
 
 
 @pytest.mark.asyncio
@@ -199,7 +191,7 @@ async def test_audio_parser_agent_failure(ctx):
         mock_settings.azure_speech_key = None
         result = await agent.run(ctx)
         assert result.status == StepStatus.FAILURE
-        assert "credentials missing" in result.error
+        assert result.error is not None and "credentials missing" in result.error
 
 
 @pytest.mark.asyncio

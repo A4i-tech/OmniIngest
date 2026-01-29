@@ -10,7 +10,7 @@ steps:
       overlap: 25
   - agent: embedding
     config:
-      model: "text-embedding-3-large"
+      model: "openai:text-embedding-3-large"
       dimensions: 1024
       batch_size: 10
   - agent: indexing

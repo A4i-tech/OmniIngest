@@ -75,7 +75,7 @@ async def test_pipeline_with_default_config():
 
 @pytest.mark.asyncio
 async def test_knowledge_base_adapter_search_text():
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, patch
 
     from omni_ingest.core.pipeline import KnowledgeBaseAdapter
 
@@ -83,12 +83,10 @@ async def test_knowledge_base_adapter_search_text():
     mock_vector = AsyncMock()
     adapter = KnowledgeBaseAdapter(metadata_store=mock_store, vector_store=mock_vector)
 
-    with patch("omni_ingest.core.pipeline._get_openai_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_get_client.return_value = mock_client
-        mock_client.embeddings.create.return_value.data = [MagicMock(embedding=[0.1] * 1536)]
+    with patch.object(adapter.embedder, "embed_query", new_callable=AsyncMock) as mock_embed:
+        mock_embed.return_value.embeddings = [[0.1] * 1536]
 
         await adapter.query_text("tenant-1", "query")
 
-        mock_client.embeddings.create.assert_awaited_once()
+        mock_embed.assert_awaited_once_with("query")
         mock_vector.search.assert_awaited_once()
