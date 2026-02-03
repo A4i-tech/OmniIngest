@@ -153,7 +153,7 @@ jobs:
     if: |
       (github.event_name == 'workflow_dispatch' && inputs.deploy_docs) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/a4i/main')
-    needs: [lint, type-check, unit-tests]
+    needs: [lint, type-check, tests]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
