@@ -67,7 +67,7 @@ class VectorIndexingAgent(BaseModel, Step):
 
 
 class Keywords(BaseModel):
-    keywords: list[str] = Field(..., description="A list of 5-10 descriptive keywords")
+    keywords: list[str] = Field(..., description="Extracted keywords from content")
 
 
 @step("keyword_indexing")

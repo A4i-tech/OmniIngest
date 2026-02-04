@@ -3,7 +3,7 @@
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PositiveInt
 
 from .model import KnowledgeItem
 
@@ -38,7 +38,7 @@ class VectorStore(Protocol):
         """Persists or updates knowledge items in the store."""
         ...
 
-    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: PositiveInt = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         """Searches for items similar to the given query vector."""
         ...
 

@@ -7,6 +7,7 @@ from uuid import UUID
 
 import lancedb  # type: ignore
 import pyarrow as pa  # type: ignore
+from pydantic import PositiveInt
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
 
@@ -20,7 +21,7 @@ class LanceDBVectorStore(VectorStore):
     Vector storage and semantic search powered by LanceDB.
     """
 
-    def __init__(self, table_name: str, db_path: str | None = None, vector_size: int = 1536):
+    def __init__(self, table_name: str, db_path: str | None = None, vector_size: PositiveInt = 1536):
         self.table_name, self.vector_size = table_name, vector_size
         self.db_path = db_path or settings.lancedb_path.resolve()
         self._db, self._table = None, None
@@ -62,7 +63,7 @@ class LanceDBVectorStore(VectorStore):
         if data:
             t.add(data, mode="overwrite")
 
-    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: PositiveInt = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         t = await self._get_table()
         q = t.search(query).limit(k)
         if tenant_id:
@@ -91,7 +92,7 @@ class InMemoryVectorStore(LanceDBVectorStore):
     Volatile, fast vector storage suitable for testing and ephemeral processing.
     """
 
-    def __init__(self, vector_size: int = 1536):
+    def __init__(self, vector_size: PositiveInt = 1536):
         self._temp = tempfile.TemporaryDirectory()
         super().__init__(table_name="temp_vectors", db_path=self._temp.name, vector_size=vector_size)
 
@@ -105,7 +106,7 @@ class QdrantVectorStore(VectorStore):
     Production-grade vector search using Qdrant.
     """
 
-    def __init__(self, col: str, url: str | None = None, key: str | None = None, size: int = 1536):
+    def __init__(self, col: str, url: str | None = None, key: str | None = None, size: PositiveInt = 1536):
         self.col, self.size = col, size
         self._client = AsyncQdrantClient(
             url=url or str(settings.qdrant_url),
@@ -138,7 +139,7 @@ class QdrantVectorStore(VectorStore):
         if pts:
             await self._client.upsert(self.col, pts)
 
-    async def search(self, query: list[float], k: int = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
+    async def search(self, query: list[float], k: PositiveInt = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         await self._ensure()
         filt = Filter(must=[FieldCondition(key="tenant_id", match=MatchValue(value=str(tenant_id)))]) if tenant_id else None
         res = await self._client.search(self.col, query, query_filter=filt, limit=k)  # type: ignore

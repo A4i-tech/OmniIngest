@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field, confloat
+from pydantic import BaseModel, Field, PositiveInt, confloat
 
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
 from ..core.pipeline import step
@@ -55,8 +55,8 @@ class DataLineageAgent(BaseModel, Step):
 
 
 class QualityReport(BaseModel):
-    overall_score: Annotated[float, confloat(ge=0, le=1)] = Field(..., description="float between 0 and 1")
-    issues: list[str] = Field(..., description="list of strings describing any problems found")
+    overall_score: Annotated[float, confloat(ge=0, le=1)] = Field(..., description="Quality score")
+    issues: list[str] = Field(..., description="List of quality issues found")
 
 
 @step("quality")
@@ -70,8 +70,8 @@ class QualityVerifierAgent(BaseModel, Step, AgentMixin):
     threshold.
     """
 
-    sample_size: int = Field(3, description="The number of items to sample for quality verification")
-    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(0.7, description="The minimum acceptable quality score (range 0.0 to 1.0)")
+    sample_size: PositiveInt = Field(3, description="Number of items to sample for quality verification")
+    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(0.7, description="Minimum acceptable quality score")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:

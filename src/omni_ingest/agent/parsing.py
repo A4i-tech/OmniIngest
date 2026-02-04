@@ -49,8 +49,8 @@ class TextParserAgent(BaseModel, Step):
     downstream processing.
     """
 
-    strip_html: bool = Field(True, description="Should we remove HTML tags (like <div> or <p>) from the input?")
-    normalize_whitespace: bool = Field(True, description="Should we clean up messy spaces, tabs, and extra newlines?")
+    strip_html: bool = Field(True, description="Remove HTML tags from input")
+    normalize_whitespace: bool = Field(True, description="Normalize whitespace and newlines")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw = ctx.metadata.get("raw_text") or ctx.metadata.get("text")

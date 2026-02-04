@@ -24,7 +24,7 @@ class DomainEnrichmentAgent(BaseModel, Step, AgentMixin):
     """
 
     prompt_template: str = Field("Analyze text and provide JSON summary/tags. Content: {text}", description="LLM prompt template")
-    response_format: str = Field("json_object", description="The technical format the AI should use for its answer")
+    response_format: str = Field("json_object", description="Response format for LLM output")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
@@ -38,7 +38,7 @@ class DomainEnrichmentAgent(BaseModel, Step, AgentMixin):
 
 
 class LearningOutcomes(BaseModel):
-    learning_outcomes: list[str] = Field(..., description="A list of learning outcomes")
+    learning_outcomes: list[str] = Field(..., description="Extracted learning outcomes")
 
 
 @step("learning_outcome")

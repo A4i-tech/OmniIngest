@@ -20,8 +20,8 @@ class SentenceChunkingAgent(BaseModel, Step):
     to preserve contextual integrity for subsequent search operations.
     """
 
-    chunk_size: PositiveInt = Field(512, description="The maximum number of characters we should put in one piece")
-    overlap: NonNegativeInt = Field(50, description="How many characters should carry over from one piece to the next?")
+    chunk_size: PositiveInt = Field(512, description="Maximum number of characters per chunk")
+    overlap: NonNegativeInt = Field(50, description="Character overlap between adjacent chunks")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (text := ctx.metadata.get("text")):
@@ -78,9 +78,9 @@ class TimedChunkingAgent(BaseModel, Step):
     audiovisual datasets.
     """
 
-    segment_duration_ms: PositiveInt = Field(30000, description="Target length of time block in ms")
-    overlap_ms: NonNegativeInt = Field(0, description="Should time blocks overlap at the edges?")
-    pause_threshold_ms: PositiveInt | None = Field(None, description="Optional: break block if silence for this long")
+    segment_duration_ms: PositiveInt = Field(30000, description="Target duration of time block in milliseconds")
+    overlap_ms: NonNegativeInt = Field(0, description="Millisecond overlap between adjacent time blocks")
+    pause_threshold_ms: PositiveInt | None = Field(None, description="Optional silence threshold to break blocks")
 
     @property
     def segment_duration_ticks(self) -> int:

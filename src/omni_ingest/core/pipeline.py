@@ -8,6 +8,7 @@ from uuid import UUID
 
 import yaml
 from fastmcp.mcp_config import MCPConfig
+from pydantic import PositiveInt
 from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
 from pydantic_ai.toolsets.fastmcp import FastMCPToolset
@@ -203,7 +204,7 @@ class KnowledgeBaseAdapter:
     async def list_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         return await self.metadata_store.list_knowledge_items(tenant_id=tenant_id, domain_profile=domain_profile, **filters)
 
-    async def query(self, tenant_id: UUID, query: list[float], k: int = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
+    async def query(self, tenant_id: UUID, query: list[float], k: PositiveInt = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
         return await self.vector_store.search(query, k=k, tenant_id=tenant_id)
 
     async def get(self, item_id: UUID) -> KnowledgeItem | None:
@@ -213,7 +214,7 @@ class KnowledgeBaseAdapter:
         self,
         tenant_id: UUID,
         query: str,
-        k: int = 5,
+        k: PositiveInt = 5,
         domain_profile: str | None = None,
     ) -> list[KnowledgeItem]:
         try:
