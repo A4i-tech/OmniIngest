@@ -42,7 +42,7 @@ async def test_create_pipeline_with_config():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_execution_with_configured_chunking():
+async def test_pipeline_execution_with_configured_chunking(metadata_store):
     config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 50, "overlap": 10}}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -50,7 +50,7 @@ async def test_pipeline_execution_with_configured_chunking():
         f.flush()
 
         pipeline = create_pipeline_from_config(f.name)
-        ctx = IngestionContext(metadata={"text": "First sentence. Second sentence. Third sentence."})
+        ctx = IngestionContext(metadata={"text": "First sentence. Second sentence. Third sentence."}, store=metadata_store)
 
         results = await pipeline.run(ctx)
 

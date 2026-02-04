@@ -1,17 +1,22 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
 import inspect
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import yaml
+from fastmcp.mcp_config import MCPConfig
+from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
+from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 
 from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
 from .protocol import VectorStore
 
+PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
 
 class PipelineRunner:
     """
@@ -22,11 +27,12 @@ class PipelineRunner:
     lifecycle of the ingestion process, including error handling and status reporting.
     """
 
-    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None):
+    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None, toolsets: Mapping[str, AbstractToolset] = {}):
         self.steps = steps
-        self.pipeline_version_id = pipeline_version_id
+        self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.vector_store = vector_store
         self.graph_store = graph_store
+        self.toolsets = toolsets
 
     async def run(self, ctx: IngestionContext) -> list[StepResult]:
         """
@@ -41,39 +47,38 @@ class PipelineRunner:
         Returns:
             A list of StepResult objects, one for each executed step.
         """
-        run_id = None
-        if ctx.store and self.pipeline_version_id:
-            source_uri = ctx.metadata.get("source_uri") or ctx.metadata.get("file_path") or "unknown"
-            run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, source_uri)
-            ctx.run_id = run_id
 
+        if not ctx.store:
+            raise ValueError("Metadata store required in context")
+
+        source_uri = ctx.metadata.get("source_uri") or ctx.metadata.get("file_path") or "unknown"
+        ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, source_uri, ctx.run_id)
+        PIPELINE_RUNNERS[ctx.run_id] = self
+        try:
+            return await self._run(ctx)
+        finally:
+            del PIPELINE_RUNNERS[ctx.run_id]
+
+    async def _run(self, ctx: IngestionContext) -> list[StepResult]:
         results = []
         final_status = "succeeded"
         error_msg = None
 
         for step in self.steps:
-            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step) or "unknown") if ctx.store else None
+            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step) or "unknown")
             try:
                 res = await step.run(ctx)
-                results.append(res)
-                if sid and ctx.store:
-                    await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
-                if res.status == StepStatus.FAILURE:
-                    final_status = "failed"
-                    error_msg = res.error
-                    break
             except Exception as e:
-                err = str(e)
-                results.append(StepResult(status=StepStatus.FAILURE, error=err))
-                if sid and ctx.store:
-                    await ctx.store.update_step_run(sid, status="failure", error=err)
+                res = StepResult(status=StepStatus.FAILURE, error=str(e))
+
+            results.append(res)
+            await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
+            if res.status == StepStatus.FAILURE:
                 final_status = "failed"
-                error_msg = err
+                error_msg = res.error
                 break
 
-        if run_id and ctx.store:
-            await ctx.store.update_pipeline_run(run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
-
+        await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
         return results
 
 
@@ -132,7 +137,8 @@ def create_pipeline_from_config(config_path: str) -> PipelineRunner:
         kwargs = _resolve_step_kwargs(cls, s.config, {"store": store, "graph_store": graph_store})
         steps.append(cls(**kwargs))
 
-    return PipelineRunner(steps=steps, vector_store=store, graph_store=graph_store)
+    toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
+    return PipelineRunner(steps=steps, vector_store=store, graph_store=graph_store, toolsets=toolsets)
 
 
 def _create_vector_store(c: dict[str, Any]):

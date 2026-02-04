@@ -91,7 +91,7 @@ class MetadataStore(Protocol):
         """Creates a new tenant."""
         ...
 
-    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str) -> Any:
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str, id: UUID | None = None) -> Any:
         """Records the start of a pipeline run."""
         ...
 

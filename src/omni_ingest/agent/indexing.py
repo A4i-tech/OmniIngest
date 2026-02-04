@@ -3,11 +3,9 @@
 from typing import Any
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
-from pydantic_ai.models import KnownModelName
 
-from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
+from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
 from ..core.pipeline import step
 
 
@@ -23,7 +21,6 @@ class EmbeddingAgent(BaseModel, Step):
 
     model: KnownEmbeddingModelName = Field("openai:text-embedding-3-small", description="Model to use for embedding")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to embed")
@@ -50,7 +47,6 @@ class VectorIndexingAgent(BaseModel, Step):
     vector_store_kind: str = Field("lancedb", description="The type of database (e.g., 'lancedb' or 'qdrant')")
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items")
@@ -75,7 +71,7 @@ class Keywords(BaseModel):
 
 
 @step("keyword_indexing")
-class KeywordIndexingAgent(BaseModel, Step):
+class KeywordIndexingAgent(BaseModel, Step, AgentMixin):
     """
     Identifies and indexes searchable keywords from KnowledgeItems.
 
@@ -84,18 +80,15 @@ class KeywordIndexingAgent(BaseModel, Step):
     operations.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for keyword extraction")
-
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for keywords")
 
         prompt_tmpl = "Extract 5-10 descriptive keywords from the text. Content: {text}"
 
-        agent = Agent(self.model, output_type=Keywords)
+        agent = self._agent(ctx)
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content))
+            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=Keywords)
             keywords = res.output.keywords
             item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
 
@@ -110,7 +103,6 @@ class GraphIndexingAgent(BaseModel, Step):
 
     graph_store: Any = Field(..., description="The GraphStore implementation to use")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         kg_data = ctx.metadata.get("kg_data")
         if not kg_data or not ctx.items:

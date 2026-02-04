@@ -61,12 +61,7 @@ class ProfileManager:
 
     def load_profile(self, profile_name: str) -> dict[str, Any]:
         profile_path = self.profiles_dir / f"{profile_name}.yaml"
-        if not profile_path.exists():
-            raise FileNotFoundError(f"Profile {profile_name} not found at {profile_path}")
-
-        with open(profile_path) as f:
-            raw_content = f.read()
-
+        raw_content = profile_path.read_text()
         substituted_content = self._substitute_env_vars(raw_content)
         config = yaml.safe_load(substituted_content)
         if not isinstance(config, dict):

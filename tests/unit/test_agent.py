@@ -1,3 +1,4 @@
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -27,24 +28,23 @@ def ctx(store):
 
 @pytest.mark.asyncio
 async def test_markdown_cleaning_agent(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = MarkdownCleaningAgent()
     ctx.metadata["text"] = "## Raw"
 
-    with patch("omni_ingest.agent.cleaning.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = "## Clean"
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
-
         assert result.status == StepStatus.SUCCESS
         assert ctx.metadata["text"] == "## Clean"
 
 
 @pytest.mark.asyncio
 async def test_transcription_post_processor_agent(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = TranscriptionPostProcessorAgent()
     ctx.metadata["text"] = "hello"
 
-    with patch("omni_ingest.agent.cleaning.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = "Hello"
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["Hello"])):
         result = await agent.run(ctx)
 
         assert result.status == StepStatus.SUCCESS
@@ -53,6 +53,7 @@ async def test_transcription_post_processor_agent(ctx):
 
 @pytest.mark.asyncio
 async def test_quality_verifier_agent_success(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
     ctx.items = [KnowledgeItem(content="test content", metadata={})]
 
@@ -60,17 +61,19 @@ async def test_quality_verifier_agent_success(ctx):
 
     mock_output = QualityReport(overall_score=0.9, issues=[])
 
-    with patch("omni_ingest.agent.governance.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = mock_output
-        result = await agent.run(ctx)
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=QualityReport)):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = mock_output
+            result = await agent.run(ctx)
 
-        assert result.status == StepStatus.SUCCESS
-        assert "quality_report" in ctx.metadata
-        assert ctx.metadata["quality_report"]["overall_score"] == 0.9
+            assert result.status == StepStatus.SUCCESS
+            assert "quality_report" in ctx.metadata
+            assert ctx.metadata["quality_report"]["overall_score"] == 0.9
 
 
 @pytest.mark.asyncio
 async def test_quality_verifier_agent_failure(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
     ctx.items = [KnowledgeItem(content="bad content", metadata={})]
 
@@ -78,17 +81,19 @@ async def test_quality_verifier_agent_failure(ctx):
 
     mock_output = QualityReport(overall_score=0.4, issues=["too short"])
 
-    with patch("omni_ingest.agent.governance.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = mock_output
-        result = await agent.run(ctx)
-
-        assert result.status == StepStatus.FAILURE
-        assert result.error is not None and "Quality check failed" in result.error
-        assert result.metadata["quality_score"] == 0.4
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = mock_output
+            result = await agent.run(ctx)
+    
+            assert result.status == StepStatus.FAILURE
+            assert result.error is not None and "Quality check failed" in result.error
+            assert result.metadata["quality_score"] == 0.4
 
 
 @pytest.mark.asyncio
 async def test_faq_generation_agent(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = FAQGenerationAgent()
     ctx.items = [KnowledgeItem(content="context for faq", metadata={})]
 
@@ -96,18 +101,20 @@ async def test_faq_generation_agent(ctx):
 
     mock_output = FAQList(faqs=[FAQItem(q="What is this?", a="A test.")])
 
-    with patch("omni_ingest.agent.enrichment.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = mock_output
-        result = await agent.run(ctx)
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = mock_output
+            result = await agent.run(ctx)
 
-        assert result.status == StepStatus.SUCCESS
-        assert "faqs" in ctx.metadata
-        assert len(ctx.metadata["faqs"]) == 1
-        assert ctx.metadata["faqs"][0]["q"] == "What is this?"
+            assert result.status == StepStatus.SUCCESS
+            assert "faqs" in ctx.metadata
+            assert len(ctx.metadata["faqs"]) == 1
+            assert ctx.metadata["faqs"][0]["q"] == "What is this?"
 
 
 @pytest.mark.asyncio
 async def test_learning_outcome_extraction_agent(ctx):
+    from pydantic_ai import Agent as PydanticAgent
     agent = LearningOutcomeExtractionAgent()
     ctx.domain_profile = "education"
     ctx.items = [KnowledgeItem(content="educational content", metadata={})]
@@ -116,13 +123,14 @@ async def test_learning_outcome_extraction_agent(ctx):
 
     mock_output = LearningOutcomes(learning_outcomes=["Understand testing"])
 
-    with patch("omni_ingest.agent.enrichment.Agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value.output = mock_output
-        result = await agent.run(ctx)
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = mock_output
+            result = await agent.run(ctx)
 
-        assert result.status == StepStatus.SUCCESS
-        assert "learning_outcomes" in ctx.items[0].metadata
-        assert ctx.items[0].metadata["learning_outcomes"] == ["Understand testing"]
+            assert result.status == StepStatus.SUCCESS
+            assert "learning_outcomes" in ctx.items[0].metadata
+            assert ctx.items[0].metadata["learning_outcomes"] == ["Understand testing"]
 
 
 @pytest.mark.asyncio

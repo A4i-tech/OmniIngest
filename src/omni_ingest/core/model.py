@@ -1,13 +1,14 @@
 """Pydantic data models for knowledge items, contexts, and results."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
 from enum import Enum
-from functools import wraps
-from typing import Any, cast
+from typing import Any, final
 from uuid import UUID, uuid4
 
+from fastmcp.mcp_config import MCPServerTypes
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai import Agent
+from pydantic_ai.models import KnownModelName
 
 
 class StepStatus(str, Enum):
@@ -16,17 +17,6 @@ class StepStatus(str, Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     SKIPPED = "skipped"
-
-
-def handle_step_error(func: Callable[..., Coroutine[Any, Any, "StepResult"]]) -> Callable[..., Coroutine[Any, Any, "StepResult"]]:
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            return StepResult(status=StepStatus.FAILURE, error=str(e))
-
-    return cast(Callable[..., Coroutine[Any, Any, StepResult]], wrapper)
 
 
 class KnowledgeItem(BaseModel):
@@ -88,6 +78,20 @@ class Step(ABC):
         ...
 
 
+class AgentMixin:
+    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for this step")
+    toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
+
+    @final
+    def _agent(self, ctx: IngestionContext) -> Agent:
+        from ..core.pipeline import PIPELINE_RUNNERS
+        tool_vendors = PIPELINE_RUNNERS[ctx.run_id].toolsets
+        missing = [ts for ts in self.toolsets if ts not in tool_vendors]
+        if missing:
+            raise ValueError(f"Toolsets not configured in context: {missing}")
+        return Agent(self.model, toolsets=[tool_vendors[k] for k in self.toolsets])
+
+
 class StepConfig(BaseModel):
     agent: str = Field(..., description="The registry name of the agent to execute")
     config: dict[str, Any] = Field(default_factory=dict, description="Step-specific configuration parameters")
@@ -103,3 +107,4 @@ class PipelineConfig(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict, description="Configuration for the metadata store")
     graph_store: dict[str, Any] = Field(default_factory=dict, description="Configuration for the graph store")
     steps: list[StepConfig] = Field(..., description="Ordered list of agentic steps to execute")
+    tool_vendors: dict[str, MCPServerTypes] = Field(default_factory=dict, description="Configured tool vendors available for agents")

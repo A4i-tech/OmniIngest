@@ -8,14 +8,14 @@ from omni_ingest.core.pipeline import PipelineRunner
 
 
 @pytest.mark.asyncio
-async def test_parallel_pipeline_execution(store, tenant):
+async def test_parallel_pipeline_execution(metadata_store, tenant):
     num_runs = 5
 
     async def run_pipeline(idx):
         ctx = IngestionContext(
             tenant_id=tenant.id,
             items=[KnowledgeItem(content=f"Parallel content {idx}", source_uri=f"file://{idx}.txt")],
-            store=store,
+            store=metadata_store,
             metadata={"text": f"Parallel content {idx}"},
         )
         runner = PipelineRunner(steps=[SentenceChunkingAgent(chunk_size=10, overlap=0)])
@@ -29,7 +29,7 @@ async def test_parallel_pipeline_execution(store, tenant):
     for results in all_results:
         assert results[0].status == StepStatus.SUCCESS
         assert len(results[0].items) > 0
-    async with store.session_factory() as s:
+    async with metadata_store.session_factory() as s:
         from sqlalchemy import func, select
 
         from omni_ingest.port.metadata_store import PipelineStepRun

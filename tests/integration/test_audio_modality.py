@@ -4,6 +4,7 @@ from omni_ingest.agent.chunking import TimedChunkingAgent
 from omni_ingest.agent.parsing import AudioParserAgent
 from omni_ingest.core.config import settings
 from omni_ingest.core.model import IngestionContext, StepStatus
+from omni_ingest.core.pipeline import PipelineRunner
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ async def test_timed_chunking_from_word_timestamps():
 
 
 @pytest.mark.asyncio
-async def test_audio_parser_with_real_azure(skip_if_no_azure_speech, tmp_path):
+async def test_audio_parser_with_real_azure(skip_if_no_azure_speech, tmp_path, metadata_store):
     import struct
     import wave
 
@@ -53,7 +54,7 @@ async def test_audio_parser_with_real_azure(skip_if_no_azure_speech, tmp_path):
         wav.writeframes(struct.pack(f"{len(samples)}h", *samples))
 
     agent = AudioParserAgent()
-    ctx = IngestionContext(metadata={"audio_path": str(audio_file)})
+    ctx = IngestionContext(metadata={"audio_path": str(audio_file)}, store=metadata_store)
 
-    res = await agent.run(ctx)
-    assert res.status == StepStatus.SUCCESS
+    res = await PipelineRunner([agent]).run(ctx)
+    assert res[0].status == StepStatus.SUCCESS

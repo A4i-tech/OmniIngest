@@ -3,10 +3,8 @@
 from typing import Any
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
-from pydantic_ai.models import KnownModelName
 
-from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
+from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
 from ..core.pipeline import step
 
 
@@ -16,7 +14,7 @@ class DomainEnrichmentResult(BaseModel):
 
 
 @step("enrichment")
-class DomainEnrichmentAgent(BaseModel, Step):
+class DomainEnrichmentAgent(BaseModel, Step, AgentMixin):
     """
     Augments KnowledgeItems with generated summaries and thematic tags.
 
@@ -25,18 +23,16 @@ class DomainEnrichmentAgent(BaseModel, Step):
     improved categorization and searchability.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for analysis")
     prompt_template: str = Field("Analyze text and provide JSON summary/tags. Content: {text}", description="LLM prompt template")
     response_format: str = Field("json_object", description="The technical format the AI should use for its answer")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to enrich")
-        agent = Agent(self.model, output_type=DomainEnrichmentResult)
+        agent = self._agent(ctx)
         for item in ctx.items:
             prompt = self.prompt_template.format(text=item.content)
-            res = await agent.run(prompt)
+            res = await agent.run(prompt, output_type=DomainEnrichmentResult)
             item.metadata.update(res.output.model_dump())
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"enriched_count": len(ctx.items)})
 
@@ -46,7 +42,7 @@ class LearningOutcomes(BaseModel):
 
 
 @step("learning_outcome")
-class LearningOutcomeExtractionAgent(BaseModel, Step):
+class LearningOutcomeExtractionAgent(BaseModel, Step, AgentMixin):
     """
     Extracts educational learning outcomes from instructional content.
 
@@ -55,20 +51,17 @@ class LearningOutcomeExtractionAgent(BaseModel, Step):
     representation of teaching goals.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for extraction")
-
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if ctx.domain_profile != "education":
             return StepResult(status=StepStatus.SKIPPED, error="Not an education domain")
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for LO extraction")
 
-        agent = Agent(self.model, output_type=LearningOutcomes)
+        agent = self._agent(ctx)
         prompt_tmpl = "Extract a list of learning outcomes from the following educational content. Content: {text}"
 
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content))
+            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=LearningOutcomes)
             item.metadata["learning_outcomes"] = res.output.learning_outcomes
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"extracted_for": len(ctx.items)})
 
@@ -91,7 +84,7 @@ class KGData(BaseModel):
 
 
 @step("kg_builder")
-class KnowledgeGraphBuilderAgent(BaseModel, Step):
+class KnowledgeGraphBuilderAgent(BaseModel, Step, AgentMixin):
     """
     Identifies and extracts relational data for knowledge graph construction.
 
@@ -100,19 +93,16 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step):
     into a graph database.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for graph building")
-
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for KG extraction")
 
-        agent = Agent(self.model, output_type=KGData)
+        agent = self._agent(ctx)
         prompt_tmpl = "Directly extract entities and their relationships from the following text into a graph format. Content: {text}"
 
         all_nodes, all_edges = [], []
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content))
+            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=KGData)
             data = res.output
             all_nodes.extend([n.model_dump() for n in data.nodes])
             all_edges.extend([e.model_dump() for e in data.edges])
@@ -131,7 +121,7 @@ class FAQList(BaseModel):
 
 
 @step("faq_generation")
-class FAQGenerationAgent(BaseModel, Step):
+class FAQGenerationAgent(BaseModel, Step, AgentMixin):
     """
     Generates frequently asked questions (FAQs) from extracted content.
 
@@ -140,17 +130,14 @@ class FAQGenerationAgent(BaseModel, Step):
     automated FAQ generation for finalized knowledge bases.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for generation")
-
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for FAQ generation")
 
-        agent = Agent(self.model, output_type=FAQList, system_prompt="You are a helpful assistant that generates FAQs in JSON format.")
+        agent = self._agent(ctx)
         combined = "\n".join(i.content[:1000] for i in ctx.items[:5])
         prompt = f"Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {combined}"
-        res = await agent.run(prompt)
+        res = await agent.run(prompt, output_type=FAQList, instructions="You are a helpful assistant that generates FAQs in JSON format.")
         data = res.output
         faqs = [f.model_dump() for f in data.faqs]
         ctx.metadata["faqs"] = faqs

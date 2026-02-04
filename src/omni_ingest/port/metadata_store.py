@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -46,9 +46,10 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return t
 
-    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str) -> UUID:
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str, id: UUID | None = None) -> UUID:
         async with self.session_factory() as s:
             r = PipelineRun(
+                id=id or uuid4(),
                 tenant_id=tenant_id,
                 pipeline_version_id=pipeline_version_id,
                 source_uri=source_uri,

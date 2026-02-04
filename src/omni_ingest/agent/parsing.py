@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from pypdf import PdfReader
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
+from ..core.model import IngestionContext, Step, StepResult, StepStatus
 from ..core.pipeline import step
 
 
@@ -52,7 +52,6 @@ class TextParserAgent(BaseModel, Step):
     strip_html: bool = Field(True, description="Should we remove HTML tags (like <div> or <p>) from the input?")
     normalize_whitespace: bool = Field(True, description="Should we clean up messy spaces, tabs, and extra newlines?")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw = ctx.metadata.get("raw_text") or ctx.metadata.get("text")
         if not raw:
@@ -82,7 +81,6 @@ class DocumentParserAgent(BaseModel, Step):
     within the ingestion pipeline.
     """
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         raw, path = ctx.metadata.get("raw_data"), ctx.metadata.get("file_path")
         if not raw and not path:
@@ -119,7 +117,6 @@ class AudioParserAgent(BaseModel, Step):
     metadata suitable for temporal analysis of the content.
     """
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (audio_path := ctx.metadata.get("audio_path")):
             return StepResult(status=StepStatus.SKIPPED, error="No audio_path")

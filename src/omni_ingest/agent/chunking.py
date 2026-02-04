@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 from pypdf import PdfReader
 
-from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus, handle_step_error
+from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
 from ..core.pipeline import step
 
 
@@ -23,7 +23,6 @@ class SentenceChunkingAgent(BaseModel, Step):
     chunk_size: PositiveInt = Field(512, description="The maximum number of characters we should put in one piece")
     overlap: NonNegativeInt = Field(50, description="How many characters should carry over from one piece to the next?")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (text := ctx.metadata.get("text")):
             return StepResult(status=StepStatus.SKIPPED, error="No text")
@@ -55,7 +54,6 @@ class PageChunkingAgent(BaseModel, Step):
     input document.
     """
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         path, raw = ctx.metadata.get("file_path"), ctx.metadata.get("raw_data")
         if not path and not raw:
@@ -96,7 +94,6 @@ class TimedChunkingAgent(BaseModel, Step):
     def pause_threshold_ticks(self) -> int | None:
         return self.pause_threshold_ms * 10000 if self.pause_threshold_ms else None
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         words = ctx.metadata.get("word_timestamps")
         if not words:

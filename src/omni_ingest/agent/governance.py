@@ -1,10 +1,9 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
-from pydantic_ai import Agent
-from pydantic_ai.models import KnownModelName
+from pydantic import BaseModel, Field, confloat
 
-from ..core.model import IngestionContext, Step, StepResult, StepStatus, handle_step_error
+from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
 from ..core.pipeline import step
 
 
@@ -18,7 +17,6 @@ class IngestionLoggerAgent(BaseModel, Step):
     monitoring and auditing purposes.
     """
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.store or not ctx.run_id:
             return StepResult(status=StepStatus.SKIPPED, error="No store/run context")
@@ -41,7 +39,6 @@ class DataLineageAgent(BaseModel, Step):
     data to the finalized index.
     """
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         lineage = {
             "run_id": str(ctx.run_id),
@@ -58,12 +55,12 @@ class DataLineageAgent(BaseModel, Step):
 
 
 class QualityReport(BaseModel):
-    overall_score: float = Field(..., description="float between 0 and 1")
+    overall_score: Annotated[float, confloat(ge=0, le=1)] = Field(..., description="float between 0 and 1")
     issues: list[str] = Field(..., description="list of strings describing any problems found")
 
 
 @step("quality")
-class QualityVerifierAgent(BaseModel, Step):
+class QualityVerifierAgent(BaseModel, Step, AgentMixin):
     """
     Evaluates the quality of extracted text based on predefined criteria.
 
@@ -73,11 +70,9 @@ class QualityVerifierAgent(BaseModel, Step):
     threshold.
     """
 
-    model: KnownModelName = Field("openai:gpt-4o", description="Model to use for verification")
     sample_size: int = Field(3, description="The number of items to sample for quality verification")
-    min_quality_score: float = Field(0.7, description="The minimum acceptable quality score (range 0.0 to 1.0)")
+    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(0.7, description="The minimum acceptable quality score (range 0.0 to 1.0)")
 
-    @handle_step_error
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to verify")
@@ -94,7 +89,8 @@ Samples:
         for i, item in enumerate(samples):
             prompt += f"\n--- Sample {i + 1} ---\n{item.content[:500]}\n"
 
-        res = await Agent(self.model, output_type=QualityReport).run(prompt)
+        agent = self._agent(ctx)
+        res = await agent.run(prompt, output_type=QualityReport)
         data = res.output
         score = data.overall_score
         passed = score >= self.min_quality_score

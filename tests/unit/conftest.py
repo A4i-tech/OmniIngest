@@ -7,15 +7,6 @@ os.environ.setdefault("AZURE_SPEECH_REGION", "eastus")
 
 import pytest
 
-from omni_ingest.port.vector_store import InMemoryVectorStore
-
-
-@pytest.fixture
-def store():
-    store = InMemoryVectorStore()
-    yield store
-    asyncio.run(store.close())
-
 
 @pytest.fixture
 def tenant():

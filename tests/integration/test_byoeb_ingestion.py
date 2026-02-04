@@ -11,7 +11,7 @@ RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
 
 @pytest.mark.asyncio
-async def test_byoeb_ingestion_and_search(tmp_path):
+async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
     config = {
         "store": {"type": "in_memory"},
         "steps": [
@@ -30,13 +30,9 @@ async def test_byoeb_ingestion_and_search(tmp_path):
     tid = uuid4()
 
     blueberries_path = RESOURCES_DIR / "blueberries-are-now-green.txt"
-    if not blueberries_path.exists():
-        pytest.skip("Blueberries resource file not found")
+    content = blueberries_path.read_text()
 
-    with open(blueberries_path) as f:
-        content = f.read()
-
-    ctx1 = IngestionContext(tenant_id=tid, metadata={"text": content, "file_path": str(blueberries_path)})
+    ctx1 = IngestionContext(tenant_id=tid, metadata={"text": content, "file_path": str(blueberries_path)}, store=metadata_store)
     res1 = await pipeline.run(ctx1)
     assert res1[-1].status == StepStatus.SUCCESS
 
@@ -44,13 +40,9 @@ async def test_byoeb_ingestion_and_search(tmp_path):
     vector_store = indexing_step.store  # type: ignore
 
     patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"
-    if not patients_path.exists():
-        pytest.skip("Patients resource file not found")
+    content2 = patients_path.read_text()
 
-    with open(patients_path) as f:
-        content2 = f.read()
-
-    ctx2 = IngestionContext(tenant_id=tid, metadata={"text": content2, "file_path": str(patients_path)})
+    ctx2 = IngestionContext(tenant_id=tid, metadata={"text": content2, "file_path": str(patients_path)}, store=metadata_store)
     res2 = await pipeline.run(ctx2)
     assert res2[-1].status == StepStatus.SUCCESS
 
