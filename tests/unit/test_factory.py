@@ -6,7 +6,7 @@ import yaml
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, StepStatus
 from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
 
 
@@ -91,3 +91,15 @@ async def test_knowledge_base_adapter_search_text():
 
         mock_embed.assert_awaited_once_with("query")
         mock_vector.search.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_with_undefined_toolset(metadata_store):
+    config = {"steps": [{"agent": "enrichment", "config": {"toolsets": ["converter"]}}]}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
+        yaml.dump(config, tmp)
+        runner = create_pipeline_from_config(tmp.name)
+
+    result = await runner.run(IngestionContext(items=[KnowledgeItem(content="I am clueless about the current state of LLMs.")], store=metadata_store))
+    assert all(r.status == StepStatus.FAILURE for r in result)
+    assert all(r.error == "Toolsets not configured in context: ['converter']" for r in result)

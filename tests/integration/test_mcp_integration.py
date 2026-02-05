@@ -10,22 +10,22 @@ import yaml
 from omni_ingest.core.model import AgentMixin, IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import create_pipeline_from_config, step
 
+@step("mcp_calling")
+class MCPCallingAgent(BaseModel, Step, AgentMixin):
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        class CleanedBarkdownModel(BaseModel):
+            bark: str = Field(..., description="The bark text")
+
+        response = await self._agent(ctx).run(
+            instructions="You are a bark agent. Bark is a custom homegrown format. Convert the user input to bark format.",
+            user_prompt=ctx.items[0].content,
+            output_type=CleanedBarkdownModel,
+        )
+        return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=response.output.bark)], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
+
 
 @pytest.mark.asyncio
 async def test_pipeline_with_mcp_toolsets(metadata_store):
-    @step("mcp_calling")
-    class MCPCallingAgent(BaseModel, Step, AgentMixin):
-        async def run(self, ctx: IngestionContext) -> StepResult:
-            class CleanedBarkdownModel(BaseModel):
-                bark: str = Field(..., description="The bark text")
-
-            response = await self._agent(ctx).run(
-                instructions="You are a bark agent. Bark is a custom homegrown format. Convert the user input to bark format.",
-                user_prompt=ctx.items[0].content,
-                output_type=CleanedBarkdownModel,
-            )
-            return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=response.output.bark)], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump({
             "pipeline_id": "mcp_test_v1",
@@ -55,6 +55,32 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
 
     messages = json.loads(results[0].metadata["messages"])
     assert any("tool_name" in m["parts"][0] and m["parts"][0]["tool_name"] == "to_bark" for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_with_mcp_unreachable(metadata_store):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
+        yaml.dump({
+            "pipeline_id": "mcp_test_v2",
+            "domain_profile": "generic",
+            "description": "Test pipeline with MCP toolsets",
+            "tool_vendors": {
+                "converter": {
+                    "url": "https://a4i-tech.github.io/nomcp",
+                }
+            },
+            "steps": [{
+                "agent": "mcp_calling",
+                "config": {
+                    "toolsets": ["converter"]
+                }
+            }],
+        }, tmp)
+        runner = create_pipeline_from_config(tmp.name)
+
+    ctx = IngestionContext(items=[KnowledgeItem(content="")], store=metadata_store)
+    results = await runner.run(ctx)
+    assert all(r.status == StepStatus.FAILURE for r in results)
 
 
 if __name__ == "__main__":
