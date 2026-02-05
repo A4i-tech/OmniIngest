@@ -54,6 +54,7 @@ steps:
 
 ```python
 import asyncio
+from pathlib import Path
 from omni_ingest.core.factory import create_pipeline_from_config
 from omni_ingest.core.models import IngestionContext
 from omni_ingest.core.pipeline import KnowledgeBaseAdapter
@@ -62,7 +63,7 @@ from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
 async def main():
-    pipeline = create_pipeline_from_config("pipeline.yaml")
+    pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
     ctx = IngestionContext(metadata={"file_path": "research_paper.pdf"})
     results = await pipeline.run(ctx)
     print(f"Workflow complete. Processed {len(results[-1].items)} items.")

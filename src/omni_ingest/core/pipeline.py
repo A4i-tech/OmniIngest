@@ -3,6 +3,7 @@
 import inspect
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -118,14 +119,14 @@ def lookup_step_id(step: Step) -> str | None:
     return None
 
 
-def create_pipeline_from_config(config_path: str) -> PipelineRunner:
+def create_pipeline_from_config(config_path: Path) -> PipelineRunner:
     """
     Factory function to create a PipelineRunner from a YAML configuration file.
 
     Args:
         config_path: Path to the .yaml configuration file.
     """
-    with open(config_path) as f:
+    with config_path.open() as f:
         raw_config = yaml.safe_load(f)
 
     config = PipelineConfig.model_validate(raw_config)

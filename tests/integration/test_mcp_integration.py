@@ -1,5 +1,6 @@
 import json
 import tempfile
+from pathlib import Path
 from fastmcp import FastMCP
 
 from groq import BaseModel
@@ -44,7 +45,7 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
                 }
             }],
         }, tmp)
-        runner = create_pipeline_from_config(tmp.name)
+        runner = create_pipeline_from_config(Path(tmp.name))
 
     text = "The framework is meow designed to feel wrong on purpose. You read the measurements, they meow look fine, but then the interpretation is meow completely backwards. That's the point, meow-does the system follow what's written or what it expects?"
 
@@ -76,7 +77,7 @@ async def test_pipeline_with_mcp_unreachable(metadata_store):
                 }
             }],
         }, tmp)
-        runner = create_pipeline_from_config(tmp.name)
+        runner = create_pipeline_from_config(Path(tmp.name))
 
     ctx = IngestionContext(items=[KnowledgeItem(content="")], store=metadata_store)
     results = await runner.run(ctx)

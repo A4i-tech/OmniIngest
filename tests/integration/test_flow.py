@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import pytest
 
@@ -9,7 +9,7 @@ from omni_ingest.core.pipeline import create_pipeline_from_config
 
 @pytest.fixture
 def profiles_dir():
-    return "tests/integration/profiles"
+    return Path("tests/integration/profiles")
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,7 @@ def profiles_dir():
     "custom_prompt_v1",
 ])
 async def test_profiles_instantiation(p, profiles_dir):
-    path = os.path.join(profiles_dir, f"{p}.yaml")
+    path = profiles_dir / f"{p}.yaml"
     runner = create_pipeline_from_config(path)
     assert runner is not None
     assert len(runner.steps) > 0
@@ -34,7 +34,7 @@ async def test_profiles_instantiation(p, profiles_dir):
 
 @pytest.mark.asyncio
 async def test_education_v2_pipeline(metadata_store, tenant, profiles_dir):
-    path = os.path.join(profiles_dir, "education_v2.yaml")
+    path = profiles_dir / "education_v2.yaml"
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(
         tenant_id=tenant.id,
@@ -67,7 +67,7 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path)
         samples = [int(32767 * 0.5 * (1 if i % 100 < 50 else -1)) for i in range(16000)]
         wav.writeframes(struct.pack(f"{len(samples)}h", *samples))
 
-    path = os.path.join(profiles_dir, "audio_v2.yaml")
+    path = profiles_dir / "audio_v2.yaml"
     runner = create_pipeline_from_config(path)
 
     ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, metadata={"audio_path": str(audio_file)})
@@ -78,7 +78,7 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path)
 
 @pytest.mark.asyncio
 async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
-    path = os.path.join(profiles_dir, "governance_v1.yaml")
+    path = profiles_dir / "governance_v1.yaml"
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, metadata={"text": "Audit this file for compliance."})
 
@@ -90,7 +90,7 @@ async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
 
 @pytest.mark.asyncio
 async def test_health_v1_pipeline(metadata_store, tenant, profiles_dir):
-    path = os.path.join(profiles_dir, "health_v1.yaml")
+    path = profiles_dir / "health_v1.yaml"
     runner = create_pipeline_from_config(path)
     ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, metadata={"text": "The patient was diagnosed with type 2 diabetes."})
 

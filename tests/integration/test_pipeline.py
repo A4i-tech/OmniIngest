@@ -1,4 +1,5 @@
 import tempfile
+from pathlib import Path
 
 import pytest
 import yaml
@@ -59,5 +60,5 @@ async def test_yaml_pipeline_factory(metadata_store):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)
         tmp.flush()
-        results = await create_pipeline_from_config(tmp.name).run(IngestionContext(metadata={"text": "YAML test."}, store=metadata_store))
+        results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(metadata={"text": "YAML test."}, store=metadata_store))
         assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 3

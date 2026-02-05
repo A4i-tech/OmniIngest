@@ -1,4 +1,5 @@
 import tempfile
+from pathlib import Path
 from uuid import UUID
 
 import pytest
@@ -32,7 +33,7 @@ async def test_create_pipeline_with_config():
         yaml.dump(config, f)
         f.flush()
 
-        pipeline = create_pipeline_from_config(f.name)
+        pipeline = create_pipeline_from_config(Path(f.name))
 
         assert len(pipeline.steps) == 1
         chunking_step = pipeline.steps[0]
@@ -49,7 +50,7 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
         yaml.dump(config, f)
         f.flush()
 
-        pipeline = create_pipeline_from_config(f.name)
+        pipeline = create_pipeline_from_config(Path(f.name))
         ctx = IngestionContext(metadata={"text": "First sentence. Second sentence. Third sentence."}, store=metadata_store)
 
         results = await pipeline.run(ctx)
@@ -67,7 +68,7 @@ async def test_pipeline_with_default_config():
         yaml.dump(config, f)
         f.flush()
 
-        pipeline = create_pipeline_from_config(f.name)
+        pipeline = create_pipeline_from_config(Path(f.name))
         chunking_step = pipeline.steps[0]
 
         assert chunking_step.chunk_size == 512  # type: ignore
@@ -98,7 +99,7 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
     config = {"steps": [{"agent": "enrichment", "config": {"toolsets": ["converter"]}}]}
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)
-        runner = create_pipeline_from_config(tmp.name)
+        runner = create_pipeline_from_config(Path(tmp.name))
 
     result = await runner.run(IngestionContext(items=[KnowledgeItem(content="I am clueless about the current state of LLMs.")], store=metadata_store))
     assert all(r.status == StepStatus.FAILURE for r in result)

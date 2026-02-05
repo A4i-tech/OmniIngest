@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Any
 
 from azure.storage.blob.aio import BlobServiceClient
@@ -38,26 +38,23 @@ class LocalObjectStore(ObjectStore):
     File-system based object storage for local development.
     """
 
-    def __init__(self, base_path: str = "./storage"):
+    def __init__(self, base_path: Path = Path("./storage")):
         self.base_path = base_path
-        os.makedirs(self.base_path, exist_ok=True)
+        self.base_path.mkdir(parents=True, exist_ok=True)
 
     async def put(self, data: bytes, key: str, metadata: dict[str, Any] | None = None) -> str:
-        path = os.path.join(self.base_path, key)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(data)
-        return f"file://{os.path.abspath(path)}"
+        path = self.base_path / key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path.resolve().as_uri()
 
     async def get(self, key: str) -> bytes:
-        path = os.path.join(self.base_path, key)
-        with open(path, "rb") as f:
-            return f.read()
+        path = self.base_path / key
+        return path.read_bytes()
 
     async def delete(self, key: str):
-        path = os.path.join(self.base_path, key)
-        if os.path.exists(path):
-            os.remove(path)
+        path = self.base_path / key
+        path.unlink(missing_ok=True)
 
     async def close(self):
         pass

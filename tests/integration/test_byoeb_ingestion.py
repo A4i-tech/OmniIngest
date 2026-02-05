@@ -22,10 +22,10 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
         ],
     }
     config_path = tmp_path / "pipeline.yaml"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         yaml.dump(config, f)
 
-    pipeline = create_pipeline_from_config(str(config_path))
+    pipeline = create_pipeline_from_config(config_path)
 
     tid = uuid4()
 
