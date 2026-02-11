@@ -1,7 +1,7 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
 import inspect
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,8 @@ from pydantic import PositiveInt
 from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
 from pydantic_ai.toolsets.fastmcp import FastMCPToolset
+
+from omni_ingest.core import event
 
 from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
@@ -57,23 +59,25 @@ class PipelineRunner:
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, source_uri, ctx.run_id)
         PIPELINE_RUNNERS[ctx.run_id] = self
         try:
-            return await self._run(ctx)
+            return [e.step_result async for e in self._run(ctx) if isinstance(e, event.PipelineStepEndEvent)]
         finally:
             del PIPELINE_RUNNERS[ctx.run_id]
 
-    async def _run(self, ctx: IngestionContext) -> list[StepResult]:
-        results = []
+    async def _run(self, ctx: IngestionContext) -> AsyncIterator[event.Event]:
         final_status = "succeeded"
         error_msg = None
 
+        yield event.Event(identifier="pipeline_begin", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id)})
         for step in self.steps:
-            sid = await ctx.store.create_step_run(ctx.run_id, lookup_step_id(step) or "unknown")
+            step_name = lookup_step_id(step) or "unknown"
+            sid = await ctx.store.create_step_run(ctx.run_id, step_name)
+            yield event.PipelineStepEvent(identifier="pipeline_step_begin", run_id=ctx.run_id, step_name=step_name, step=step)
             try:
                 res = await step.run(ctx)
             except Exception as e:
                 res = StepResult(status=StepStatus.FAILURE, error=str(e))
 
-            results.append(res)
+            yield event.PipelineStepEndEvent(run_id=ctx.run_id, step_name=step_name, step=step, step_result=res)
             await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
             if res.status == StepStatus.FAILURE:
                 final_status = "failed"
@@ -81,7 +85,7 @@ class PipelineRunner:
                 break
 
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
-        return results
+        yield event.Event(identifier="pipeline_end", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id), "status": final_status, "error": error_msg})
 
 
 _STEP_FACTORY: dict[str, type[Step]] = {}
