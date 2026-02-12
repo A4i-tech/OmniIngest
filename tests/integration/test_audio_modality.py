@@ -29,7 +29,7 @@ async def test_timed_chunking_from_word_timestamps():
         }
     )
 
-    chunker = TimedChunkingAgent(segment_duration_ms=10000)
+    chunker = TimedChunkingAgent(segment_duration="00:00:10")
     result = await chunker.run(ctx)
 
     assert result.status == StepStatus.SUCCESS

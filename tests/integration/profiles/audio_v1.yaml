@@ -6,7 +6,7 @@ steps:
   - agent: audio_parser
   - agent: timed_chunking
     config:
-      segment_duration_ms: 30000
+      segment_duration: 30
   - agent: enrichment
     config:
       model: "openai:gpt-4o"

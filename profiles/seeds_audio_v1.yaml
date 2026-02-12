@@ -7,8 +7,8 @@ steps:
   - agent: transcription_post_processor
   - agent: timed_chunking
     config:
-      segment_duration_ms: 60000
-      pause_threshold_ms: 500
+      segment_duration: 60
+      pause_threshold: 0.5
   - agent: enrichment
     config:
       prompt_template: "Analyze this audio transcript and extract: summary, keywords, and key themes.\n\nTranscript: {text}\n\nReturn JSON with 'summary', 'tags', and 'themes' fields."

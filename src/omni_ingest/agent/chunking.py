@@ -1,9 +1,10 @@
 """Agents for segmenting large documents and transcripts into manageable chunks."""
 
 import io
+from datetime import timedelta
 from typing import Any
 
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
+from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
 from pypdf import PdfReader
 
 from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
@@ -78,21 +79,39 @@ class TimedChunkingAgent(BaseModel, Step):
     audiovisual datasets.
     """
 
-    segment_duration_ms: PositiveInt = Field(30000, description="Target duration of time block in milliseconds")
-    overlap_ms: NonNegativeInt = Field(0, description="Millisecond overlap between adjacent time blocks")
-    pause_threshold_ms: PositiveInt | None = Field(None, description="Optional silence threshold to break blocks")
+    segment_duration: timedelta = Field(timedelta(seconds=30), description="Target duration of each time block")
+    overlap: timedelta = Field(timedelta(0), description="Overlap between adjacent time blocks")
+    pause_threshold: timedelta | None = Field(None, description="Silence threshold to split blocks")
+
+    @field_validator("segment_duration")
+    def _validate_segment_duration(cls, value: timedelta) -> timedelta:
+        if value <= timedelta(0):
+            raise ValueError("segment_duration must be positive")
+        return value
+
+    @field_validator("overlap")
+    def _validate_overlap(cls, value: timedelta) -> timedelta:
+        if value < timedelta(0):
+            raise ValueError("overlap must be non-negative")
+        return value
+
+    @field_validator("pause_threshold")
+    def _validate_pause_threshold(cls, value: timedelta | None) -> timedelta | None:
+        if value is not None and value <= timedelta(0):
+            raise ValueError("pause_threshold must be positive")
+        return value
 
     @property
     def segment_duration_ticks(self) -> int:
-        return self.segment_duration_ms * 10000
+        return int(self.segment_duration.total_seconds() * 10_000_000)
 
     @property
     def overlap_ticks(self) -> int:
-        return self.overlap_ms * 10000
+        return int(self.overlap.total_seconds() * 10_000_000)
 
     @property
     def pause_threshold_ticks(self) -> int | None:
-        return self.pause_threshold_ms * 10000 if self.pause_threshold_ms else None
+        return int(self.pause_threshold.total_seconds() * 10_000_000) if self.pause_threshold else None
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         words = ctx.metadata.get("word_timestamps")

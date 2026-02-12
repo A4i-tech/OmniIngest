@@ -206,7 +206,7 @@ async def test_audio_parser_agent_failure(ctx):
 async def test_timed_chunking_agent(ctx):
     from omni_ingest.agent.chunking import TimedChunkingAgent
 
-    agent = TimedChunkingAgent(segment_duration_ms=100)
+    agent = TimedChunkingAgent(segment_duration="00:00:00.100000")
     ctx.metadata["text"] = "test"
     ctx.metadata["word_timestamps"] = [{"Word": "test", "Offset": 0, "Duration": 2000000}]
     result = await agent.run(ctx)

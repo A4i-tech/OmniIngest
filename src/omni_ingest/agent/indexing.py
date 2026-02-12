@@ -44,7 +44,7 @@ class VectorIndexingAgent(BaseModel, Step):
     """
 
     store: Any = Field(..., description="The physical database where data will be saved")
-    vector_store_kind: str = Field("lancedb", description="The type of database (e.g., 'lancedb' or 'qdrant')")
+    vector_store_kind: str = Field("lancedb", description="Vector database type", examples=["lancedb", "qdrant"])
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
 
     async def run(self, ctx: IngestionContext) -> StepResult:

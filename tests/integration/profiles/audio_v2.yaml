@@ -7,7 +7,7 @@ steps:
   - agent: transcription_post_processor
   - agent: timed_chunking
     config:
-      segment_duration_ms: 60000
+      segment_duration: 60
   - agent: enrichment
   - agent: embedding
   - agent: indexing
