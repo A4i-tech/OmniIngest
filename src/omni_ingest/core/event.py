@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,20 +31,39 @@ class PipelineStepEndEvent(PipelineStepEvent):
     step_result: Any = Field(..., description="Result of the step execution")
 
 
-buffer = collections.deque[Event](maxlen=32)
-subscribers: set[asyncio.Queue[Event]] = set()
+_buffer = collections.deque[Event](maxlen=32)
+_subscribers: set[asyncio.Queue[Event | None]] = set()
 
 
 def publish(event: Event):
     """Publishes an event to all subscribers."""
-    buffer.append(event)
+    _buffer.append(event)
+    for q in _subscribers:
+        if q.full():
+            q.get_nowait()
+        q.put_nowait(event)
 
-    dead = []
-    for q in subscribers:
-        try:
-            q.put_nowait(event)
-        except asyncio.QueueFull:
-            dead.append(q)
 
-    for q in dead:
-        subscribers.discard(q)
+async def subscribe() -> AsyncIterator[Event]:
+    """Subscribes to the event stream, yielding events as they are published."""
+    q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=32)
+    for event in _buffer:
+        q.put_nowait(event)
+
+    _subscribers.add(q)
+    try:
+        while True:
+            e = await q.get()
+            if not e:
+                break
+            yield e
+    finally:
+        _subscribers.discard(q)
+
+
+def shutdown():
+    """Shuts down the event system, notifying all subscribers."""
+    for q in _subscribers:
+        q.put_nowait(None)
+    _subscribers.clear()
+    _buffer.clear()
