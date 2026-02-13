@@ -29,20 +29,14 @@ class LanceDBVectorStore(VectorStore):
     async def _get_table(self) -> Any:
         if self._table is None:
             db = lancedb.connect(self.db_path)
-            if self.table_name not in db.list_tables():
-                schema = pa.schema(
-                    [
-                        pa.field("id", pa.string()),
-                        pa.field("vector", pa.list_(pa.float32(), self.vector_size)),
-                        pa.field("content", pa.string()),
-                        pa.field("tenant_id", pa.string(), nullable=True),
-                        pa.field("source_uri", pa.string(), nullable=True),
-                        pa.field("metadata", pa.string()),
-                    ]
-                )
-                self._table = db.create_table(self.table_name, schema=schema)
-            else:
-                self._table = db.open_table(self.table_name)
+            self._table = db.create_table(self.table_name, schema=pa.schema([
+                pa.field("id", pa.string()),
+                pa.field("vector", pa.list_(pa.float32(), self.vector_size)),
+                pa.field("content", pa.string()),
+                pa.field("tenant_id", pa.string(), nullable=True),
+                pa.field("source_uri", pa.string(), nullable=True),
+                pa.field("metadata", pa.string()),
+            ]), exist_ok=True)
             self._db = db
         return self._table
 
