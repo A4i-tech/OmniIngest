@@ -59,7 +59,12 @@ class PipelineRunner:
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, source_uri, ctx.run_id)
         PIPELINE_RUNNERS[ctx.run_id] = self
         try:
-            return [e.step_result async for e in self._run(ctx) if isinstance(e, event.PipelineStepEndEvent)]
+            result = []
+            async for e in self._run(ctx):
+                event.publish(e)
+                if isinstance(e, event.PipelineStepEndEvent):
+                    result.append(e.step_result)
+            return result
         finally:
             del PIPELINE_RUNNERS[ctx.run_id]
 
