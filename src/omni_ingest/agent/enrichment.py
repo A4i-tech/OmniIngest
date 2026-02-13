@@ -116,10 +116,6 @@ class FAQItem(BaseModel):
     a: str = Field(..., description="The answer")
 
 
-class FAQList(BaseModel):
-    faqs: list[FAQItem]
-
-
 @step("faq_generation")
 class FAQGenerationAgent(BaseModel, Step, AgentMixin):
     """
@@ -137,8 +133,7 @@ class FAQGenerationAgent(BaseModel, Step, AgentMixin):
         agent = self._agent(ctx)
         combined = "\n".join(i.content[:1000] for i in ctx.items[:5])
         prompt = f"Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {combined}"
-        res = await agent.run(prompt, output_type=FAQList, instructions="You are a helpful assistant that generates FAQs in JSON format.")
-        data = res.output
-        faqs = [f.model_dump() for f in data.faqs]
+        res = await agent.run(prompt, output_type=list[FAQItem], instructions="You are a helpful assistant that generates FAQs in JSON format.")
+        faqs = [f.model_dump() for f in res.output]
         ctx.metadata["faqs"] = faqs
         return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs)})

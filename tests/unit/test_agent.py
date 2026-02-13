@@ -97,9 +97,9 @@ async def test_faq_generation_agent(ctx):
     agent = FAQGenerationAgent()
     ctx.items = [KnowledgeItem(content="context for faq", metadata={})]
 
-    from omni_ingest.agent.enrichment import FAQItem, FAQList
+    from omni_ingest.agent.enrichment import FAQItem
 
-    mock_output = FAQList(faqs=[FAQItem(q="What is this?", a="A test.")])
+    mock_output = [FAQItem(q="What is this?", a="A test.")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
