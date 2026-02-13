@@ -5,6 +5,7 @@ import io
 import json
 import re
 from html.parser import HTMLParser
+from typing import Literal
 
 import azure.cognitiveservices.speech as speechsdk
 from docx import Document
@@ -130,7 +131,8 @@ class AudioParserAgent(BaseModel, Step):
         audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        done, transcript, words = False, [], []
+        loop = asyncio.get_event_loop()
+        done, transcript, words = asyncio.Future[Literal[True]](), [], []
 
         def handle_final(evt):
             nonlocal transcript, words
@@ -142,17 +144,28 @@ class AudioParserAgent(BaseModel, Step):
 
         def stop_cb(evt):
             nonlocal done
-            done = True
+            if not done.done():
+                loop.call_soon_threadsafe(done.set_result, True)
+
+        def cancel_cb(evt):
+            nonlocal done
+            if evt.result and evt.result.cancellation_details and evt.result.cancellation_details.reason != speechsdk.CancellationReason.EndOfStream:
+                cancellation = evt.result.cancellation_details
+                details = cancellation.error_details if cancellation.error_details else str(cancellation.reason)
+                loop.call_soon_threadsafe(done.set_exception, RuntimeError(details))
+            elif not done.done():
+                loop.call_soon_threadsafe(done.set_result, True)
 
         speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
         recognizer.recognized.connect(handle_final)
         recognizer.session_stopped.connect(stop_cb)
-        recognizer.canceled.connect(stop_cb)
+        recognizer.canceled.connect(cancel_cb)
 
         recognizer.start_continuous_recognition()
-        while not done:
-            await asyncio.sleep(0.5)
-        recognizer.stop_continuous_recognition()
+        try:
+            await done
+        finally:
+            recognizer.stop_continuous_recognition()
 
         full_text = " ".join(transcript)
         ctx.metadata["text"] = full_text
