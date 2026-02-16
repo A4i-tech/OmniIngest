@@ -8,10 +8,8 @@ from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_valida
 from pypdf import PdfReader
 
 from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
-@step("chunking")
 class SentenceChunkingAgent(BaseModel, Step):
     """
     Segments text into discrete chunks while maintaining sentence boundaries.
@@ -45,7 +43,6 @@ class SentenceChunkingAgent(BaseModel, Step):
         )
 
 
-@step("page_chunking")
 class PageChunkingAgent(BaseModel, Step):
     """
     Partitions PDF documents based on their original page layout.
@@ -69,7 +66,6 @@ class PageChunkingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items)})
 
 
-@step("timed_chunking")
 class TimedChunkingAgent(BaseModel, Step):
     """
     Segments audio transcription data into temporal blocks.

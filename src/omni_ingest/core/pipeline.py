@@ -9,13 +9,13 @@ from uuid import UUID
 
 import yaml
 from fastmcp.mcp_config import MCPConfig
-from pydantic import PositiveInt
+from pydantic import PositiveInt, validate_call
 from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
 from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 
-from omni_ingest.core import event
-
+from .. import agent
+from ..core import event
 from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
 from .protocol import VectorStore
@@ -93,26 +93,46 @@ class PipelineRunner:
         yield event.Event(identifier="pipeline_end", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id), "status": final_status, "error": error_msg})
 
 
-_STEP_FACTORY: dict[str, type[Step]] = {}
+_STEP_FACTORY: dict[str, type[Step]] = {
+    "chunking": agent.chunking.SentenceChunkingAgent,
+    "page_chunking": agent.chunking.PageChunkingAgent,
+    "timed_chunking": agent.chunking.TimedChunkingAgent,
 
+    "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
+    "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
 
-def step(id: str):
+    "enrichment": agent.enrichment.DomainEnrichmentAgent,
+    "learning_outcome": agent.enrichment.LearningOutcomeExtractionAgent,
+    "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
+    "faq_generation": agent.enrichment.FAQGenerationAgent,
+
+    "ingestion_logger": agent.governance.IngestionLoggerAgent,
+    "lineage": agent.governance.DataLineageAgent,
+    "quality": agent.governance.QualityVerifierAgent,
+
+    "embedding": agent.indexing.EmbeddingAgent,
+    "indexing": agent.indexing.VectorIndexingAgent,
+    "keyword_indexing": agent.indexing.KeywordIndexingAgent,
+    "graph_indexing": agent.indexing.GraphIndexingAgent,
+
+    "text_parser": agent.parsing.TextParserAgent,
+    "document_parser": agent.parsing.DocumentParserAgent,
+    "audio_parser": agent.parsing.AudioParserAgent,
+}
+
+@validate_call
+def register_step(id: str, cls: type[Step], override: bool = False):
     """
-    Decorator to register a Step class in the global registry.
+    Register a Step class in the global registry.
 
     Args:
-        id: The name used to identify this step in configurations.
+        id: Name used to identify this step in configurations.
+        cls: Step class the identifier must model.
+        override: Whether to override if step with the ID already exists.
     """
-
-    def decorator(cls: type):
-        if not issubclass(cls, Step):
-            raise TypeError(f"Class {cls.__name__} must inherit from Step")
-        if cls in _STEP_FACTORY.values():
-            raise ValueError(f"Step {id} already registered")
-        _STEP_FACTORY[id] = cls
-        return cls
-
-    return decorator
+    if not override and cls in _STEP_FACTORY.values():
+        raise ValueError(f"Step {id} already registered")
+    _STEP_FACTORY[id] = cls
 
 
 def get_step_class(id: str) -> type[Step]:

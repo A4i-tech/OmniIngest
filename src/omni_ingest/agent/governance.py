@@ -4,10 +4,8 @@ from typing import Annotated
 from pydantic import BaseModel, Field, PositiveInt, confloat
 
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
-@step("ingestion_logger")
 class IngestionLoggerAgent(BaseModel, Step):
     """
     Records operational metadata for ingestion pipeline execution.
@@ -29,7 +27,6 @@ class IngestionLoggerAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata=audit_entry)
 
 
-@step("lineage")
 class DataLineageAgent(BaseModel, Step):
     """
     Maintains data provenance and lineage information for KnowledgeItems.
@@ -59,7 +56,6 @@ class QualityReport(BaseModel):
     issues: list[str] = Field(..., description="List of quality issues found")
 
 
-@step("quality")
 class QualityVerifierAgent(BaseModel, Step, AgentMixin):
     """
     Evaluates the quality of extracted text based on predefined criteria.

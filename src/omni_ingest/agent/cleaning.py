@@ -3,10 +3,8 @@
 from pydantic import BaseModel, Field
 
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
-@step("markdown_cleaning")
 class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
     """
     Standardizes Markdown formatting and removes non-essential content.
@@ -31,7 +29,6 @@ class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
         return StepResult(status=StepStatus.SUCCESS, metadata={"original_len": len(text), "cleaned_len": len(cleaned)})
 
 
-@step("transcription_post_processor")
 class TranscriptionPostProcessorAgent(BaseModel, Step, AgentMixin):
     """
     Refines automated speech-to-text transcripts for improved accuracy.

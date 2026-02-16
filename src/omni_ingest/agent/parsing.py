@@ -14,7 +14,6 @@ from pypdf import PdfReader
 
 from ..core.config import settings
 from ..core.model import IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -40,7 +39,6 @@ class _HTMLTextExtractor(HTMLParser):
         return " ".join(self.text_parts)
 
 
-@step("text_parser")
 class TextParserAgent(BaseModel, Step):
     """
     Normalizes raw text and extracts content from HTML documents.
@@ -72,7 +70,6 @@ class TextParserAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"original_length": len(raw), "parsed_length": len(text)})
 
 
-@step("document_parser")
 class DocumentParserAgent(BaseModel, Step):
     """
     Extracts text content from various document file formats.
@@ -108,7 +105,6 @@ class DocumentParserAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, metadata={"parsed_length": len(text)})
 
 
-@step("audio_parser")
 class AudioParserAgent(BaseModel, Step):
     """
     Transcribes audio data into text format using automated speech recognition.

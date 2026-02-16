@@ -9,9 +9,8 @@ import pytest
 import yaml
 
 from omni_ingest.core.model import AgentMixin, IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
-from omni_ingest.core.pipeline import create_pipeline_from_config, step
+from omni_ingest.core.pipeline import create_pipeline_from_config, register_step
 
-@step("mcp_calling")
 class MCPCallingAgent(BaseModel, Step, AgentMixin):
     async def run(self, ctx: IngestionContext) -> StepResult:
         class CleanedBarkdownModel(BaseModel):
@@ -23,6 +22,11 @@ class MCPCallingAgent(BaseModel, Step, AgentMixin):
             output_type=CleanedBarkdownModel,
         )
         return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=response.output.bark)], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
+
+
+@pytest.fixture(autouse=True)
+def reset_event_state():
+    register_step("mcp_calling", MCPCallingAgent, override=True)
 
 
 @pytest.mark.asyncio

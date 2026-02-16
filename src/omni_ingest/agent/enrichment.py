@@ -5,7 +5,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
 class DomainEnrichmentResult(BaseModel):
@@ -13,7 +12,6 @@ class DomainEnrichmentResult(BaseModel):
     tags: list[str]
 
 
-@step("enrichment")
 class DomainEnrichmentAgent(BaseModel, Step, AgentMixin):
     """
     Augments KnowledgeItems with generated summaries and thematic tags.
@@ -41,7 +39,6 @@ class LearningOutcomes(BaseModel):
     learning_outcomes: list[str] = Field(..., description="Extracted learning outcomes")
 
 
-@step("learning_outcome")
 class LearningOutcomeExtractionAgent(BaseModel, Step, AgentMixin):
     """
     Extracts educational learning outcomes from instructional content.
@@ -83,7 +80,6 @@ class KGData(BaseModel):
     edges: list[KGEdge]
 
 
-@step("kg_builder")
 class KnowledgeGraphBuilderAgent(BaseModel, Step, AgentMixin):
     """
     Identifies and extracts relational data for knowledge graph construction.
@@ -116,7 +112,6 @@ class FAQItem(BaseModel):
     a: str = Field(..., description="The answer")
 
 
-@step("faq_generation")
 class FAQGenerationAgent(BaseModel, Step, AgentMixin):
     """
     Generates frequently asked questions (FAQs) from extracted content.

@@ -6,10 +6,8 @@ from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
-from ..core.pipeline import step
 
 
-@step("embedding")
 class EmbeddingAgent(BaseModel, Step):
     """
     Generates vector embeddings for KnowledgeItems to facilitate semantic search.
@@ -33,7 +31,6 @@ class EmbeddingAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(ctx.items)})
 
 
-@step("indexing")
 class VectorIndexingAgent(BaseModel, Step):
     """
     Persists KnowledgeItems into a vector storage system.
@@ -70,7 +67,6 @@ class Keywords(BaseModel):
     keywords: list[str] = Field(..., description="Extracted keywords from content")
 
 
-@step("keyword_indexing")
 class KeywordIndexingAgent(BaseModel, Step, AgentMixin):
     """
     Identifies and indexes searchable keywords from KnowledgeItems.
@@ -95,7 +91,6 @@ class KeywordIndexingAgent(BaseModel, Step, AgentMixin):
         return StepResult(status=StepStatus.SUCCESS, metadata={"items_processed": len(ctx.items)})
 
 
-@step("graph_indexing")
 class GraphIndexingAgent(BaseModel, Step):
     """
     Indexes extracted knowledge graph data into a graph database.
