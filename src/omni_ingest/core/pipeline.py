@@ -4,7 +4,7 @@ import inspect
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 from uuid import UUID
 
 import yaml
@@ -21,6 +21,34 @@ from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepRe
 from .protocol import VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
+
+StepFactory: TypeAlias = dict[str, type[Step]]
+_STEP_FACTORY: StepFactory = {
+    "chunking": agent.chunking.SentenceChunkingAgent,
+    "page_chunking": agent.chunking.PageChunkingAgent,
+    "timed_chunking": agent.chunking.TimedChunkingAgent,
+
+    "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
+    "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
+
+    "enrichment": agent.enrichment.DomainEnrichmentAgent,
+    "learning_outcome": agent.enrichment.LearningOutcomeExtractionAgent,
+    "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
+    "faq_generation": agent.enrichment.FAQGenerationAgent,
+
+    "ingestion_logger": agent.governance.IngestionLoggerAgent,
+    "lineage": agent.governance.DataLineageAgent,
+    "quality": agent.governance.QualityVerifierAgent,
+
+    "embedding": agent.indexing.EmbeddingAgent,
+    "indexing": agent.indexing.VectorIndexingAgent,
+    "keyword_indexing": agent.indexing.KeywordIndexingAgent,
+    "graph_indexing": agent.indexing.GraphIndexingAgent,
+
+    "text_parser": agent.parsing.TextParserAgent,
+    "document_parser": agent.parsing.DocumentParserAgent,
+    "audio_parser": agent.parsing.AudioParserAgent,
+}
 
 class PipelineRunner:
     """
@@ -93,37 +121,10 @@ class PipelineRunner:
         yield event.Event(identifier="pipeline_end", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id), "status": final_status, "error": error_msg})
 
 
-_STEP_FACTORY: dict[str, type[Step]] = {
-    "chunking": agent.chunking.SentenceChunkingAgent,
-    "page_chunking": agent.chunking.PageChunkingAgent,
-    "timed_chunking": agent.chunking.TimedChunkingAgent,
-
-    "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
-    "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
-
-    "enrichment": agent.enrichment.DomainEnrichmentAgent,
-    "learning_outcome": agent.enrichment.LearningOutcomeExtractionAgent,
-    "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
-    "faq_generation": agent.enrichment.FAQGenerationAgent,
-
-    "ingestion_logger": agent.governance.IngestionLoggerAgent,
-    "lineage": agent.governance.DataLineageAgent,
-    "quality": agent.governance.QualityVerifierAgent,
-
-    "embedding": agent.indexing.EmbeddingAgent,
-    "indexing": agent.indexing.VectorIndexingAgent,
-    "keyword_indexing": agent.indexing.KeywordIndexingAgent,
-    "graph_indexing": agent.indexing.GraphIndexingAgent,
-
-    "text_parser": agent.parsing.TextParserAgent,
-    "document_parser": agent.parsing.DocumentParserAgent,
-    "audio_parser": agent.parsing.AudioParserAgent,
-}
-
 @validate_call
 def register_step(id: str, cls: type[Step], override: bool = False):
     """
-    Register a Step class in the global registry.
+    Register a Step class in the global factory.
 
     Args:
         id: Name used to identify this step in configurations.
@@ -135,25 +136,28 @@ def register_step(id: str, cls: type[Step], override: bool = False):
     _STEP_FACTORY[id] = cls
 
 
-def get_step_class(id: str) -> type[Step]:
-    if id not in _STEP_FACTORY:
+def get_step_class(id: str, factory: StepFactory | None = None) -> type[Step]:
+    factory = factory or _STEP_FACTORY
+    if id not in factory:
         raise ValueError(f"Step {id} not found")
-    return _STEP_FACTORY[id]
+    return factory[id]
 
 
-def lookup_step_id(step: Step) -> str | None:
-    for k, v in _STEP_FACTORY.items():
+def lookup_step_id(step: Step, factory: StepFactory | None = None) -> str | None:
+    factory = factory or _STEP_FACTORY
+    for k, v in factory.items():
         if v == step.__class__:
             return k
     return None
 
 
-def create_pipeline_from_config(config_path: Path) -> PipelineRunner:
+def create_pipeline_from_config(config_path: Path, factory: StepFactory | None = None) -> PipelineRunner:
     """
     Factory function to create a PipelineRunner from a YAML configuration file.
 
     Args:
         config_path: Path to the .yaml configuration file.
+        factory: Factory to use to resolve and load steps from.
     """
     with config_path.open() as f:
         raw_config = yaml.safe_load(f)
@@ -164,7 +168,7 @@ def create_pipeline_from_config(config_path: Path) -> PipelineRunner:
 
     steps = []
     for s in config.steps:
-        cls = get_step_class(s.agent)
+        cls = get_step_class(s.agent, factory)
         kwargs = _resolve_step_kwargs(cls, s.config, {"store": store, "graph_store": graph_store})
         steps.append(cls(**kwargs))
 
