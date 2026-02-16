@@ -13,7 +13,7 @@ steps:
       overlap: 50
   - agent: enrichment
     config:
-      model: "openai:gpt-4o"
+      model: "openai:gpt-5"
   - agent: embedding
     config:
       model: "openai:text-embedding-3-small"

@@ -44,11 +44,24 @@ def publish(event: Event):
         q.put_nowait(event)
 
 
-async def subscribe() -> AsyncIterator[Event]:
-    """Subscribes to the event stream, yielding events as they are published."""
+async def subscribe(populate_with_buffered: bool = True) -> AsyncIterator[Event]:
+    """
+    Subscribes to the event stream, yielding events as they are published.
+
+    Args:
+        populate_with_buffered: Whether to initialize this subscriber with buffered events.
+
+    Yields:
+        Event: Events as they are published to the stream.
+
+    Example:
+        async for event in subscribe():
+            print(event)
+    """
     q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=32)
-    for event in _buffer:
-        q.put_nowait(event)
+    if populate_with_buffered:
+        for event in _buffer:
+            q.put_nowait(event)
 
     _subscribers.add(q)
     try:
