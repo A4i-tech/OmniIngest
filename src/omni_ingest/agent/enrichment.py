@@ -136,4 +136,4 @@ class FAQGenerationAgent(BaseModel, Step, AgentMixin):
         res = await agent.run(prompt, output_type=list[FAQItem], instructions="You are a helpful assistant that generates FAQs in JSON format.")
         faqs = [f.model_dump() for f in res.output]
         ctx.metadata["faqs"] = faqs
-        return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs)})
+        return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(faqs), "faqs": faqs})
