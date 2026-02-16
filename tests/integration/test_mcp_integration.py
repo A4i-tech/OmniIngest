@@ -1,6 +1,7 @@
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from fastmcp import FastMCP
 
 from groq import BaseModel
@@ -9,7 +10,7 @@ import pytest
 import yaml
 
 from omni_ingest.core.model import AgentMixin, IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
-from omni_ingest.core.pipeline import create_pipeline_from_config, register_step
+from omni_ingest.core.pipeline import create_pipeline_from_config
 
 class MCPCallingAgent(BaseModel, Step, AgentMixin):
     async def run(self, ctx: IngestionContext) -> StepResult:
@@ -24,32 +25,31 @@ class MCPCallingAgent(BaseModel, Step, AgentMixin):
         return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=response.output.bark)], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
 
 
-@pytest.fixture(autouse=True)
-def reset_event_state():
-    register_step("mcp_calling", MCPCallingAgent, override=True)
+def create_runner(config: dict[str, Any]):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
+        yaml.dump(config, tmp)
+        return create_pipeline_from_config(Path(tmp.name), factory={"mcp_calling": MCPCallingAgent})
 
 
 @pytest.mark.asyncio
 async def test_pipeline_with_mcp_toolsets(metadata_store):
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
-        yaml.dump({
-            "pipeline_id": "mcp_test_v1",
-            "domain_profile": "generic",
-            "description": "Test pipeline with MCP toolsets",
-            "tool_vendors": {
-                "converter": {
-                    "command": "python",
-                    "args": ["tests/integration/test_mcp_integration.py"],
-                }
-            },
-            "steps": [{
-                "agent": "mcp_calling",
-                "config": {
-                    "toolsets": ["converter"]
-                }
-            }],
-        }, tmp)
-        runner = create_pipeline_from_config(Path(tmp.name))
+    runner = create_runner({
+        "pipeline_id": "mcp_test_v1",
+        "domain_profile": "generic",
+        "description": "Test pipeline with MCP toolsets",
+        "tool_vendors": {
+            "converter": {
+                "command": "python",
+                "args": ["tests/integration/test_mcp_integration.py"],
+            }
+        },
+        "steps": [{
+            "agent": "mcp_calling",
+            "config": {
+                "toolsets": ["converter"]
+            }
+        }],
+    })
 
     text = "The framework is meow designed to feel wrong on purpose. You read the measurements, they meow look fine, but then the interpretation is meow completely backwards. That's the point, meow-does the system follow what's written or what it expects?"
 
@@ -64,24 +64,22 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
 
 @pytest.mark.asyncio
 async def test_pipeline_with_mcp_unreachable(metadata_store):
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
-        yaml.dump({
-            "pipeline_id": "mcp_test_v2",
-            "domain_profile": "generic",
-            "description": "Test pipeline with MCP toolsets",
-            "tool_vendors": {
-                "converter": {
-                    "url": "https://a4i-tech.github.io/nomcp",
-                }
-            },
-            "steps": [{
-                "agent": "mcp_calling",
-                "config": {
-                    "toolsets": ["converter"]
-                }
-            }],
-        }, tmp)
-        runner = create_pipeline_from_config(Path(tmp.name))
+    runner = create_runner({
+        "pipeline_id": "mcp_test_v2",
+        "domain_profile": "generic",
+        "description": "Test pipeline with MCP toolsets",
+        "tool_vendors": {
+            "converter": {
+                "url": "https://a4i-tech.github.io/nomcp",
+            }
+        },
+        "steps": [{
+            "agent": "mcp_calling",
+            "config": {
+                "toolsets": ["converter"]
+            }
+        }],
+    })
 
     ctx = IngestionContext(items=[KnowledgeItem(content="")], store=metadata_store)
     results = await runner.run(ctx)

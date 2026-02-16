@@ -9,7 +9,6 @@ steps:
       segment_duration: 30
   - agent: enrichment
     config:
-      model: "openai:gpt-5"
       blabla: xxxx
   - agent: embedding
     config:

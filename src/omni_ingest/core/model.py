@@ -79,7 +79,7 @@ class Step(ABC):
 
 
 class AgentMixin:
-    model: KnownModelName = Field("openai:gpt-5", description="Model to use for this step")
+    model: KnownModelName = Field("openai:gpt-5-mini", description="Model to use for this step")
     toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
 
     @final

@@ -6,11 +6,7 @@ steps:
   - agent: document_parser
   - agent: markdown_cleaning
   - agent: learning_outcome
-    config:
-      model: "openai:gpt-5"
   - agent: kg_builder
-    config:
-      model: "openai:gpt-5"
   - agent: page_chunking
     config:
       chunk_size: 2048
