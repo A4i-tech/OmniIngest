@@ -55,26 +55,17 @@ steps:
 ```python
 import asyncio
 from pathlib import Path
-from omni_ingest.core.factory import create_pipeline_from_config
-from omni_ingest.core.models import IngestionContext
-from omni_ingest.core.pipeline import KnowledgeBaseAdapter
+from omni_ingest.core.pipeline import create_pipeline_from_config
+from omni_ingest.core.model import IngestionContext
 from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
-from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
 async def main():
     pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
-    ctx = IngestionContext(metadata={"file_path": "research_paper.pdf"})
-    results = await pipeline.run(ctx)
-    print(f"Workflow complete. Processed {len(results[-1].items)} items.")
-
-    # Retrieval
     mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///./knowledge.db")
-    vstore = LanceDBVectorStore(table_name="knowledge_base", db_path="./lancedb_data")
-    adapter = KnowledgeBaseAdapter(mstore, vstore)
-    results = await adapter.query_text(query="What are the key findings?", k=5, tenant_id="default")
-    for item in results:
-        print(f"Found: {item.content[:100]}...")
+    ctx = IngestionContext(metadata={"file_path": "research_paper.pdf"}, store=mstore)
+    results = await pipeline.run(ctx)
+    print(f"Workflow complete. Processed {sum(len(e.items) for e in results)} items.")
 
 if __name__ == "__main__":
     asyncio.run(main())
