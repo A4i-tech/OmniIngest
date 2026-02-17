@@ -52,8 +52,12 @@ async def subscribe(populate_with_buffered: bool = True) -> AsyncIterator[Event]
         populate_with_buffered: Whether to initialize this subscriber with buffered events.
 
     Example:
+        ```python
+        from omni_ingest.core.event import subscribe
+
         async for event in subscribe():
             print(event)
+        ```
     """
     q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=32)
     if populate_with_buffered:

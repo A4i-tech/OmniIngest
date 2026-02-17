@@ -51,6 +51,11 @@ plugins:
             show_symbol_type_toc: true
             summary: true
 
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+
 nav:
   - Home: README.md
   - API Reference: api.md
