@@ -1,10 +1,11 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
 import inspect
+import traceback
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any
 from uuid import UUID
 
 import yaml
@@ -16,13 +17,14 @@ from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 
 from .. import agent
 from ..core import event
+from ..core.config import settings
 from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
 from .protocol import VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
 
-StepFactory: TypeAlias = dict[str, type[Step]]
+type StepFactory = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
     "chunking": agent.chunking.SentenceChunkingAgent,
     "page_chunking": agent.chunking.PageChunkingAgent,
@@ -109,6 +111,7 @@ class PipelineRunner:
                 res = await step.run(ctx)
             except Exception as e:
                 res = StepResult(status=StepStatus.FAILURE, error=str(e))
+                traceback.print_exception(e)
 
             yield event.PipelineStepEndEvent(run_id=ctx.run_id, step_name=step_name, step=step, step_result=res)
             await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
@@ -233,7 +236,7 @@ class KnowledgeBaseAdapter:
     def __init__(self, metadata_store: "MetadataStore", vector_store: VectorStore, embedder: Embedder | None = None):
         self.metadata_store = metadata_store
         self.vector_store = vector_store
-        self.embedder = embedder or Embedder("openai:text-embedding-3-small")
+        self.embedder = embedder or Embedder(settings.default_embedding_model)
 
     async def list_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
         return await self.metadata_store.list_knowledge_items(tenant_id=tenant_id, domain_profile=domain_profile, **filters)

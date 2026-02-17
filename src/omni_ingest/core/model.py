@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 
+from .config import settings
+
 
 class StepStatus(str, Enum):
     PENDING = "pending"
@@ -79,7 +81,7 @@ class Step(ABC):
 
 
 class AgentMixin:
-    model: KnownModelName = Field("openai:gpt-5-mini", description="Model to use for this step")
+    model: KnownModelName | str = Field(settings.default_chat_completion_model, description="Model to use for this step")
     toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
 
     @final

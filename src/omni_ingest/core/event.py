@@ -51,9 +51,6 @@ async def subscribe(populate_with_buffered: bool = True) -> AsyncIterator[Event]
     Args:
         populate_with_buffered: Whether to initialize this subscriber with buffered events.
 
-    Yields:
-        Event: Events as they are published to the stream.
-
     Example:
         async for event in subscribe():
             print(event)

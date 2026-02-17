@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
+from ..core.config import settings
 from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
 
 
@@ -17,7 +18,7 @@ class EmbeddingAgent(BaseModel, Step):
     within a vector database.
     """
 
-    model: KnownEmbeddingModelName = Field("openai:text-embedding-3-small", description="Model to use for embedding")
+    model: KnownEmbeddingModelName | str = Field(settings.default_embedding_model, description="Model to use for embedding")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:

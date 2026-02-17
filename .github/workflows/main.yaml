@@ -126,7 +126,11 @@ jobs:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          OPENAI_API_VERSION: ${{ vars.OPENAI_API_VERSION }}
+          DEFAULT_CHAT_COMPLETION_MODEL: ${{ vars.DEFAULT_CHAT_COMPLETION_MODEL }}
+          DEFAULT_EMBEDDING_MODEL: ${{ vars.DEFAULT_EMBEDDING_MODEL }}
         run: uv run pytest
       - name: Extract coverage percentage
         id: coverage

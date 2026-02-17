@@ -17,7 +17,7 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
         "steps": [
             {"agent": "text_parser"},
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
-            {"agent": "embedding", "config": {"provider": "openai", "model": "openai:text-embedding-3-small"}},
+            {"agent": "embedding"},
             {"agent": "indexing", "config": {"vector_store": "in_memory"}},
         ],
     }

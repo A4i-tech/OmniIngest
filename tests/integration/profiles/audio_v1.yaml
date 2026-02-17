@@ -8,11 +8,7 @@ steps:
     config:
       segment_duration: 30
   - agent: enrichment
-    config:
-      blabla: xxxx
   - agent: embedding
-    config:
-      model: "openai:text-embedding-3-small"
   - agent: indexing
     config:
       vector_store_kind: lancedb

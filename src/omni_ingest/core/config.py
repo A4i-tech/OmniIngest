@@ -7,11 +7,19 @@ from typing import Any
 
 import yaml
 from pydantic import AnyHttpUrl, DirectoryPath, NewPath, SecretStr
+from pydantic_ai.embeddings import KnownEmbeddingModelName
+from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Global application settings, loaded from environment variables or .env file."""
+
+    default_chat_completion_model: KnownModelName | str = "openai:gpt-5-mini"
+    """Default chat completion model to use during pipeline execution"""
+
+    default_embedding_model: KnownEmbeddingModelName | str = "openai:text-embedding-3-small"
+    """Default embedding completion model to use during pipeline execution"""
 
     database_url: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""

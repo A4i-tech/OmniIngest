@@ -13,8 +13,6 @@ steps:
       overlap: 50
   - agent: enrichment
   - agent: embedding
-    config:
-      model: "openai:text-embedding-3-small"
   - agent: indexing
     config:
       vector_store_kind: lancedb
