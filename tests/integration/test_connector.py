@@ -6,12 +6,6 @@ from omni_ingest.core.config import settings
 from omni_ingest.port.connector import AzureBlobConnector, HttpUrlConnector
 
 
-@pytest.fixture
-def skip_if_no_azure():
-    if not settings.azure_storage_connection_string:
-        pytest.skip("AZURE_STORAGE_CONNECTION_STRING not set")
-
-
 @pytest.mark.asyncio
 async def test_http_connector_fetch_real():
     connector = HttpUrlConnector()
@@ -20,7 +14,7 @@ async def test_http_connector_fetch_real():
 
 
 @pytest.mark.asyncio
-async def test_azure_connector_list(skip_if_no_azure):
+async def test_azure_connector_list():
     assert settings.azure_storage_connection_string
     connector = AzureBlobConnector(settings.azure_storage_connection_string, "test-ingestion")
 
@@ -31,7 +25,7 @@ async def test_azure_connector_list(skip_if_no_azure):
 
 
 @pytest.mark.asyncio
-async def test_azure_connector_fetch(skip_if_no_azure):
+async def test_azure_connector_fetch():
     assert settings.azure_storage_connection_string
     connector = AzureBlobConnector(settings.azure_storage_connection_string, "test-ingestion")
 

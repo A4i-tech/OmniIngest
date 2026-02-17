@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 
-from omni_ingest.core.config import settings
 from omni_ingest.core.model import IngestionContext, StepStatus
 from omni_ingest.core.pipeline import create_pipeline_from_config
 
@@ -53,9 +52,6 @@ async def test_education_v2_pipeline(metadata_store, tenant, profiles_dir):
 
 @pytest.mark.asyncio
 async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path):
-    if not settings.azure_speech_key or not settings.azure_speech_region:
-        pytest.skip("AZURE_SPEECH_KEY or AZURE_SPEECH_REGION not set for audio pipeline")
-
     import struct
     import wave
 

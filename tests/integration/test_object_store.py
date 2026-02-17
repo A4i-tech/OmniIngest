@@ -11,7 +11,7 @@ CONTAINER_NAME = "test-ingestion"
 @pytest.fixture
 async def azure_store():
     if not settings.azure_storage_connection_string:
-        pytest.skip("AZURE_STORAGE_CONNECTION_STRING not set")
+        pytest.fail("AZURE_STORAGE_CONNECTION_STRING not set")
 
     store = AzureBlobObjectStore(settings.azure_storage_connection_string, CONTAINER_NAME)
 

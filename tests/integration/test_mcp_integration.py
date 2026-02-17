@@ -55,7 +55,7 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
 
     ctx = IngestionContext(items=[KnowledgeItem(content=text)], store=metadata_store)
     results = await runner.run(ctx)
-    assert all(r.status == StepStatus.SUCCESS for r in results)
+    assert all(r.status == StepStatus.SUCCESS for r in results), "Pipeline failed: " + ",".join(r.error or "" for r in results)
     assert results[0].items[0].content == text.replace("meow", "BARK BARK")
 
     messages = json.loads(results[0].metadata["messages"])
