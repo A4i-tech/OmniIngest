@@ -50,6 +50,7 @@ _STEP_FACTORY: StepFactory = {
     "text_parser": agent.parsing.TextParserAgent,
     "document_parser": agent.parsing.DocumentParserAgent,
     "audio_parser": agent.parsing.AudioParserAgent,
+    "uri_parser": agent.parsing.UriParserAgent,
 }
 
 class PipelineRunner:

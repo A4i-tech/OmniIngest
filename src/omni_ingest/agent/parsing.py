@@ -3,9 +3,11 @@
 import asyncio
 import io
 import json
+import mimetypes
 import re
 from html.parser import HTMLParser
 from typing import Literal
+from urllib.parse import unquote, urlparse
 
 import azure.cognitiveservices.speech as speechsdk
 from docx import Document
@@ -37,6 +39,76 @@ class _HTMLTextExtractor(HTMLParser):
 
     def get_text(self) -> str:
         return " ".join(self.text_parts)
+
+
+def _resolve_mime(uri: str, ctx: IngestionContext) -> str:
+    explicit = (ctx.metadata.get("mime_type") or ctx.metadata.get("content_type") or "").strip().lower()
+    if explicit:
+        return explicit
+    parsed = urlparse(uri)
+    path = unquote(parsed.path) if parsed.path else uri
+    return (mimetypes.guess_type(path)[0] or "").lower()
+
+
+def _mime_category(mime: str) -> Literal["audio", "document", "unsupported"]:
+    major = mime.split("/", 1)[0].lower() if mime else ""
+    if major == "audio":
+        return "audio"
+    if major in {"text", "application"}:
+        return "document"
+    return "unsupported"
+
+
+class UriParserAgent(BaseModel, Step):
+    """
+    Routes URI input to the appropriate parser agent.
+
+    Inspects `ctx.metadata["uri"]`, resolves MIME type, and delegates to:
+      - TextParserAgent     for `data:text/*` URIs
+      - DocumentParserAgent for document/text MIME types
+      - AudioParserAgent    for audio MIME types
+    """
+
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        uri = ctx.metadata.get("uri")
+        if not uri:
+            return StepResult(status=StepStatus.SKIPPED, error="No uri")
+
+        if uri.lower().startswith("data:"):
+            header, _, payload = uri[5:].partition(",")
+            mime = _resolve_mime(uri, ctx) or header.split(";", 1)[0].strip().lower()
+            if _mime_category(mime) != "document":
+                return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported data URI MIME type: {mime!r}")
+            ctx.metadata["raw_text"] = unquote(payload)
+            result = await TextParserAgent().run(ctx)
+            result.metadata["selected_parser"] = "text_parser"
+            return result
+
+        parsed = urlparse(uri)
+        scheme = parsed.scheme.lower()
+        if scheme not in {"", "file"}:
+            return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported URI scheme: {scheme!r}")
+
+        mime = _resolve_mime(uri, ctx)
+        if not mime:
+            return StepResult(status=StepStatus.SKIPPED, error=f"Could not determine MIME type for: {uri}")
+
+        category = _mime_category(mime)
+        local_path = unquote(parsed.path) if scheme == "file" else uri
+
+        if category == "audio":
+            ctx.metadata["audio_path"] = local_path
+            result = await AudioParserAgent().run(ctx)
+            result.metadata["selected_parser"] = "audio_parser"
+            return result
+
+        if category == "document":
+            ctx.metadata["file_path"] = local_path
+            result = await DocumentParserAgent().run(ctx)
+            result.metadata["selected_parser"] = "document_parser"
+            return result
+
+        return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported MIME type: {mime!r} for URI: {uri}")
 
 
 class TextParserAgent(BaseModel, Step):
