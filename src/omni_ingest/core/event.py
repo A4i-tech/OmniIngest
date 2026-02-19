@@ -3,7 +3,7 @@ import collections
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,17 +16,35 @@ class Event(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional event metadata")
 
 
-class PipelineStepEvent(Event):
-    """Base class for events related to pipeline steps."""
-
+class _PipelineMixin:
     run_id: uuid.UUID = Field(..., description="ID of the pipeline run")
+    tenant_id: uuid.UUID = Field(..., description="ID of the tenant owning the pipeline")
+
+
+class _StepMixin:
     step_name: str = Field(..., description="Name of the pipeline step")
     step: Any = Field(..., description="Reference to the step instance")
 
 
-class PipelineStepEndEvent(PipelineStepEvent):
-    """Event emitted at the end of a pipeline step."""
+class PipelineBeginEvent(Event, _PipelineMixin):
+    """Event emitted at the start of a pipeline."""
+    identifier: str = "pipeline_begin"
 
+
+class PipelineEndEvent(Event, _PipelineMixin):
+    """Event emitted at the end of a pipeline."""
+    identifier: str = "pipeline_end"
+    status: Literal["succeeded", "failed"] = Field(..., description="Outcome of the pipeline")
+    error: str | None = Field(..., description="Human-readable error message if the pipeline failed")
+
+
+class PipelineStepBeginEvent(Event, _PipelineMixin, _StepMixin):
+    """Event emitted at the start of a pipeline step."""
+    identifier: str = "pipeline_step_begin"
+
+
+class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
+    """Event emitted at the end of a pipeline step."""
     identifier: str = "pipeline_step_end"
     step_result: Any = Field(..., description="Result of the step execution")
 

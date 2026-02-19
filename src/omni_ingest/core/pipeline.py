@@ -102,18 +102,18 @@ class PipelineRunner:
         final_status = "succeeded"
         error_msg = None
 
-        yield event.Event(identifier="pipeline_begin", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id)})
+        yield event.PipelineBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id)
         for step in self.steps:
             step_name = lookup_step_id(step) or "unknown"
             sid = await ctx.store.create_step_run(ctx.run_id, step_name)
-            yield event.PipelineStepEvent(identifier="pipeline_step_begin", run_id=ctx.run_id, step_name=step_name, step=step)
+            yield event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step)
             try:
                 res = await step.run(ctx)
             except Exception as e:
                 res = StepResult(status=StepStatus.FAILURE, error=str(e))
                 traceback.print_exception(e)
 
-            yield event.PipelineStepEndEvent(run_id=ctx.run_id, step_name=step_name, step=step, step_result=res)
+            yield event.PipelineStepEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step, step_result=res)
             await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
             if res.status == StepStatus.FAILURE:
                 final_status = "failed"
@@ -121,7 +121,7 @@ class PipelineRunner:
                 break
 
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
-        yield event.Event(identifier="pipeline_end", metadata={"run_id": str(ctx.run_id), "tenant_id": str(ctx.tenant_id), "status": final_status, "error": error_msg})
+        yield event.PipelineEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, status=final_status, error=error_msg)
 
 
 @validate_call
