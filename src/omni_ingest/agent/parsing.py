@@ -5,7 +5,10 @@ import io
 import json
 import mimetypes
 import re
+import tempfile
+from contextlib import asynccontextmanager
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote, urlparse
 
@@ -184,7 +187,33 @@ class AudioParserAgent(BaseModel, Step):
     Utilizing Azure Speech Services, this agent converts audio input into
     synchronized text transcripts. The output includes word-level
     metadata suitable for temporal analysis of the content.
+
+    Non-WAV inputs are automatically converted via ffmpeg (must be on PATH).
     """
+
+    @staticmethod
+    @asynccontextmanager
+    async def _as_wav(src: str):
+        """
+        Return (wav_path, is_temp). If `src` is already a WAV it is returned
+        unchanged. Otherwise it is converted to a temporary WAV file; the
+        caller owns that file and must delete it when done.
+        """
+        fmt = Path(src).suffix.lstrip(".").lower() or "mp3"
+        if fmt == ".wav":
+            yield src
+        else:
+            with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-i", src, "-ar", "16000", "-ac", "1", "-f", "wav", tmp.name,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise RuntimeError(f"ffmpeg conversion failed:\n{stderr.decode()}")
+                yield tmp.name
+
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not (audio_path := ctx.metadata.get("audio_path")):
@@ -194,10 +223,6 @@ class AudioParserAgent(BaseModel, Step):
         region = settings.azure_speech_region
         if not key or not region:
             return StepResult(status=StepStatus.FAILURE, error="Azure Speech credentials missing")
-
-        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-        audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
         loop = asyncio.get_event_loop()
         done, transcript, words = asyncio.Future[Literal[True]](), [], []
@@ -224,16 +249,21 @@ class AudioParserAgent(BaseModel, Step):
             elif not done.done():
                 loop.call_soon_threadsafe(done.set_result, True)
 
-        speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
-        recognizer.recognized.connect(handle_final)
-        recognizer.session_stopped.connect(stop_cb)
-        recognizer.canceled.connect(cancel_cb)
+        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+        async with AudioParserAgent._as_wav(audio_path) as wav_path:
+            audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
+            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        recognizer.start_continuous_recognition()
-        try:
-            await done
-        finally:
-            recognizer.stop_continuous_recognition()
+            speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
+            recognizer.recognized.connect(handle_final)
+            recognizer.session_stopped.connect(stop_cb)
+            recognizer.canceled.connect(cancel_cb)
+
+            recognizer.start_continuous_recognition()
+            try:
+                await done
+            finally:
+                recognizer.stop_continuous_recognition()
 
         full_text = " ".join(transcript)
         ctx.metadata["text"] = full_text

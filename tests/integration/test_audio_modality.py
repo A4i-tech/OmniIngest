@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from omni_ingest.agent.chunking import TimedChunkingAgent
@@ -49,3 +51,15 @@ async def test_audio_parser_with_real_azure(tmp_path, metadata_store):
 
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_audio_parser_with_mp3(metadata_store):
+    audio_file = Path(__file__).parent.parent / "resources" / "audio.mp3"
+
+    agent = AudioParserAgent()
+    ctx = IngestionContext(metadata={"audio_path": str(audio_file)}, store=metadata_store)
+
+    res = await PipelineRunner([agent]).run(ctx)
+    assert res[0].status == StepStatus.SUCCESS
+    assert "interview training company" in ctx.metadata["text"]
