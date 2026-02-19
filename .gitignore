@@ -17,3 +17,6 @@ wheels/
 coverage.json
 lancedb_data/
 site/
+
+# Other files
+.vscode/
