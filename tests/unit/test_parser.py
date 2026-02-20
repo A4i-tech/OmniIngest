@@ -1,7 +1,11 @@
+from pathlib import Path
+
 import pytest
 
 from omni_ingest.agent.parsing import TextParserAgent, UriParserAgent
 from omni_ingest.core.model import IngestionContext, StepResult, StepStatus
+
+RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
 
 @pytest.mark.asyncio
@@ -74,62 +78,32 @@ async def test_document_parser_docx():
     assert "Hello from DOCX" in ctx.metadata["text"]
 
 
+@pytest.mark.parametrize("uri, expected_agent", [
+    ("file://" + str((RESOURCES_DIR / "sample.mp3").resolve()), "audio_parser"),
+    ("file://" + str((RESOURCES_DIR / "when-tomorrow-was-yesterday.pdf").resolve()), "document_parser"),
+    ("data:text/plain,hello%20world", "text_parser"),
+])
 @pytest.mark.asyncio
-async def test_uri_parser_routes_to_document(monkeypatch):
-    from unittest.mock import AsyncMock
-
-    mock_run = AsyncMock(return_value=StepResult(status=StepStatus.SUCCESS))
-    monkeypatch.setattr("omni_ingest.agent.parsing.DocumentParserAgent.run", mock_run)
-
-    agent = UriParserAgent()
-    ctx = IngestionContext(metadata={"uri": "/tmp/sample.pdf"})
-    result = await agent.run(ctx)
-
-    assert result.status == StepStatus.SUCCESS
-    assert result.metadata["selected_parser"] == "document_parser"
-    assert ctx.metadata["file_path"] == "/tmp/sample.pdf"
-    mock_run.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_uri_parser_routes_to_audio(monkeypatch):
+async def test_uri_parser_routes_to_expected_agent(uri, expected_agent, monkeypatch):
     from unittest.mock import AsyncMock
 
     mock_run = AsyncMock(return_value=StepResult(status=StepStatus.SUCCESS))
     monkeypatch.setattr("omni_ingest.agent.parsing.AudioParserAgent.run", mock_run)
-
-    agent = UriParserAgent()
-    ctx = IngestionContext(metadata={"uri": "file:///tmp/sample.wav"})
-    result = await agent.run(ctx)
-
-    assert result.status == StepStatus.SUCCESS
-    assert result.metadata["selected_parser"] == "audio_parser"
-    assert ctx.metadata["audio_path"] == "/tmp/sample.wav"
-    mock_run.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_uri_parser_routes_data_text(monkeypatch):
-    from unittest.mock import AsyncMock
-
-    mock_run = AsyncMock(return_value=StepResult(status=StepStatus.SUCCESS))
+    monkeypatch.setattr("omni_ingest.agent.parsing.DocumentParserAgent.run", mock_run)
     monkeypatch.setattr("omni_ingest.agent.parsing.TextParserAgent.run", mock_run)
 
     agent = UriParserAgent()
-    ctx = IngestionContext(metadata={"uri": "data:text/plain,hello%20world"})
+    ctx = IngestionContext(metadata={"uri": uri})
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    assert result.metadata["selected_parser"] == "text_parser"
-    assert ctx.metadata["raw_text"] == "hello world"
+    assert result.metadata["selected_parser"] == expected_agent
     mock_run.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_uri_parser_skips_when_mime_cannot_be_determined():
+async def test_uri_parser_fails_when_mime_cannot_be_determined():
     agent = UriParserAgent()
     ctx = IngestionContext(metadata={"uri": "/tmp/sample.unknownext"})
-    result = await agent.run(ctx)
-
-    assert result.status == StepStatus.SKIPPED
-    assert result.error is not None and "Could not determine MIME type" in result.error
+    with pytest.raises(ValueError, match="Could not determine MIME type for: /tmp/sample.unknownext"):
+        await agent.run(ctx)

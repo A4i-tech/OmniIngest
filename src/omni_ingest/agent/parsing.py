@@ -6,12 +6,14 @@ import json
 import mimetypes
 import re
 import tempfile
+import urllib.request
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote, urlparse
 
+import aiohttp
 import azure.cognitiveservices.speech as speechsdk
 from docx import Document
 from pydantic import BaseModel, Field
@@ -44,22 +46,19 @@ class _HTMLTextExtractor(HTMLParser):
         return " ".join(self.text_parts)
 
 
-def _resolve_mime(uri: str, ctx: IngestionContext) -> str:
-    explicit = (ctx.metadata.get("mime_type") or ctx.metadata.get("content_type") or "").strip().lower()
-    if explicit:
-        return explicit
+def _resolve_mime(uri: str) -> str:
     parsed = urlparse(uri)
     path = unquote(parsed.path) if parsed.path else uri
     return (mimetypes.guess_type(path)[0] or "").lower()
 
 
-def _mime_category(mime: str) -> Literal["audio", "document", "unsupported"]:
+def _mime_category(mime: str) -> Literal["audio", "document"]:
     major = mime.split("/", 1)[0].lower() if mime else ""
     if major == "audio":
         return "audio"
     if major in {"text", "application"}:
         return "document"
-    return "unsupported"
+    raise ValueError("Unsupported mime type:" + mime)
 
 
 class UriParserAgent(BaseModel, Step):
@@ -72,6 +71,41 @@ class UriParserAgent(BaseModel, Step):
       - AudioParserAgent    for audio MIME types
     """
 
+    @staticmethod
+    @asynccontextmanager
+    async def _resolve(uri: str, chunk_size: int = 65536):
+        mime = _resolve_mime(uri)
+        if not mime:
+            raise ValueError(f"Could not determine MIME type for: {uri}")
+
+        parsed = urlparse(uri)
+        scheme = parsed.scheme.lower()
+        path = unquote(parsed.path)
+        if scheme in {"", "file"} and Path(path).is_file():  # for local fs URIs, just return local path directly
+            yield mime, path
+            return
+
+        # for other URIs, read into local tmp file first
+        with tempfile.NamedTemporaryFile(suffix=Path(path).suffix) as tmp:
+            if scheme in {"http", "https"}:  # aiohttp to asynchronously read HTTP/HTTPs URIs
+                async with aiohttp.ClientSession() as session, session.get(uri) as response:
+                    async for chunk in response.content.iter_chunked(chunk_size):
+                        tmp.write(chunk)
+            else:
+                # urllib.parse supports several other URIs like ftp, sftp, wss, rsync, etc.
+                # the only drawback is urllib.parse is blocking, so we have to run it in an executor
+                # TODO: figure out whether we actually need to spin up a CPU thread here?
+                def _transfer():
+                    with urllib.request.urlopen(uri) as f:
+                        while chunk := f.read(chunk_size):
+                            tmp.write(chunk)
+                await asyncio.get_running_loop().run_in_executor(None, _transfer)
+
+            tmp.flush()
+            tmp.seek(0)
+            yield mime, tmp.name
+
+
     async def run(self, ctx: IngestionContext) -> StepResult:
         uri = ctx.metadata.get("uri")
         if not uri:
@@ -79,7 +113,7 @@ class UriParserAgent(BaseModel, Step):
 
         if uri.lower().startswith("data:"):
             header, _, payload = uri[5:].partition(",")
-            mime = _resolve_mime(uri, ctx) or header.split(";", 1)[0].strip().lower()
+            mime = _resolve_mime(uri) or header.split(";", 1)[0].strip().lower()
             if _mime_category(mime) != "document":
                 return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported data URI MIME type: {mime!r}")
             ctx.metadata["raw_text"] = unquote(payload)
@@ -87,31 +121,20 @@ class UriParserAgent(BaseModel, Step):
             result.metadata["selected_parser"] = "text_parser"
             return result
 
-        parsed = urlparse(uri)
-        scheme = parsed.scheme.lower()
-        if scheme not in {"", "file"}:
-            return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported URI scheme: {scheme!r}")
-
-        mime = _resolve_mime(uri, ctx)
-        if not mime:
-            return StepResult(status=StepStatus.SKIPPED, error=f"Could not determine MIME type for: {uri}")
-
-        category = _mime_category(mime)
-        local_path = unquote(parsed.path) if scheme == "file" else uri
-
-        if category == "audio":
-            ctx.metadata["audio_path"] = local_path
-            result = await AudioParserAgent().run(ctx)
-            result.metadata["selected_parser"] = "audio_parser"
-            return result
-
-        if category == "document":
-            ctx.metadata["file_path"] = local_path
-            result = await DocumentParserAgent().run(ctx)
-            result.metadata["selected_parser"] = "document_parser"
-            return result
-
-        return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported MIME type: {mime!r} for URI: {uri}")
+        async with UriParserAgent._resolve(uri) as (mime, local_path):
+            match _mime_category(mime):
+                case "audio":
+                    ctx.metadata["audio_path"] = local_path
+                    result = await AudioParserAgent().run(ctx)
+                    result.metadata["selected_parser"] = "audio_parser"
+                    return result
+                case "document":
+                    ctx.metadata["file_path"] = local_path
+                    result = await DocumentParserAgent().run(ctx)
+                    result.metadata["selected_parser"] = "document_parser"
+                    return result
+                case _:
+                    return StepResult(status=StepStatus.SKIPPED, error=f"Unsupported MIME type: {mime!r} for URI: {uri}")
 
 
 class TextParserAgent(BaseModel, Step):
@@ -200,7 +223,7 @@ class AudioParserAgent(BaseModel, Step):
         caller owns that file and must delete it when done.
         """
         fmt = Path(src).suffix.lstrip(".").lower() or "mp3"
-        if fmt == ".wav":
+        if fmt == "wav":
             yield src
         else:
             with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
@@ -224,7 +247,7 @@ class AudioParserAgent(BaseModel, Step):
         if not key or not region:
             return StepResult(status=StepStatus.FAILURE, error="Azure Speech credentials missing")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         done, transcript, words = asyncio.Future[Literal[True]](), [], []
 
         def handle_final(evt):

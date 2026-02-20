@@ -55,7 +55,7 @@ async def test_audio_parser_with_real_azure(tmp_path, metadata_store):
 
 @pytest.mark.asyncio
 async def test_audio_parser_with_mp3(metadata_store):
-    audio_file = Path(__file__).parent.parent / "resources" / "audio.mp3"
+    audio_file = Path(__file__).parent.parent / "resources" / "sample.mp3"
 
     agent = AudioParserAgent()
     ctx = IngestionContext(metadata={"audio_path": str(audio_file)}, store=metadata_store)
