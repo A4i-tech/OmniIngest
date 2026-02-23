@@ -3,7 +3,7 @@
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from pydantic import BaseModel, Field, PositiveInt
+from pydantic import PositiveInt
 
 from .model import KnowledgeItem
 
@@ -55,22 +55,6 @@ class GraphStore(Protocol):
     async def upsert_nodes(self, nodes: list[dict]) -> None: ...
     async def upsert_edges(self, edges: list[dict]) -> None: ...
     async def close(self) -> None: ...
-
-
-class SourceResource(BaseModel):
-    id: str
-    uri: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class SourceConnector(Protocol):
-    async def list_resources(self, filters: dict[str, Any] | None = None) -> list[SourceResource]:
-        """Retrieves a list of available resources from the source."""
-        ...
-
-    async def fetch(self, resource_id: str) -> bytes:
-        """Retrieves the raw content of a specific resource."""
-        ...
 
 
 @runtime_checkable

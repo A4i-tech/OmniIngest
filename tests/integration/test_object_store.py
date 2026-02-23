@@ -1,8 +1,8 @@
+import os
 import uuid
 
 import pytest
 
-from omni_ingest.core.config import settings
 from omni_ingest.port.object_store import AzureBlobObjectStore
 
 CONTAINER_NAME = "test-ingestion"
@@ -10,10 +10,11 @@ CONTAINER_NAME = "test-ingestion"
 
 @pytest.fixture
 async def azure_store():
-    if not settings.azure_storage_connection_string:
-        pytest.fail("AZURE_STORAGE_CONNECTION_STRING not set")
+    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if not connection_string:
+        pytest.skip("AZURE_STORAGE_CONNECTION_STRING not set")
 
-    store = AzureBlobObjectStore(settings.azure_storage_connection_string, CONTAINER_NAME)
+    store = AzureBlobObjectStore(connection_string, CONTAINER_NAME)
 
     try:
         await store._container.create_container()

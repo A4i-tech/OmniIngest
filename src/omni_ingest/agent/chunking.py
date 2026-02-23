@@ -23,9 +23,9 @@ class SentenceChunkingAgent(BaseModel, Step):
     overlap: NonNegativeInt = Field(50, description="Character overlap between adjacent chunks")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        if not (text := ctx.metadata.get("text")):
+        if not ctx.resource.content:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
-        text, chunks, pos = " ".join(text.split()), [], 0
+        text, chunks, pos = " ".join(ctx.resource.content.split()), [], 0
         while pos < len(text):
             end = min(pos + self.chunk_size, len(text))
             if end < len(text):

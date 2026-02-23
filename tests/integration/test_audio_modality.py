@@ -3,14 +3,14 @@ from pathlib import Path
 import pytest
 
 from omni_ingest.agent.chunking import TimedChunkingAgent
-from omni_ingest.agent.parsing import AudioParserAgent
-from omni_ingest.core.model import IngestionContext, StepStatus
-from omni_ingest.core.pipeline import PipelineRunner
+from omni_ingest.core.model import IngestionContext, Resource, StepStatus
+from omni_ingest.parser import read_resources
 
 
 @pytest.mark.asyncio
 async def test_timed_chunking_from_word_timestamps():
     ctx = IngestionContext(
+        resource=Resource(uri="", content=""),
         metadata={
             "word_timestamps": [
                 {"Word": "Hello", "Offset": 10000000, "Duration": 2000000},
@@ -34,7 +34,7 @@ async def test_timed_chunking_from_word_timestamps():
 
 
 @pytest.mark.asyncio
-async def test_audio_parser_with_real_azure(tmp_path, metadata_store):
+async def test_audio_parser_with_real_azure(tmp_path):
     import struct
     import wave
 
@@ -46,20 +46,13 @@ async def test_audio_parser_with_real_azure(tmp_path, metadata_store):
         samples = [int(32767 * 0.5 * (1 if i % 100 < 50 else -1)) for i in range(16000)]
         wav.writeframes(struct.pack(f"{len(samples)}h", *samples))
 
-    agent = AudioParserAgent()
-    ctx = IngestionContext(metadata={"audio_path": str(audio_file)}, store=metadata_store)
-
-    res = await PipelineRunner([agent]).run(ctx)
-    assert res[0].status == StepStatus.SUCCESS
+    assert len([resource async for resource in read_resources(str(audio_file))]) == 1
 
 
 @pytest.mark.asyncio
-async def test_audio_parser_with_mp3(metadata_store):
+async def test_audio_parser_with_mp3():
     audio_file = Path(__file__).parent.parent / "resources" / "sample.mp3"
+    resources = [resource async for resource in read_resources(str(audio_file))]
 
-    agent = AudioParserAgent()
-    ctx = IngestionContext(metadata={"audio_path": str(audio_file)}, store=metadata_store)
-
-    res = await PipelineRunner([agent]).run(ctx)
-    assert res[0].status == StepStatus.SUCCESS
-    assert "interview training company" in ctx.metadata["text"]
+    assert len(resources) == 1
+    assert "interview training company" in resources[0].content

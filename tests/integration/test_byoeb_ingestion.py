@@ -6,6 +6,7 @@ import yaml
 
 from omni_ingest.core.model import IngestionContext, StepStatus
 from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config, lookup_step_id
+from omni_ingest.parser import read_resources
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
@@ -15,7 +16,6 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
     config = {
         "store": {"type": "in_memory"},
         "steps": [
-            {"agent": "text_parser"},
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
             {"agent": "embedding"},
             {"agent": "indexing", "config": {"vector_store": "in_memory"}},
@@ -30,9 +30,10 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
     tid = uuid4()
 
     blueberries_path = RESOURCES_DIR / "blueberries-are-now-green.txt"
-    content = blueberries_path.read_text()
 
-    ctx1 = IngestionContext(tenant_id=tid, metadata={"text": content, "file_path": str(blueberries_path)}, store=metadata_store)
+    ctxs = [IngestionContext(tenant_id=tid, resource=resource, store=metadata_store) async for resource in read_resources(str(blueberries_path))]
+    assert len(ctxs) == 1
+    ctx1 = ctxs[0]
     res1 = await pipeline.run(ctx1)
     assert res1[-1].status == StepStatus.SUCCESS
 
@@ -40,9 +41,10 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
     vector_store = indexing_step.store  # type: ignore
 
     patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"
-    content2 = patients_path.read_text()
 
-    ctx2 = IngestionContext(tenant_id=tid, metadata={"text": content2, "file_path": str(patients_path)}, store=metadata_store)
+    ctxs = [IngestionContext(tenant_id=tid, resource=resource, store=metadata_store) async for resource in read_resources(str(patients_path))]
+    assert len(ctxs) == 1
+    ctx2 = ctxs[0]
     res2 = await pipeline.run(ctx2)
     assert res2[-1].status == StepStatus.SUCCESS
 

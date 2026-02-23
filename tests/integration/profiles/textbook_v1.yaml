@@ -3,10 +3,6 @@ domain_profile: education
 input_modality: document
 description: "Education-focused pipeline for textbook ingestion with LO extraction and graph indexing"
 steps:
-  - agent: document_parser
-  - agent: text_parser
-    config:
-      normalize_whitespace: true
   - agent: chunking
     config:
       chunk_size: 1024

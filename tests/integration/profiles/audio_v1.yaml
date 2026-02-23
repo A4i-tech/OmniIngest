@@ -3,7 +3,6 @@ domain_profile: accessibility
 input_modality: audio
 description: "Accessibility-focused audio pipeline with Azure Speech transcription and timed segments"
 steps:
-  - agent: audio_parser
   - agent: timed_chunking
     config:
       segment_duration: 30

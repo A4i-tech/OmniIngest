@@ -3,7 +3,6 @@ domain_profile: education_shiksha
 input_modality: document
 description: "Shiksha Copilot textbook ingestion with learning outcome extraction and KG building"
 steps:
-  - agent: document_parser
   - agent: markdown_cleaning
   - agent: learning_outcome
   - agent: kg_builder

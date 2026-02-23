@@ -24,9 +24,6 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
-    azure_storage_connection_string: str | None = None
-    """Azure Blob Storage connection string"""
-
     qdrant_url: AnyHttpUrl = AnyHttpUrl("http://localhost:6333")
     """URL for Qdrant vector database"""
 

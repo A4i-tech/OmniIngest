@@ -1,7 +1,7 @@
 import pytest
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.core.model import IngestionContext, StepStatus
+from omni_ingest.core.model import IngestionContext, Resource, StepStatus
 
 
 @pytest.mark.asyncio
@@ -11,7 +11,7 @@ async def test_chunking_with_default_params():
     assert agent.chunk_size == 512
     assert agent.overlap == 50
 
-    ctx = IngestionContext(metadata={"text": "Hello world. This is a test. Another sentence."})
+    ctx = IngestionContext(resource=Resource(uri="", content="Hello world. This is a test. Another sentence."))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -27,7 +27,7 @@ async def test_chunking_with_custom_params():
     assert agent.overlap == 20
 
     long_text = "This is a sentence. " * 20
-    ctx = IngestionContext(metadata={"text": long_text})
+    ctx = IngestionContext(resource=Resource(uri="", content=long_text))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -39,7 +39,7 @@ async def test_chunking_respects_sentence_boundaries():
     agent = SentenceChunkingAgent(chunk_size=50, overlap=10)
 
     text = "First sentence here. Second sentence follows. Third one too."
-    ctx = IngestionContext(metadata={"text": text})
+    ctx = IngestionContext(resource=Resource(uri="", content=text))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -52,7 +52,7 @@ async def test_chunking_short_text():
     agent = SentenceChunkingAgent(chunk_size=500, overlap=50)
 
     short_text = "This is a short text."
-    ctx = IngestionContext(metadata={"text": short_text})
+    ctx = IngestionContext(resource=Resource(uri="", content=short_text))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -65,7 +65,7 @@ async def test_chunking_includes_position_metadata():
     agent = SentenceChunkingAgent(chunk_size=50, overlap=0)
 
     text = "First part. Second part. Third part."
-    ctx = IngestionContext(metadata={"text": text})
+    ctx = IngestionContext(resource=Resource(uri="", content=text))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -78,11 +78,7 @@ async def test_chunking_includes_position_metadata():
 async def test_chunking_empty_text():
     agent = SentenceChunkingAgent()
 
-    ctx = IngestionContext(metadata={})
-    result = await agent.run(ctx)
-    assert result.status == StepStatus.SKIPPED
-
-    ctx = IngestionContext(metadata={"text": ""})
+    ctx = IngestionContext(resource=Resource(uri="", content=""))
     result = await agent.run(ctx)
     assert result.status == StepStatus.SKIPPED
 
@@ -92,7 +88,7 @@ async def test_chunking_whitespace_normalization():
     agent = SentenceChunkingAgent()
 
     text = "Hello    world.\n\n\nThis   has   extra    spaces."
-    ctx = IngestionContext(metadata={"text": text})
+    ctx = IngestionContext(resource=Resource(uri="", content=text))
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS

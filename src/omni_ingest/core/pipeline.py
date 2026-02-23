@@ -46,11 +46,6 @@ _STEP_FACTORY: StepFactory = {
     "indexing": agent.indexing.VectorIndexingAgent,
     "keyword_indexing": agent.indexing.KeywordIndexingAgent,
     "graph_indexing": agent.indexing.GraphIndexingAgent,
-
-    "text_parser": agent.parsing.TextParserAgent,
-    "document_parser": agent.parsing.DocumentParserAgent,
-    "audio_parser": agent.parsing.AudioParserAgent,
-    "uri_parser": agent.parsing.UriParserAgent,
 }
 
 class PipelineRunner:
@@ -86,8 +81,7 @@ class PipelineRunner:
         if not ctx.store:
             raise ValueError("Metadata store required in context")
 
-        source_uri = ctx.metadata.get("source_uri") or ctx.metadata.get("file_path") or "unknown"
-        ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, source_uri, ctx.run_id)
+        ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
         PIPELINE_RUNNERS[ctx.run_id] = self
         try:
             result = []

@@ -3,7 +3,6 @@ domain_profile: education
 input_modality: document
 description: "Advanced education pipeline with quality verification and FAQ generation"
 steps:
-  - agent: document_parser
   - agent: chunking
   - agent: learning_outcome
   - agent: quality

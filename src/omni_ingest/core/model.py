@@ -21,6 +21,12 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class Resource(BaseModel):
+    uri: str = Field(...)
+    content: str = Field(...)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class KnowledgeItem(BaseModel):
     """
     Represents a discrete unit of information within the framework.
@@ -67,6 +73,7 @@ class IngestionContext(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     run_id: UUID = Field(default_factory=uuid4, description="Unique identifier for the current pipeline run")
     tenant_id: UUID = Field(default_factory=uuid4, description="Identifier for the active tenant")
+    resource: Resource = Field(..., description="...")
     domain_profile: str = Field("default", description="The configuration profile being executed")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Shared state or context across steps")
     items: list[KnowledgeItem] = Field(default_factory=list, description="The working set of knowledge items")

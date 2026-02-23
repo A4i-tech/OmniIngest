@@ -20,13 +20,10 @@ class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
     )
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        text = ctx.metadata.get("text")
-        if not text:
-            return StepResult(status=StepStatus.SKIPPED, error="No text to clean")
-        resp = await self._agent(ctx).run(self.prompt_template.format(text=text))
+        resp = await self._agent(ctx).run(self.prompt_template.format(text=ctx.resource.content))
         cleaned = resp.output or ""
-        ctx.metadata["text"] = cleaned
-        return StepResult(status=StepStatus.SUCCESS, metadata={"original_len": len(text), "cleaned_len": len(cleaned)})
+        ctx.resource.content = cleaned
+        return StepResult(status=StepStatus.SUCCESS, metadata={"original_len": len(ctx.resource.content), "cleaned_len": len(cleaned)})
 
 
 class TranscriptionPostProcessorAgent(BaseModel, Step, AgentMixin):
@@ -39,10 +36,7 @@ class TranscriptionPostProcessorAgent(BaseModel, Step, AgentMixin):
     """
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        text = ctx.metadata.get("text")
-        if not text:
-            return StepResult(status=StepStatus.SKIPPED, error="No transcript")
-        prompt = f"Improve the following audio transcript by fixing punctuation and correcting common STT errors. Output ONLY the improved text.\n\n{text}"
+        prompt = f"Improve the following audio transcript by fixing punctuation and correcting common STT errors. Output ONLY the improved text.\n\n{ctx.resource.content}"
         resp = await self._agent(ctx).run(prompt)
-        ctx.metadata["text"] = resp.output
+        ctx.resource.content = resp.output
         return StepResult(status=StepStatus.SUCCESS)

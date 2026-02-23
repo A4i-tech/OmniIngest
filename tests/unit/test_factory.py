@@ -7,7 +7,7 @@ import yaml
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
 from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
 
 
@@ -29,7 +29,7 @@ def test_resolve_step_kwargs(cls, config, shared, expected_keys_values):
 async def test_create_pipeline_with_config():
     config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 128, "overlap": 25}}]}
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
         f.flush()
 
@@ -46,12 +46,12 @@ async def test_create_pipeline_with_config():
 async def test_pipeline_execution_with_configured_chunking(metadata_store):
     config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 50, "overlap": 10}}]}
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
         f.flush()
 
         pipeline = create_pipeline_from_config(Path(f.name))
-        ctx = IngestionContext(metadata={"text": "First sentence. Second sentence. Third sentence."}, store=metadata_store)
+        ctx = IngestionContext(resource=Resource(uri="", content="First sentence. Second sentence. Third sentence."), store=metadata_store)
 
         results = await pipeline.run(ctx)
 
@@ -64,7 +64,7 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
 async def test_pipeline_with_default_config():
     config = {"steps": [{"agent": "chunking"}]}
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
         f.flush()
 
@@ -101,6 +101,6 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
         yaml.dump(config, tmp)
         runner = create_pipeline_from_config(Path(tmp.name))
 
-    result = await runner.run(IngestionContext(items=[KnowledgeItem(content="I am clueless about the current state of LLMs.")], store=metadata_store))
+    result = await runner.run(IngestionContext(items=[KnowledgeItem(content="I am clueless about the current state of LLMs.")], store=metadata_store, resource=Resource(uri="", content="")))
     assert all(r.status == StepStatus.FAILURE for r in result)
     assert all(r.error == "Toolsets not configured in context: ['converter']" for r in result)

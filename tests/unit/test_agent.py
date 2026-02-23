@@ -18,43 +18,44 @@ from omni_ingest.agent.governance import (
     QualityVerifierAgent,
 )
 from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
 
 
-@pytest.fixture
-def ctx(store):
-    return IngestionContext(tenant_id=uuid4(), store=store, domain_profile="education")
+def create_ctx(store, content):
+    return IngestionContext(tenant_id=uuid4(), resource=Resource(uri="", content=content), store=store, domain_profile="education")
 
 
 @pytest.mark.asyncio
-async def test_markdown_cleaning_agent(ctx):
+async def test_markdown_cleaning_agent(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = MarkdownCleaningAgent()
-    ctx.metadata["text"] = "## Raw"
 
+    ctx = create_ctx(store, "## Raw")
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
-        assert ctx.metadata["text"] == "## Clean"
+        assert ctx.resource.content == "## Clean"
 
 
 @pytest.mark.asyncio
-async def test_transcription_post_processor_agent(ctx):
+async def test_transcription_post_processor_agent(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = TranscriptionPostProcessorAgent()
-    ctx.metadata["text"] = "hello"
 
+    ctx = create_ctx(store, "hello")
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["Hello"])):
         result = await agent.run(ctx)
 
         assert result.status == StepStatus.SUCCESS
-        assert ctx.metadata["text"] == "Hello"
+        assert ctx.resource.content == "Hello"
 
 
 @pytest.mark.asyncio
-async def test_quality_verifier_agent_success(ctx):
+async def test_quality_verifier_agent_success(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
+
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test content", metadata={})]
 
     from omni_ingest.agent.governance import QualityReport
@@ -72,9 +73,11 @@ async def test_quality_verifier_agent_success(ctx):
 
 
 @pytest.mark.asyncio
-async def test_quality_verifier_agent_failure(ctx):
+async def test_quality_verifier_agent_failure(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
+
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="bad content", metadata={})]
 
     from omni_ingest.agent.governance import QualityReport
@@ -92,9 +95,11 @@ async def test_quality_verifier_agent_failure(ctx):
 
 
 @pytest.mark.asyncio
-async def test_faq_generation_agent(ctx):
+async def test_faq_generation_agent(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = FAQGenerationAgent()
+
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="context for faq", metadata={})]
 
     from omni_ingest.agent.enrichment import FAQItem
@@ -113,9 +118,11 @@ async def test_faq_generation_agent(ctx):
 
 
 @pytest.mark.asyncio
-async def test_learning_outcome_extraction_agent(ctx):
+async def test_learning_outcome_extraction_agent(store):
     from pydantic_ai import Agent as PydanticAgent
     agent = LearningOutcomeExtractionAgent()
+
+    ctx = create_ctx(store, "")
     ctx.domain_profile = "education"
     ctx.items = [KnowledgeItem(content="educational content", metadata={})]
 
@@ -134,8 +141,9 @@ async def test_learning_outcome_extraction_agent(ctx):
 
 
 @pytest.mark.asyncio
-async def test_data_lineage_agent(ctx):
+async def test_data_lineage_agent(store):
     agent = DataLineageAgent()
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test", metadata={})]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -143,12 +151,13 @@ async def test_data_lineage_agent(ctx):
 
 
 @pytest.mark.asyncio
-async def test_page_chunking_agent(ctx):
+async def test_page_chunking_agent(store):
     agent = PageChunkingAgent()
     with patch("omni_ingest.agent.chunking.PdfReader") as mock_reader:
         mock_page = MagicMock()
         mock_page.extract_text.return_value = "Page content"
         mock_reader.return_value.pages = [mock_page]
+        ctx = create_ctx(store, "")
         ctx.metadata["file_path"] = "fake.pdf"
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
@@ -156,8 +165,9 @@ async def test_page_chunking_agent(ctx):
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent(ctx, store):
+async def test_vector_indexing_agent(store):
     agent = VectorIndexingAgent(store=store)
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test", metadata={"embedding": [0.1] * 1536})]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -165,8 +175,9 @@ async def test_vector_indexing_agent(ctx, store):
 
 
 @pytest.mark.asyncio
-async def test_graph_indexing_agent(ctx):
+async def test_graph_indexing_agent(store):
     agent = GraphIndexingAgent(graph_store=AsyncMock())
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
     result = await agent.run(ctx)
@@ -175,9 +186,10 @@ async def test_graph_indexing_agent(ctx):
 
 
 @pytest.mark.asyncio
-async def test_graph_indexing_agent_with_store(ctx):
+async def test_graph_indexing_agent_with_store(store):
     mock_store = AsyncMock()
     agent = GraphIndexingAgent(graph_store=mock_store)
+    ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
@@ -189,36 +201,23 @@ async def test_graph_indexing_agent_with_store(ctx):
 
 
 @pytest.mark.asyncio
-async def test_audio_parser_agent_failure(ctx):
-    from omni_ingest.agent.parsing import AudioParserAgent
-
-    agent = AudioParserAgent()
-    ctx.metadata["audio_path"] = "test.wav"
-
-    with patch("omni_ingest.agent.parsing.settings") as mock_settings:
-        mock_settings.azure_speech_key = None
-        result = await agent.run(ctx)
-        assert result.status == StepStatus.FAILURE
-        assert result.error is not None and "credentials missing" in result.error
-
-
-@pytest.mark.asyncio
-async def test_timed_chunking_agent(ctx):
+async def test_timed_chunking_agent(store):
     from omni_ingest.agent.chunking import TimedChunkingAgent
 
     agent = TimedChunkingAgent(segment_duration="00:00:00.100000")
-    ctx.metadata["text"] = "test"
+
+    ctx = create_ctx(store, "test")
     ctx.metadata["word_timestamps"] = [{"Word": "test", "Offset": 0, "Duration": 2000000}]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio
-async def test_ingestion_logger_agent(ctx, store):
+async def test_ingestion_logger_agent(store):
     from omni_ingest.agent.governance import IngestionLoggerAgent
 
     agent = IngestionLoggerAgent()
-    ctx.store = store
+    ctx = create_ctx(store, "")
     ctx.run_id = uuid4()
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
