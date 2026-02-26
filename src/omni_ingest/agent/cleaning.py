@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
+from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
 
 
 class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
@@ -19,7 +19,7 @@ class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
         description="The instructions we send to the AI editor",
     )
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         resp = await self._agent(ctx).run(self.prompt_template.format(text=ctx.resource.content))
         cleaned = resp.output or ""
         ctx.resource.content = cleaned
@@ -35,7 +35,7 @@ class TranscriptionPostProcessorAgent(BaseModel, Step, AgentMixin):
     enhancing the overall readability and semantic precision of the data.
     """
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         prompt = f"Improve the following audio transcript by fixing punctuation and correcting common STT errors. Output ONLY the improved text.\n\n{ctx.resource.content}"
         resp = await self._agent(ctx).run(prompt)
         ctx.resource.content = resp.output

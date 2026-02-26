@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import PipelineRunner
 
 
@@ -16,7 +16,7 @@ async def test_parallel_pipeline_execution(metadata_store, tenant):
             tenant_id=tenant.id,
             items=[KnowledgeItem(content=f"Parallel content {idx}", source_uri=f"file://{idx}.txt")],
             store=metadata_store,
-            resource=Resource(uri="", content=f"Parallel content {idx}"),
+            resource=ResolvedResource(uri="", content=f"Parallel content {idx}"),
         )
         runner = PipelineRunner(steps=[SentenceChunkingAgent(chunk_size=10, overlap=0)])
         results = await runner.run(ctx)

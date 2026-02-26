@@ -5,7 +5,7 @@ import pytest
 
 from omni_ingest.agent.governance import IngestionLoggerAgent
 from omni_ingest.agent.indexing import VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import PipelineRunner
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
@@ -113,7 +113,7 @@ async def test_pipeline_run_tracking(metadata_store):
 
 @pytest.mark.asyncio
 async def test_db_registry_logging(metadata_store):
-    ctx = IngestionContext(store=metadata_store, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=""))
     runner = PipelineRunner(steps=[IngestionLoggerAgent()])
     results = await runner.run(ctx)
     assert results[0].status == StepStatus.SUCCESS
@@ -145,7 +145,7 @@ async def test_indexing_agent_registers_chunks(metadata_store, tenant):
     vstore = InMemoryVectorStore()
     agent = VectorIndexingAgent(store=vstore, vector_store_kind="memory", vector_store_space="test_space")
     item = KnowledgeItem(content="Chunk 1", metadata={"embedding": [0.1] * 1536})
-    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=""))
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
     chunks = await metadata_store.get_chunks_by_knowledge_item(ki_id)

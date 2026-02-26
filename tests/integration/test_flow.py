@@ -2,9 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from omni_ingest.core.model import IngestionContext, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import create_pipeline_from_config
-from omni_ingest.parser import read_resources
 
 
 @pytest.fixture
@@ -40,7 +39,7 @@ async def test_education_v2_pipeline(metadata_store, tenant, profiles_dir):
         tenant_id=tenant.id,
         store=metadata_store,
         domain_profile="education",
-        resource=Resource(uri="", content="Students will learn the advanced concepts of Physics."),
+        resource=ResolvedResource(uri="", content="Students will learn the advanced concepts of Physics."),
     )
 
     results = await runner.run(ctx)
@@ -67,11 +66,8 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path)
     path = profiles_dir / "audio_v2.yaml"
     runner = create_pipeline_from_config(path)
 
-    ctxs = [IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=resource)
-            async for resource in read_resources(audio_file)]
-
-    assert len(ctxs) == 1
-    results = await runner.run(ctxs[0])
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=audio_file)
+    results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
 
 
@@ -79,7 +75,7 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path)
 async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "governance_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=Resource(uri="", content="Audit this file for compliance."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content="Audit this file for compliance."))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
@@ -91,7 +87,7 @@ async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
 async def test_health_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "health_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=Resource(uri="", content="The patient was diagnosed with type 2 diabetes."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content="The patient was diagnosed with type 2 diabetes."))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"

@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
 from pypdf import PdfReader
 
-from ..core.model import IngestionContext, KnowledgeItem, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
 class SentenceChunkingAgent(BaseModel, Step):
@@ -22,7 +22,7 @@ class SentenceChunkingAgent(BaseModel, Step):
     chunk_size: PositiveInt = Field(512, description="Maximum number of characters per chunk")
     overlap: NonNegativeInt = Field(50, description="Character overlap between adjacent chunks")
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         if not ctx.resource.content:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
         text, chunks, pos = " ".join(ctx.resource.content.split()), [], 0
@@ -52,7 +52,7 @@ class PageChunkingAgent(BaseModel, Step):
     input document.
     """
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         path, raw = ctx.metadata.get("file_path"), ctx.metadata.get("raw_data")
         if not path and not raw:
             return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
@@ -109,7 +109,7 @@ class TimedChunkingAgent(BaseModel, Step):
     def pause_threshold_ticks(self) -> int | None:
         return int(self.pause_threshold.total_seconds() * 10_000_000) if self.pause_threshold else None
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         words = ctx.metadata.get("word_timestamps")
         if not words:
             return StepResult(status=StepStatus.SKIPPED, error="No word_timestamps found in metadata")

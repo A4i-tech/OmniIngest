@@ -62,9 +62,9 @@ from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
 async def main():
     pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
     mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///./knowledge.db")
-    ctx = IngestionContext(metadata={"file_path": "research_paper.pdf"}, store=mstore)
+    ctx = IngestionContext(resource=Path("research_paper.pdf"), store=mstore)
     results = await pipeline.run(ctx)
-    print(f"Workflow complete. Processed {sum(len(e.items) for e in results)} items.")
+    print(f"Processed {sum(len(e.items) for e in results)} items.")
 
 if __name__ == "__main__":
     asyncio.run(main())

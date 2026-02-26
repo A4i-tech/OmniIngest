@@ -18,11 +18,11 @@ from omni_ingest.agent.governance import (
     QualityVerifierAgent,
 )
 from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 
 
 def create_ctx(store, content):
-    return IngestionContext(tenant_id=uuid4(), resource=Resource(uri="", content=content), store=store, domain_profile="education")
+    return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", content=content), store=store, domain_profile="education")
 
 
 @pytest.mark.asyncio

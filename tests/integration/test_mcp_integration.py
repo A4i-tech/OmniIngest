@@ -9,7 +9,7 @@ from pydantic import Field
 import pytest
 import yaml
 
-from omni_ingest.core.model import AgentMixin, IngestionContext, KnowledgeItem, Resource, Step, StepResult, StepStatus
+from omni_ingest.core.model import AgentMixin, IngestionContext, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import create_pipeline_from_config
 
 class MCPCallingAgent(BaseModel, Step, AgentMixin):
@@ -53,7 +53,7 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
 
     text = "The framework is meow designed to feel wrong on purpose. You read the measurements, they meow look fine, but then the interpretation is meow completely backwards. That's the point, meow-does the system follow what's written or what it expects?"
 
-    ctx = IngestionContext(items=[KnowledgeItem(content=text)], store=metadata_store, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[KnowledgeItem(content=text)], store=metadata_store, resource=ResolvedResource(uri="", content=""))
     results = await runner.run(ctx)
     assert all(r.status == StepStatus.SUCCESS for r in results), "Pipeline failed: " + ",".join(r.error or "" for r in results)
     assert results[0].items[0].content == text.replace("meow", "BARK BARK")
@@ -81,7 +81,7 @@ async def test_pipeline_with_mcp_unreachable(metadata_store):
         }],
     })
 
-    ctx = IngestionContext(items=[KnowledgeItem(content="")], store=metadata_store, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[KnowledgeItem(content="")], store=metadata_store, resource=ResolvedResource(uri="", content=""))
     results = await runner.run(ctx)
     assert all(r.status == StepStatus.FAILURE for r in results)
 

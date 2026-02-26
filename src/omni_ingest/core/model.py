@@ -2,11 +2,12 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, final
+from pathlib import Path
+from typing import Any, Generic, TypeVar, final
 from uuid import UUID, uuid4
 
 from fastmcp.mcp_config import MCPServerTypes
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 
@@ -21,10 +22,12 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class Resource(BaseModel):
+class ResolvedResource(BaseModel):
     uri: str = Field(...)
     content: str = Field(...)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+type Resource = ResolvedResource | AnyUrl | Path
 
 
 class KnowledgeItem(BaseModel):
@@ -61,7 +64,8 @@ class StepResult(BaseModel):
     items: list[KnowledgeItem] = Field(default_factory=list, description="Knowledge items produced or modified by the step")
 
 
-class IngestionContext(BaseModel):
+ResourceT = TypeVar("ResourceT", bound=Resource)
+class IngestionContext(BaseModel, Generic[ResourceT]):  # noqa: UP046
     """
     Maintains state and shared metadata across a single ingestion pipeline execution.
 
@@ -73,7 +77,7 @@ class IngestionContext(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     run_id: UUID = Field(default_factory=uuid4, description="Unique identifier for the current pipeline run")
     tenant_id: UUID = Field(default_factory=uuid4, description="Identifier for the active tenant")
-    resource: Resource = Field(..., description="...")
+    resource: ResourceT = Field(..., description="...")
     domain_profile: str = Field("default", description="The configuration profile being executed")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Shared state or context across steps")
     items: list[KnowledgeItem] = Field(default_factory=list, description="The working set of knowledge items")
@@ -82,7 +86,7 @@ class IngestionContext(BaseModel):
 
 class Step(ABC):
     @abstractmethod
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         """Executes the specific logic for this ingestion step."""
         ...
 
@@ -92,7 +96,7 @@ class AgentMixin:
     toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
 
     @final
-    def _agent(self, ctx: IngestionContext) -> Agent:
+    def _agent(self, ctx: IngestionContext[Any]) -> Agent:
         from ..core.pipeline import PIPELINE_RUNNERS
         tool_vendors = PIPELINE_RUNNERS[ctx.run_id].toolsets
         missing = [ts for ts in self.toolsets if ts not in tool_vendors]

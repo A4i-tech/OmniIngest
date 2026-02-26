@@ -4,7 +4,7 @@ import pytest
 
 from omni_ingest.agent.enrichment import DomainEnrichmentAgent, LearningOutcomeExtractionAgent
 from omni_ingest.agent.indexing import GraphIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import PipelineRunner
 
 
@@ -12,7 +12,7 @@ from omni_ingest.core.pipeline import PipelineRunner
 async def test_domain_enrichment_flow(metadata_store):
     agent = DomainEnrichmentAgent()
     item = KnowledgeItem(content="Sample text about machine learning and neural networks.")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=""))
 
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -24,7 +24,7 @@ async def test_domain_enrichment_flow(metadata_store):
 async def test_learning_outcome_extraction(metadata_store):
     ed_agent = LearningOutcomeExtractionAgent()
     item = KnowledgeItem(content="The student will learn about Newton's laws of motion.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=ResolvedResource(uri="", content=""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -35,7 +35,7 @@ async def test_learning_outcome_extraction(metadata_store):
 async def test_learning_outcome_skips_non_education(metadata_store):
     ed_agent = LearningOutcomeExtractionAgent()
     item = KnowledgeItem(content="Some content.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=ResolvedResource(uri="", content=""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SKIPPED
@@ -45,7 +45,7 @@ async def test_learning_outcome_skips_non_education(metadata_store):
 async def test_graph_indexing_agent(metadata_store):
     graph_agent = GraphIndexingAgent(graph_store=AsyncMock())
     item = KnowledgeItem(content="Test content")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=Resource(uri="", content=""))
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=""))
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}, {"id": "n2"}], "edges": []}
 
     res = await PipelineRunner([graph_agent]).run(ctx)

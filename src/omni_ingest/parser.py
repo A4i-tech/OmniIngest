@@ -16,7 +16,7 @@ from docx import Document
 from pypdf import PdfReader
 
 from .core.config import settings
-from .core.model import Resource
+from .core.model import ResolvedResource
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -42,14 +42,14 @@ class _HTMLTextExtractor(HTMLParser):
         return " ".join(self.text_parts)
 
 
-async def _read_resource(fs: Any, path: str) -> Resource:
+async def _read_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
         content, metadata = await parse(path, stream)
-        return Resource(uri=path, content=content, metadata=metadata)
+        return ResolvedResource(uri=path, content=content, metadata=metadata)
 
 
-async def read_resources(path: str):
-    fs, resolved_path = fsspec.core.url_to_fs(path)
+async def read_resources(path: str, **kwargs):
+    fs, resolved_path = fsspec.core.url_to_fs(path, **kwargs)
     paths = fs.expand_path(resolved_path)
     for coro in asyncio.as_completed(asyncio.ensure_future(_read_resource(fs, p)) for p in paths):
         yield await coro

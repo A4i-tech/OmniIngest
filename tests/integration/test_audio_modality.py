@@ -3,14 +3,14 @@ from pathlib import Path
 import pytest
 
 from omni_ingest.agent.chunking import TimedChunkingAgent
-from omni_ingest.core.model import IngestionContext, Resource, StepStatus
+from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
 from omni_ingest.parser import read_resources
 
 
 @pytest.mark.asyncio
 async def test_timed_chunking_from_word_timestamps():
     ctx = IngestionContext(
-        resource=Resource(uri="", content=""),
+        resource=ResolvedResource(uri="", content=""),
         metadata={
             "word_timestamps": [
                 {"Word": "Hello", "Offset": 10000000, "Duration": 2000000},

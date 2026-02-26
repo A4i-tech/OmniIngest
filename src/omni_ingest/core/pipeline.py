@@ -1,6 +1,7 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
 import inspect
+import logging
 import traceback
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
@@ -18,8 +19,9 @@ from pydantic_ai.toolsets.fastmcp import FastMCPToolset
 from .. import agent
 from ..core import event
 from ..core.config import settings
+from ..parser import read_resources
 from ..port.vector_store import InMemoryVectorStore
-from .model import IngestionContext, KnowledgeItem, PipelineConfig, Step, StepResult, StepStatus
+from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepResult, StepStatus
 from .protocol import VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
@@ -57,14 +59,19 @@ class PipelineRunner:
     lifecycle of the ingestion process, including error handling and status reporting.
     """
 
-    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None, toolsets: Mapping[str, AbstractToolset] = {}):
+    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None):
         self.steps = steps
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.toolsets = toolsets
 
-    async def run(self, ctx: IngestionContext) -> list[StepResult]:
+        if logger is None:
+            logger = logging.getLogger(__name__)
+            logger.addHandler(logging.NullHandler())
+        self.logger = logger
+
+    async def run(self, ctx: IngestionContext[Any]) -> list[StepResult]:
         """
         Executes the ingestion pipeline.
 
@@ -81,6 +88,7 @@ class PipelineRunner:
         if not ctx.store:
             raise ValueError("Metadata store required in context")
 
+        ctx = await self._resolve_resource_single(ctx)
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
         PIPELINE_RUNNERS[ctx.run_id] = self
         try:
@@ -93,7 +101,7 @@ class PipelineRunner:
         finally:
             del PIPELINE_RUNNERS[ctx.run_id]
 
-    async def _run(self, ctx: IngestionContext) -> AsyncIterator[event.Event]:
+    async def _run(self, ctx: IngestionContext[ResolvedResource]) -> AsyncIterator[event.Event]:
         final_status = "succeeded"
         error_msg = None
 
@@ -117,6 +125,26 @@ class PipelineRunner:
 
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
         yield event.PipelineEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, status=final_status, error=error_msg)
+
+    async def _resolve_resource_single(self, ctx: IngestionContext[Any], **kwargs) -> IngestionContext[ResolvedResource]:
+        if isinstance(ctx.resource, ResolvedResource):
+            return ctx
+
+        resolved = None
+        skipped = []
+        async for res in read_resources(str(ctx.resource), **kwargs):
+            if resolved is None:
+                resolved = res
+            else:
+                skipped.append(res.uri)
+
+        if resolved is None:
+            raise RuntimeError("Could not resolve resource: " + str(ctx.resource))
+        if len(skipped) > 0:
+            self.logger.warning("Resource %s was resolved to %s, but also returned %d other resource(s) which were ignored.", str(ctx.resource), resolved.uri, len(skipped))
+
+        ctx.resource = resolved
+        return ctx
 
 
 @validate_call
