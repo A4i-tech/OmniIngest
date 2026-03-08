@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, PositiveInt, confloat
 
-from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
+from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
 
 
 class IngestionLoggerAgent(BaseModel, Step):
@@ -36,11 +36,11 @@ class DataLineageAgent(BaseModel, Step):
     data to the finalized index.
     """
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         lineage = {
             "run_id": str(ctx.run_id),
             "tenant_id": str(ctx.tenant_id),
-            "source_uri": ctx.metadata.get("source_uri") or ctx.metadata.get("file_path"),
+            "source_uri": ctx.resource.uri,
             "items_count": len(ctx.items) if ctx.items else 0,
             "timestamp": str(datetime.now(UTC)),
         }

@@ -62,3 +62,27 @@ async def test_yaml_pipeline_factory(metadata_store):
         tmp.flush()
         results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(resource=ResolvedResource(uri="", content="YAML test."), store=metadata_store))
         assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 3
+
+
+@pytest.mark.asyncio
+async def test_flatten_reads_multiple_files_in_directory(metadata_store):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        files = ["a.txt", "b.txt", "c.txt"]
+        for name in files:
+            Path(tmp_dir, name).write_text("noop")
+
+        ctx = IngestionContext(store=metadata_store, resource=tmp_dir + "/*.txt")
+        runner = PipelineRunner(steps=[EchoStep()])
+        all_results = [r async for r in runner.run_flattened(ctx)]
+
+        assert len(all_results) == len(files)
+        assert all(s.status == StepStatus.SUCCESS for _, steps in all_results for s in steps)
+
+
+@pytest.mark.asyncio
+async def test_runner_fails_on_directories(metadata_store):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ctx = IngestionContext(store=metadata_store, resource=tmp_dir)
+        runner = PipelineRunner(steps=[])
+        with pytest.RaisesGroup(IsADirectoryError):
+            [r async for r in runner.run_flattened(ctx)]

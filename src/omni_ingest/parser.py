@@ -42,17 +42,21 @@ class _HTMLTextExtractor(HTMLParser):
         return " ".join(self.text_parts)
 
 
-async def _read_resource(fs: Any, path: str) -> ResolvedResource:
+async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
         content, metadata = await parse(path, stream)
         return ResolvedResource(uri=path, content=content, metadata=metadata)
 
 
-async def read_resources(path: str, **kwargs):
+async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
     fs, resolved_path = fsspec.core.url_to_fs(path, **kwargs)
     paths = fs.expand_path(resolved_path)
-    for coro in asyncio.as_completed(asyncio.ensure_future(_read_resource(fs, p)) for p in paths):
+    for coro in asyncio.as_completed(asyncio.ensure_future(_parse_resource(fs, p)) for p in paths[:parse_limit or len(paths)]):
         yield await coro
+
+    if parse_limit is not None and len(paths) > parse_limit:
+        for path in paths[parse_limit:]:
+            yield ResolvedResource(uri=path, content="")
 
 
 @asynccontextmanager

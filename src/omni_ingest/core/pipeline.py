@@ -1,5 +1,6 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
+import asyncio
 import inspect
 import logging
 import traceback
@@ -101,6 +102,40 @@ class PipelineRunner:
         finally:
             del PIPELINE_RUNNERS[ctx.run_id]
 
+    async def flatten(self, ctx: IngestionContext[Any]) -> AsyncIterator[IngestionContext[ResolvedResource]]:
+        if isinstance(ctx.resource, ResolvedResource):
+            yield ctx
+            return
+
+        async for resource in read_resources(str(ctx.resource)):
+            yield ctx.model_copy(update={"run_id": None, "resource": resource})
+
+    async def run_flattened(self, ctx: IngestionContext[Any]) -> AsyncIterator[tuple[IngestionContext[ResolvedResource], list[StepResult]]]:
+        queue = asyncio.Queue[tuple[IngestionContext[ResolvedResource], list[StepResult]] | BaseException | None]()
+        async def runner(child):
+            try:
+                await queue.put((child, await self.run(child)))
+            except BaseException as e:
+                await queue.put(e)
+                raise
+
+        async def producer():
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    async for child in self.flatten(ctx):
+                        tg.create_task(runner(child))
+            finally:
+                await queue.put(None)
+
+        task = asyncio.get_event_loop().create_task(producer())
+        try:
+            while (item := await queue.get()) is not None:
+                if isinstance(item, BaseException):
+                    raise item
+                yield item
+        finally:
+            await task
+
     async def _run(self, ctx: IngestionContext[ResolvedResource]) -> AsyncIterator[event.Event]:
         final_status = "succeeded"
         error_msg = None
@@ -132,7 +167,7 @@ class PipelineRunner:
 
         resolved = None
         skipped = []
-        async for res in read_resources(str(ctx.resource), **kwargs):
+        async for res in read_resources(str(ctx.resource), parse_limit=1, **kwargs):
             if resolved is None:
                 resolved = res
             else:
@@ -140,8 +175,12 @@ class PipelineRunner:
 
         if resolved is None:
             raise RuntimeError("Could not resolve resource: " + str(ctx.resource))
+
         if len(skipped) > 0:
-            self.logger.warning("Resource %s was resolved to %s, but also returned %d other resource(s) which were ignored.", str(ctx.resource), resolved.uri, len(skipped))
+            self.logger.warning("Resource %s was resolved to %s, but also returned %d other resource(s) which were ignored. "
+                "Consider using %s() instead, or %s() followed by %s() for a more granularity over execution.",
+                str(ctx.resource), resolved.uri, len(skipped), self.run_flattened.__qualname__, self.flatten.__qualname__, self.run.__qualname__
+            )
 
         ctx.resource = resolved
         return ctx
