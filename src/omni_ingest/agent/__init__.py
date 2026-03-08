@@ -4,6 +4,7 @@ Specialized agents for parsing, cleaning, chunking, and enriching knowledge item
 
 from . import chunking as chunking
 from . import cleaning as cleaning
+from . import deduplication as deduplication
 from . import enrichment as enrichment
 from . import governance as governance
 from . import indexing as indexing

@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
 from ..core.config import settings
-from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
+from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+from .deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
 
 
 class EmbeddingAgent(BaseModel, Step):
@@ -44,13 +45,29 @@ class VectorIndexingAgent(BaseModel, Step):
     store: Any = Field(..., description="The physical database where data will be saved")
     vector_store_kind: str = Field("lancedb", description="Vector database type", examples=["lancedb", "qdrant"])
     vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
+    deduplication_strategy: DeduplicationStrategyConfig = Field(default_factory=NormalizedTextHashDeduplicationStrategy, description="Strategy used to skip duplicate chunks before indexing")
 
-    async def run(self, ctx: IngestionContext) -> StepResult:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items")
-        await self.store.upsert(ctx.items)
+        deduplication_result = await self.deduplication_strategy.deduplicate(ctx.items, ctx)
+        items_to_index = deduplication_result.kept_items
+
+        if not items_to_index:
+            return StepResult(
+                status=StepStatus.SUCCESS,
+                metadata={
+                    "count": 0,
+                    "input_count": deduplication_result.input_count,
+                    "deduplicated_count": deduplication_result.dropped_count,
+                    "deduplication_strategy": deduplication_result.strategy,
+                    "deduplication_scope": deduplication_result.scope,
+                },
+            )
+
+        await self.store.upsert(items_to_index)
         if ctx.store and (pid := ctx.metadata.get("knowledge_item_id")):
-            for i in ctx.items:
+            for i in items_to_index:
                 await ctx.store.create_chunk(
                     chunk_id=i.id,
                     knowledge_item_id=pid,
@@ -61,7 +78,16 @@ class VectorIndexingAgent(BaseModel, Step):
                     vector_store_ref_id=str(i.id),
                     metadata=i.metadata,
                 )
-        return StepResult(status=StepStatus.SUCCESS, metadata={"count": len(ctx.items)})
+        return StepResult(
+            status=StepStatus.SUCCESS,
+            metadata={
+                "count": len(items_to_index),
+                "input_count": deduplication_result.input_count,
+                "deduplicated_count": deduplication_result.dropped_count,
+                "deduplication_strategy": deduplication_result.strategy,
+                "deduplication_scope": deduplication_result.scope,
+            },
+        )
 
 
 class Keywords(BaseModel):
