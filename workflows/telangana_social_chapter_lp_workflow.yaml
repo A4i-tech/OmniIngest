@@ -1,0 +1,121 @@
+_id: "telangana-social-science-chapter-lesson-plan"
+name: "Telangana Social chapter"
+description: "Social: Introduction and prerequisites, Key words/concepts and pedagogical strategy, Recap, and Homework"
+sections:
+  - id: "lesson_mind_mapping"
+    title: "Mind-Mapping"
+    description: |
+      Create a tree-style mind map for this chapter/topic based on the provided text.
+
+      **CRITICAL SAFETY INSTRUCTIONS:**
+      - If the topic involves **Trafficking**, **Abuse**, or **Protection Acts**:
+        - Focus STRICTLY on **Legal Provisions**, **Year of Enactment**, **Enforcement Agencies**, and **Rehabilitation**.
+        - **ABSOLUTE PROHIBITION:** Do NOT generate text describing sexual offenses, prostitution, physical abuse, or brothels.
+        - Use neutral terms: Use "Illegal Trade" instead of trafficking. Use "Victim Rehabilitation" instead of describing the victim's suffering.
+
+      Example output (in markdown):
+
+      ```
+      - [Act Name]
+        - Year of Enactment
+        - Legal Provisions
+        - Role of Police
+        - Rehabilitation Measures
+        - 
+        - 
+      ```
+    mode: "gpt"
+    dependencies: []
+
+  - id: "lesson_prerequisites"
+    title: "Prerequisites"
+    description: |
+      List only the prior knowledge, concepts, or skills that students should already have before approaching this chapter. For each item, include a short, concise phrase describing what it is (e.g., "Basic understanding of community helpers – able to identify roles like teacher, doctor, farmer", "Familiarity with reading simple maps – can locate places using symbols", "Awareness of family structures – understands types of families such as joint and nuclear"). 
+      
+      Do not include questions or information relating to the current topic itself.
+          
+      Write clearly and coherently to ensure the content is accessible and easily understandable.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies: []
+
+  - id: "lesson_keywords"
+    title: "Keywords"
+    description: |
+      - List all essential textbook vocabulary and any core concepts strictly related to this chapter.
+      - Do NOT repeat any keywords or concepts that have already been included in previous lesson plans.
+      - For each keyword/concept, provide its meaning in a short, clear phrase (do not copy textbook definitions; use simple language).
+      - Do not include unrelated or general terms.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+  
+  - id: "lesson_pedagogical_strategy"
+    title: "Conceptual understanding through pedagogical strategies"
+    description: |
+      **General Instructions:**
+      - Write a clear, simple explanation of the learning outcome in your own words.
+
+      **SAFETY CONSTRAINTS FOR SENSITIVE TOPICS (Trafficking/Protection Acts):**
+      1. **Definitions:** Define the Act as a "Law to prevent illegal trade of humans" or "Law to protect vulnerable groups." **NEVER** mention specific details of sexual exploitation or physical abuse.
+      2. **Activities:** 
+         - **Do NOT** suggest role-playing victims or perpetrators.
+         - **Instead**, suggest: "Make a poster on Women's Rights," "List the helpline numbers (e.g., 1098)," or "Discuss the role of NGOs in rehabilitation."
+
+      **Structure:**
+      For each learning outcome, provide:
+      1. State the LO
+      2. **Explanation:** Focus on the **Law** and **Rights**, not the crime.
+      3. **Activity:** Brief description of an awareness-based activity.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      Use the content, activities, and discussions conducted so far as background context to help create this section.
+      Do not repeat the content itself. Instead, summarize what students are expected to have learned by this point, 
+      based on their experiences, observations, and participation in previous activities.
+
+      Provide a concise summary of the key ideas and concepts explored so far. Focus on what students should now understand, recall, or be able to explain in their own words. 
+      Ensure the summary covers all main topics equally and avoids mentioning any teaching methodology, learning model, or instructional phase. Keep the language simple and accessible.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_pedagogical_strategy"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **You must provide:**
+
+      MCQs (Multiple‐Choice Questions):
+        Beginner (2 questions):
+          • Recall basic terms/concepts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Intermediate (2 questions):
+          • Apply key facts/concepts in familiar contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Advanced (2 questions):
+          • Analyze/evaluate concepts in new contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+      Short‐Answer Questions:
+        SAQ 1: (one‐liner) Explain a core principle or behavior of given subtopic(s).
+        SAQ 2: (one‐liner) Connect a key concept to a real‐world or novel scenario.
+        SAQ 3: (one‐liner) Analyze implications or consequences of a concept in `given subtopic(s).
+      
+      Note: DO NOT repeat any questions from previous lesson plans.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_pedagogical_strategy"

@@ -1,0 +1,133 @@
+_id: "telangana-science-social-chapter-lesson-plan"
+name: "Telangana Sciene/Social chapter"
+description: "Science/Social: Introduction and prerequisites, Key words/concepts and pedagogical strategy, Recap, and Homework"
+sections:
+  - id: "lesson_intro"
+    title: "Introduction"
+    description: |
+        Label each section exactly as follows and IN THIS ORDER:
+
+        **Introduction**: Start with a captivating question or a relatable real-world situation that naturally leads into the central themes of the chapter. 
+        Combine this with a short narrative or story that highlights the broader relevance of the content to students' everyday lives, society, nature, or technology. 
+        Ensure the introduction is engaging, relevant, and provides a strong contextual foundation for all the topics covered in the chapter.
+
+        **Prerequisites**: List the key foundational concepts, prior knowledge, or skills that students should have to fully grasp the content of this chapter. 
+        These should be specific and clearly stated, ensuring the teacher can assess or build on them as needed.
+        
+        Write clearly and coherently to ensure the content is accessible and easily understandable.
+
+        [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies: []
+  
+  - id: "lesson_prerequisites"
+    title: "Prerequisite Knowledge Questions"
+    description: |
+        Generate a list of 4–6 simple, real-world word problems that assess students' prior knowledge required for this chapter. Provide a clear answer for each.
+    mode: "rag"
+    dependencies:
+    - section_id: "lesson_intro"
+  
+  - id: "lesson_mind_mapping"
+    title: "Mind Mapping Questions"
+    description: |
+        Generate 4–6 open-ended questions designed to activate students’ prior experiences, curiosity, and critical thinking about the key concepts in the chapter. The questions should:
+        - Relate to students’ everyday life or familiar contexts  
+        - Encourage observation, imagination, and reasoning  
+        - Help uncover misconceptions or gaps in understanding  
+        - Naturally lead into the themes and concepts of the chapter  
+
+        For each question, briefly state the purpose in parentheses—e.g., (Activates prior experience), (Encourages curiosity), or (Connects to real-world application).
+
+        Format:
+
+        1. [Question]  
+          (Purpose)  
+        2. ...
+    mode: "rag"
+    dependencies:
+    - section_id: "lesson_intro"
+    - section_id: "lesson_prerequisites"
+
+  - id: "lesson_keywords_strategy"
+    title: "Key words/concepts and pedagogical strategy"
+    description: |
+        Label each section exactly as follows and IN THIS ORDER:
+
+        **Key words/concepts:**
+        - List all essential textbook vocabulary and any core concepts not yet introduced. Do not define them here.
+
+        **Conceptual understanding through pedagogical strategies:**
+
+        1. Concept details:
+          - For each term, provide concise bullet points that merge its definition, characteristics, key features, and important facts.
+
+        2. Activity:
+          - Design a single, hands-on activity for **EACH** concept that:
+            • Encourages students to explore or manipulate materials to see the concept in action (for example: simple experiments, model-building, sorting/classifying tasks, or guided observations).  
+            • Relies only on low-cost, easily obtained resources (e.g., paper, local natural objects, common classroom supplies).  
+            • Is structured for small groups or pairs, with clear preparation and execution steps combined in sequence.  
+            • Specifies exactly what to prepare, how to set up, and what students should do, so they directly experience or observe the concept.
+
+        3. Discussion along with questions:
+          - Provide 3–5 open-ended, scenario-based questions per concept that:
+            • Ask students to describe what they observed or built, explain why it happened, and relate it back to the concept details.  
+            • Invite comparison (“How is X similar to or different from Y?”), cause/effect (“Why did this outcome occur?”), and prediction (“What would happen if…?”).  
+            • Encourage real-world connections (“Where do you see this concept at work outside the classroom?”).  
+            • Draw on any inquiry prompts or scenarios already mentioned in earlier sections, reframed as discussion starters.
+
+        [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_intro"
+
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      Use the content, activities, and discussions conducted so far as background context to help create this section.
+      Do not repeat the content itself. Instead, summarize what students are expected to have learned by this point, 
+      based on their experiences, observations, and participation in previous activities.
+
+      Write 3 to 5 clear recap questions or prompts that:
+      - Help students reflect on the key ideas and concepts explored so far.
+      - Encourage them to express what they observed, learned, or understood in their own words.
+      - Can be used by the teacher to check for understanding, clarify misconceptions, or lead into the next part of the lesson.
+
+      Make sure the recap gives equal importance to all the topics covered.
+      Do not mention any teaching methodology, learning model, or any other instructional phase.
+      Keep the language simple.
+    
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_intro"
+      - section_id: "lesson_keywords_strategy"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **You must provide:**
+
+      MCQs (Multiple‐Choice Questions):
+        Beginner (2 questions):
+          • Recall basic terms/concepts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Intermediate (2 questions):
+          • Apply key facts/concepts in familiar contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Advanced (2 questions):
+          • Analyze/evaluate concepts in new contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+      Short‐Answer Questions:
+        SAQ 1: (one‐liner) Explain a core principle or behavior of given subtopic(s).
+        SAQ 2: (one‐liner) Connect a key concept to a real‐world or novel scenario.
+        SAQ 3: (one‐liner) Analyze implications or consequences of a concept in `given subtopic(s).
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_intro"
+      - section_id: "lesson_keywords_strategy"

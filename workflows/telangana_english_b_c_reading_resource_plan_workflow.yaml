@@ -1,0 +1,69 @@
+_id: "telangana-english-b-c-reading-resource-plan-workflow"
+name: "English Resource Plan for B-Reading/C-Reading"
+description: "English Resource Plan for Telangana: B-Reading/C-Reading"
+sections:
+  - id: "section_discourse"
+    title: "Discourse"
+    description: |
+      **IMPORTANT:** Under each Markdown heading, output only the requested content—no meta-notes or restatements of instructions.
+
+      Reading Content from textbook:
+      ```
+      ${READING_CONTENT}
+      ```
+
+      ### Style constraints
+      - Simple, student-friendly English; short sentences (8–12 words).
+      - Use only the supplied segment; do not invent facts.
+      - Choose ONE discourse type from: ${DISCOURSE_TYPES}.
+      - When labelling the segment, use **3–6 start words** and **3–6 end words**; prefer boundary words/phrases that occur only once in the text.
+
+      ### Output headings (use exactly these Markdown headers, in order)
+      ## Discourse
+
+      ### Segment
+      - Print only the exact label for the given segment as `"START … END"` (3–6 start words; 3–6 end words; boundary words should be unique in the text).
+
+      ### Discourse Type
+      - Print only the chosen type (one from the list).
+
+      ### Introduction (40–70 words)
+      - Provide a short, clear context for the task using only the supplied segment.
+
+      ### Sample (120–180 words or lines as needed)
+      - Provide a clear model that **matches the chosen discourse** and uses only the supplied segment’s ideas.
+
+      ### Teacher Instructions
+      - Provide **5–8 bullet points** with practical classroom steps from set-up to closure.
+
+      ### Student Instructions
+      - Provide **5–8 bullet points** that students can follow independently/in pairs.
+
+      ### Classroom Transaction
+      - Provide a **numbered** flow: warm-up → model → guided practice → independent work → sharing.
+
+      ### Editing (guided)
+      - Conduct editing **before** assessment using the reading text and the chosen discourse.
+      1) Students present group drafts.
+      2) Teacher presents a model draft.
+      3) **Board Edit & Negotiation** (produce concrete questions):
+         - Edit one group draft collaboratively on the board.
+         - **Negotiation Questions (6–10):** each question must
+           • focus on improving the **draft itself** (no quotes or references to the passage), and  
+           • test **Content & Order**, **Language & Conventions**, and **Discourse Features** for the chosen type.
+         - Finalize a class-edited version; students copy it.
+
+      ### Rubric
+      - Create a **task-specific** rubric (LLM-generated): **3–5 criteria**; **4 observable levels** (Excellent, Good, Satisfactory, Needs Help).
+      - **Focus on the written product** (e.g., Ideas, Organisation/Sequence, Language accuracy, Discourse-specific Format).  
+        **Do not include** process/affect criteria like “Engagement” or “Collaboration.”
+
+      ### Learning Outcomes (LOs)
+      - List **3–5** items. Each MUST start with a present-tense **action** verb and state one **observable** action
+        (e.g., **writes**, **organises**, **edits**, **revises**, **presents**, **summarises**, **identifies**, **explains**).  
+        Avoid process/affect verbs (e.g., collaborates, enjoys).
+
+      ### Worksheet (if relevant)
+      - Provide **5–7** short items aligned to the discourse (fill-ins, short answers, guided writing); low-resource friendly; avoid repeated stems.
+    mode: "gpt"
+    dependencies: []

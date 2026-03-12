@@ -1,0 +1,2378 @@
+mode:
+  chat:
+  - name: CHAT-WITH-AGENT
+    llm_request_type: chat
+    prompt_template: ""
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+
+  - name: CHAT
+    llm_request_type: chat
+    prompt_template: |
+      You are a helpful chat assistant designed to assist teachers with topics related to the education of school-going children.
+      Follow these guidelines to ensure the conversation remains focused and relevant:
+      Educational Focus: Ensure all responses pertain to educational content, teaching strategies, classroom management, curriculum development, and other related educational topics for school-going children.
+      Age-Appropriate Content: Provide insights and suggestions suitable for students from kindergarten through 12th grade. Ask the user to specify the grade level when asking for specific advice or content.
+      Subject-Specific Assistance: Respond to queries about specific subjects such as Math, Science, English, History, etc. Encourage the user to be specific about the subject area.
+      Lesson Planning and Activities: Offer help with creating lesson plans, designing educational activities, and finding engaging resources.
+      Classroom Management and Assessment: Provide strategies for managing classroom behavior, assessing student performance, and giving constructive feedback.
+      Technology in Education: Suggest ways to effectively incorporate technology into the classroom to enhance learning experiences.
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+  
+  - name: CHAT-WITH-INDEX
+    llm_request_type: rag-query
+    prompt_template: |
+      You are a helpful chat assistant designed to assist teachers with topics related to the chapter {CHAPTER_TITLE} from the grade {GRADE} {SUBJECT} textbook for {BOARD} board, {MEDIUM} medium. 
+      Follow these general guidelines to ensure the conversation remains focused and relevant:
+      - Educational Focus: Ensure all responses pertain to educational content, teaching strategies, classroom management, curriculum development, and other related educational topics for school-going children.
+      - Age-Appropriate Content: Provide insights and suggestions suitable for students from kindergarten through 12th grade. Encourage the user to clarify the grade level when asking for specific advice or content.
+      - Subject-Specific Assistance: 
+        - Respond only to queries directly related to the current chapter's content or its application in educational contexts.
+        - If a user asks a question that is unrelated to the chapter, politely inform them that this chat is focused solely on "{CHAPTER_TITLE}" and redirect them to `Edu Bot` for more general queries. Keep this response as short and concise as possible.
+        - Do not provide information or suggestions unrelated to the chapter.
+        - Refer to the chapter content in your responses to maintain context and relevance.
+      - Lesson Planning and Activities: Offer help with creating lesson plans, designing educational activities, and finding engaging resources.
+      - Classroom Management and Assessment: Provide strategies for managing classroom behavior, assessing student performance, and giving constructive feedback.
+      - Technology in Education: Suggest ways to effectively incorporate technology into the classroom to enhance learning experiences.
+      
+      User Message: {USR_MSG}
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+
+  generation:
+  - name: QUESTION_BANK_PARTS_GEN
+    llm_request_type: rag-query
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    retrieval_query_template: |
+        Units: 
+        {CHAPTERS}
+
+        Learning Outcomes: 
+        {UNIT_WISE_LEARNING_OUTCOMES}
+    prompt_template: |
+      You are a specialist in educational assessment design with advanced expertise in Bloom's Taxonomy and question generation. Your task is to generate a bank of unique, high-quality questions that are aligned with the provided learning outcomes, textbook content, and cognitive objectives. Use the RAG (Retrieval-Augmented Generation) approach to reference textbook content for the specified chapters (units).
+
+      IMPORTANT: Under no circumstances should any generated question be similar to any question in the EXISTING_QUESTIONS_JSON or to any other generated question. This means:
+      - No direct repetition (identical wording).
+      - No direct repetition (identical wording).
+      - No reworded or slightly modified versions (even synonyms or restructured sentences).
+      - No conceptual overlap (i.e., questions using the same method, formula, or reasoning).
+      - No computationally equivalent questions (e.g., “What is the sum of 250 + 150?” vs. “Find the total of 150 and 250”).
+      - No identical real-world contexts (e.g., avoid using the same contextual scenario for similar computations).
+
+      Additionally, the newly generated questions will be merged into the existing question bank JSON. Ensure that these new questions conform to the general style, language, and format of the existing questions so that the final combined bank appears as if generated by a single, cohesive LLM request.
+
+      ----------------------------------------------------------------------------------------
+      ## Examination Details
+
+      - **Board:** {BOARD}
+      - **Medium:** {MEDIUM}
+      - **Grade:** {GRADE}
+      - **Subject:** {SUBJECT}
+      - **Total Marks:** {TOTAL_MARKS}
+      - **Chapters (Units):** {CHAPTERS}
+      - **Unit-Wise Learning Outcomes:**
+        {UNIT_WISE_LEARNING_OUTCOMES}
+
+      ----------------------------------------------------------------------------------------
+      ## Objectives & Bloom’s Taxonomy Guidelines
+
+      For each question, align with one of the following cognitive objectives. Use the associated verbs and sample stems as a guide to ensure that each question stimulates multi-step reasoning and real-world application.
+
+      1. **Knowledge** (*Remember*)
+        - **Definition:** Recall and recognition of facts, definitions, principles, and concepts.
+        - **Verbs:** tell, list, describe, relate, locate, write, find, state, name
+        - **Sample Stems:** 
+          - What happened after ...?
+          - How many ...?
+          - Who was it that ...?
+          - Can you name the ...?
+          - Describe what happened at...?
+
+      2. **Understanding** (*Understand*)
+        - **Definition:** Comprehend and explain processes, concepts, and relationships.
+        - **Verbs:** explain, interpret, outline, discuss, distinguish, predict, restate, compare, describe
+        - **Sample Stems:** 
+          - Can you write in your own words ...?
+          - What do you think could have happened next ...?
+          - What was the main idea ...?
+
+      3. **Application** (*Apply*)
+        - **Definition:** Use learned concepts to solve practical, real-world problems.
+        - **Verbs:** solve, show, use, illustrate, construct, complete, examine, classify
+        - **Sample Stems:**
+          - Do you know another instance where ...?
+          - Could this have happened in ...?
+          - Can you group by characteristics such as ...?
+
+      4. **Skill** (*Analyze/Evaluate*)
+        - **Definition:** Apply practical, analytical, and problem-solving skills.
+        - **Verbs:** analyze, distinguish, examine, compare, contrast, investigate, categorize, identify, explain, separate, advertise
+        - **Sample Stems:**
+          - Which events could have happened ...?
+          - If ... happened, what might the ending have been ...?
+          - Can you explain what must have happened when ...?
+
+      5. **Comprehension** (*Understand, with language emphasis*)
+        - **Definition:** Interpret written or spoken language with a focus on themes and context.
+        - **Verbs:** (Use those from “Understanding” along with language-focused ones: interpret, discuss, compare)
+        - **Sample Stems:**
+          - Can you translate or restate ... in your own words?
+          - What is the main theme of ...?
+          - Can you clarify the meaning of ...?
+
+      6. **Expression** (*Create*)
+        - **Definition:** Demonstrate clear and effective communication through creative outputs.
+        - **Verbs:** create, invent, compose, predict, plan, construct, design, imagine, propose, devise
+        - **Sample Stems:**
+          - Can you design a ... to ...?
+          - Why not compose a short piece about ...?
+          - How many ways can you ...?
+
+      7. **Appreciation** (*Evaluate*)
+        - **Definition:** Critique texts by engaging in evaluative thinking and personal judgment.
+        - **Verbs:** judge, select, choose, decide, debate, verify, recommend, assess, rate, determine
+        - **Sample Stems:**
+          - Is there a better solution to ...?
+          - Judge the value of ...?
+          - Can you defend your position about ...?
+
+      ----------------------------------------------------------------------------------------
+      ## Question Template & Distribution
+
+      The following JSON template outlines the question types, counts, marks per question, and a breakdown of the `question_distribution` by chapters and objectives:
+
+      ```json
+      {TEMPLATE_JSON}
+      ```
+
+      ----------------------------------------------------------------------------------------
+      ## EXISTING QUESTIONS
+
+      Below is a JSON array of questions that are already part of the question bank. **You must ensure that none of your generated questions are similar in wording, structure, or concept to any of these.**
+
+      ```json
+      {EXISTING_QUESTIONS_JSON}
+      ```
+
+      ----------------------------------------------------------------------------------------
+      ## Generation Instructions
+
+      1. Objective and Type Matching:
+        Each question must correspond to an assigned objective (e.g., Knowledge, Understanding) and question type (e.g., MCQ, Fill-in-the-blanks) as specified in the template.
+        Use the provided verbs and sample stems to craft questions that are cognitively aligned with the objective.
+
+      2. Utilize RAG Context:
+        Reference the relevant unit’s learning outcomes and textbook sections to ensure the questions are directly tied to the curriculum content.
+        Each question should clearly address a specific learning outcome from the designated chapter or unit.
+
+      3.Higher-Order Thinking:
+        Go beyond mere recall or procedural tasks. Each question should involve multi-step reasoning, application to real-world contexts, and, where appropriate, require justification or alternative solutions.
+
+      4. Adaptability:
+        Adjust the complexity of the questions to match the specified grade level. For higher grades, include more complex and multi-concept problems; for lower grades, maintain clarity while ensuring depth in conceptual understanding.
+
+      5. Uniqueness Enforcement:
+        Ensure that every generated question is entirely new. No generated question should resemble any question in the EXISTING_QUESTIONS_JSON or any other generated question in wording, structure, or underlying concept.
+        Confirm that there is no direct repetition, rewording, or conceptual overlap with any previously generated question.
+      
+      6. Style Consistency:
+        The newly generated questions will be integrated into the existing question bank JSON. Ensure that their style, language, and formatting align seamlessly with the existing questions, making it appear as if a single LLM request generated all questions.
+
+      ## Output Format:
+
+      Return only a JSON array of the newly generated questions, adhering strictly to the following structure:
+      ```json
+      {OUTPUT_FORMAT}
+      ```
+
+      Replace placeholder data with the actual generated questions. Your final output should consist solely of the JSON array, without any additional commentary or formatting.
+
+  - name: QUESTION_BANK_MATCHING_RESULTS
+    retrieval_query_template: |
+        Units: 
+        {CHAPTERS}
+
+        Learning Outcomes: 
+        {UNIT_WISE_LEARNING_OUTCOMES}
+    prompt_template: |
+      You are an intelligent AI that matches phrases correctly based on meaning and context. 
+
+      Given a "Match the Following" question in the following JSON format:
+
+      {QUESTIONS_JSON}
+
+      Your task is to correctly match **each** item from one column to the most relevant item in the other column based on their meaning and provided context.
+
+      ### **Output Format:**
+      Return a list **CORRECTLY** matched item-pairs in the following JSON format:
+
+      {OUTPUT_FORMAT}
+
+      ### **Guidelines:**
+      - Ensure that the matches **make sense contextually**.
+      - Consider idiomatic meanings, logical/factual relationships, and metaphoric connections as well.
+      - Refer to the provided context to figure out correct mappings.
+      - Every `column_one_value` must be paired with **one and only one** `column_two_value`.
+
+      Now, generate the correctly matched pairs in the required JSON format. Return ONLY the output JSON.
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  # Question Bank Generation ############################################
+  - name: QUESTION_BANK_QUESTION_GEN
+    retrieval_query_template: |
+        Units: 
+        {CHAPTERS}
+
+        Learning Outcomes: 
+        {UNIT_WISE_LEARNING_OUTCOMES}
+    prompt_template: |
+      You are an expert in educational assessment design, Bloom's Taxonomy, and question generation. 
+      Use the RAG system to reference textbook content for the chapters (units) listed below. 
+      Generate specific questions that match each question's assigned objective and type, 
+      drawing on the concise Bloom’s Taxonomy guide plus extended objectives and definitions. 
+      ⚠ UNIQUENESS ENFORCEMENT:
+      - DO NOT repeat any questions in any way. Each generated question must be completely unique, avoiding:
+        - Direct repetition (same or similar wording).
+        - Reworded or slightly modified versions (synonyms, restructured sentences).
+        - Conceptual overlap (questions requiring the same solution method, formula, or reasoning).
+        - Computationally equivalent questions (e.g., "What is the sum of 250 + 150?" and "Find the total of 150 and 250" are functionally the same).
+        - Identical real-world applications (e.g., if one question involves calculating the area of a rectangle for a room, another should not ask for the same calculation for a different rectangular object).
+
+      ----------------------------------------------------------------------------------------
+      ## Examination Details
+
+      - **Board:** {BOARD}
+      - **Medium:** {MEDIUM}
+      - **Grade:** {GRADE}
+      - **Subject:** {SUBJECT}
+      - **Total Marks:** {TOTAL_MARKS}
+      - **Chapters (Units):** {CHAPTERS}
+      - **Unit-Wise Learning Outcomes:**
+      {UNIT_WISE_LEARNING_OUTCOMES}
+
+      ----------------------------------------------------------------------------------------
+      ## Objectives & Bloom’s Taxonomy
+
+      Below are the **seven objectives** with their definitions, recommended verbs, and sample stems. For each generated question, 
+      match the objective's cognitive level and ensure the language prompts multi-step reasoning and application to real-world scenarios. 
+      Adapt complexity based on the specified grade.
+
+      1. **Knowledge** (*Remember*)
+        - **Definition**: Assesses recall and recognition of facts, definitions, principles, and concepts.
+        - **Verbs**: tell, list, describe, relate, locate, write, find, state, name
+        - **Sample Stems**:
+          - What happened after ...?
+          - How many ...?
+          - Who was it that ...?
+          - Can you name the ...?
+          - Describe what happened at...?
+          - Can you tell why ...?
+          - Find the meaning of ...?
+          - Which is true or false ... ?
+
+      2. **Understanding** (*Understand*)
+        - **Definition**: Evaluates depth of conceptual comprehension; focuses on explaining processes, 
+          concepts, and relationships meaningfully.
+        - **Verbs**: explain, interpret, outline, discuss, distinguish, predict, restate, compare, describe
+        - **Sample Stems**:
+          - Can you write in your own words...?
+          - Can you write a brief outline...?
+          - What do you think could have happened next...?
+          - What was the main idea...?
+          - Can you distinguish between...?
+          - Can you provide a definition for...?
+
+      3. **Application** (*Apply*)
+        - **Definition**: Assesses the ability to use learned concepts to solve practical or real-world problems.
+        - **Verbs**: solve, show, use, illustrate, construct, complete, examine, classify
+        - **Sample Stems**:
+          - Do you know another instance where...?
+          - Could this have happened in...?
+          - Can you group by characteristics such as...?
+          - What factors would you change if...?
+          - Can you apply the method used to your own experience...?
+          - Would this information be useful if you had a...?
+
+      4. **Skill** (*Analyze/Evaluate*)
+        - **Definition**: Evaluates practical, analytical, and problem-solving skills.
+        - **Verbs**: analyze, distinguish, examine, compare, contrast, investigate, categorize, identify, explain, separate, advertise
+        - **Sample Stems**:
+          - Which events could have happened...?
+          - If ... happened, what might the ending have been...?
+          - Why did ... changes occur?
+          - Can you explain what must have happened when...?
+          - What are some of the problems of...?
+          - What was the turning point...?
+
+      5. **Comprehension** (*Understand, with emphasis on language*)
+        - **Definition**: Measures understanding of written or spoken language, focusing on interpretation of key themes, contexts, and underlying ideas.
+        - **Verbs**: (Use those from “Understanding” plus any language-focused ones: interpret, discuss, compare...)
+        - **Sample Stems**:
+          - Can you translate or restate ... in your own words?
+          - What is the main theme of ...?
+          - Can you clarify the meaning of ...?
+          - Compare how ... is represented here with ...?
+
+      6. **Expression** (*Create*)
+        - **Definition**: Assesses the ability to communicate clearly and effectively, including writing or presentations.
+        - **Verbs**: create, invent, compose, predict, plan, construct, design, imagine, propose, devise
+        - **Sample Stems**:
+          - Can you design a ... to ...?
+          - Why not compose a short piece about ...?
+          - Can you see a possible solution to ...?
+          - How many ways can you ...?
+          - Can you develop a proposal which would ...?
+
+      7. **Appreciation** (*Evaluate*)
+        - **Definition**: Involves analysis and critique of texts and encourages evaluative thinking and personal judgment.
+        - **Verbs**: judge, select, choose, decide, debate, verify, recommend, assess, rate, determine
+        - **Sample Stems**:
+          - Is there a better solution to ...?
+          - Judge the value of ...?
+          - Can you defend your position about ...?
+          - Do you think ... is good or bad?
+          - What changes to ... would you recommend?
+          - What do you think about ...?
+
+      ----------------------------------------------------------------------------------------
+      ## Existing Question Template & Distribution
+
+      A JSON template details question types, counts, marks per question, and each question's 
+      `question_distribution` for chapters and objectives:
+
+      ```json
+      {TEMPLATE_JSON}
+      ```
+      ----------------------------------------------------------------------------------------
+
+      **Instructions for Generation**
+      Match Objectives & Types:
+      - Each question has an assigned objective (e.g., Knowledge, Understanding, etc.) and question type (MCQ, Fill-in-the-blanks, etc.).
+      - Select suitable verbs and stems based on the objective’s level and create a question that is relevant to selected unit and objective.
+
+      Use RAG Context:
+      - Reference the relevant learning outcomes and textbook sections for each unit.
+      - Ensure that questions for each unit directly target that unit’s learning outcomes, allowing for effective evaluation of whether the lesson was successful.
+
+      Additional Instructions:
+      1. **Higher-Order Thinking:** For each question, go beyond descriptive or basic procedural steps. Incorporate real-world contexts, multi-step problem-solving, and require justification or alternative solution methods where applicable.
+      2. **Grade and Subject Adaptability:** Adjust the complexity of questions according to the specified grade level. For higher grades, integrate more complex, multi-concept problems; for lower grades, simplify the structure while maintaining depth in conceptual understanding.
+      3. **Real-World Context:** Particularly for subjects such as Mathematics and Science, ensure some questions require the application of concepts to real-life scenarios.
+      4. **Verb and Stem Selection:** Carefully select verbs and question stems that align with the cognitive objective. Avoid overly simplistic phrasing—opt for questions that challenge the students to reason and analyze.
+      5. **Uniqueness:** Do not repeat any questions in any way. Ensure that each generated question is completely unique, avoiding any direct repetitions or derivations (reworded or slightly modified versions) of questions that have already been included.
+      
+      Final Output:
+      Return only a JSON array of the generated questions in the following structure:
+        ```json
+        {OUTPUT_FORMAT}
+        ```
+      Replace the sample or placeholder data with the actual generated questions aligned to the assigned objectives.
+      Output ONLY this final JSON.
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: QUESTION_BANK_QUESTION_DISTRIBUTION
+    prompt_template: |
+      You are an expert in educational assessment design and Bloom's Taxonomy. Your task is to **assign a reasonable question distribution** across selected chapters (units) and objectives for a given examination template.
+
+      ---
+
+      ## Exam Details
+      - **Board:** {BOARD}
+      - **Medium:** {MEDIUM}
+      - **Grade:** {GRADE}
+      - **Subject:** {SUBJECT}
+      - **Total Marks:** {TOTAL_MARKS}
+      - **Chapters (Units):** {CHAPTERS}
+      - **Marks Distribution per Unit:** {MARKS_DISTRIBUTION}
+      - **Objective-Based Distribution:** {OBJECTIVE_DISTRIBUTION}
+
+      ---
+
+      ## Objective Definitions (Mapped to Bloom’s Taxonomy)
+
+      > **Note**: The categories below approximate Bloom’s Taxonomy levels as follows:
+      > - **Knowledge** ~ *Remember*
+      > - **Understanding** ~ *Understand*
+      > - **Application** ~ *Apply*
+      > - **Skill** ~ *Analyze/Evaluate* (focus on practical and analytical skills)
+      > - **Comprehension** ~ *Understand* (emphasis on language and context)
+      > - **Expression** ~ *Create* (focus on clear and effective communication)
+      > - **Appreciation** ~ *Evaluate* (focus on analysis and critique)
+
+      1. **Knowledge** (Remember)
+        - Assesses recall and recognition of facts, definitions, principles, and concepts.
+        - Evaluates memory of factual information, formulas, and theories.
+
+      2. **Understanding** (Understand)
+        - Evaluates the depth of conceptual comprehension.
+        - Focuses on explaining processes, concepts, and relationships meaningfully.
+
+      3. **Application** (Apply)
+        - Assesses the ability to use learned concepts to solve practical or real-world problems.
+        - Involves applying formulas in Mathematics, explaining scientific phenomena, or utilizing historical knowledge.
+
+      4. **Skill** (Analyze/Evaluate)
+        - Evaluates practical, analytical, and problem-solving skills.
+        - Includes executing experiments in Science, complex problem-solving in Mathematics, or critical thinking in Social Science.
+
+      5. **Comprehension** (Understand, with emphasis on language)
+        - Measures understanding of written or spoken language.
+        - Evaluates interpretation of key themes, contexts, and underlying ideas.
+
+      6. **Expression** (Create)
+        - Assesses the ability to communicate clearly and effectively.
+        - Includes writing essays, constructing arguments, or oral presentations to convey ideas or emotions.
+
+      7. **Appreciation** (Evaluate)
+        - Involves analysis and critique of literary or non-literary texts.
+        - Encourages evaluative thinking and personal judgment.
+
+      ---
+
+      ## Existing Question Template
+      A predefined question template (JSON) is provided, specifying question types, the number of questions, and marks per question. Your role is to **add** the `question_distribution` for each question type. The template is given as:
+
+      ```json
+      {TEMPLATE_JSON}
+      ```
+
+      **Each template item currently does not have a question distribution. You must fill in this distribution according to the guidelines below.**
+
+      Guidelines for Assigning Question Distribution:
+      - Use Bloom’s Taxonomy for Mapping Objectives to Questions
+          Automatically infer mappings based on the provided question types.
+          Align question demands (cognitive complexity) with the corresponding objectives (e.g., a direct question on factual recall may align with Knowledge/Remember).
+      - Ensure Compliance with Mark and Objective Distributions
+          The total marks allocated per unit should match {MARKS_DISTRIBUTION}.
+          The overall objective-based distribution should guide the proportion of questions testing different cognitive levels.
+      - Assign a Balanced Mix of Topics
+          Distribute questions fairly across different chapters (units).
+          Ensure each question type is assigned to appropriate chapters.
+          Some chapters (units) may contain more questions depending on their weight in {MARKS_DISTRIBUTION}.
+
+      Output Format:
+      - Return a JSON array of Template objects with an added question_distribution attribute.
+      - Example structure:
+          ```json
+          {OUTPUT_FORMAT}
+          ```
+      - Each question_distribution entry represents one question.
+      - The unit_name should reference a valid chapter/unit from {CHAPTERS}.
+      - The objective should reference one of the objectives described above (e.g., "Knowledge", "Understanding", "Application", "Skill", "Comprehension", "Expression", "Appreciation").
+
+      Final Task
+      Generate a complete list of question templates (based on the JSON {TEMPLATE_JSON}) with an added question_distribution, ensuring:
+          - Coverage of all chapters (units) according to {MARKS_DISTRIBUTION}.
+          - Proportions of cognitive levels in line with {OBJECTIVE_DISTRIBUTION}.
+          - Appropriate mappings to the objectives defined above.
+          - Avoid placing questions from same unit together under one question type.
+          - Output should ONLY contain the output JSON in the mentioned structure
+
+    llm_request_type: completion
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: QUESTION_BANK
+    prompt_template: "Generate a JSON of examination questions for grade {GRADE} students in the subject {SUBJECT}. The questions should cover multiple chapters: {CHAPTER_TITLES}. \
+      Each question should assess students' comprehension, critical thinking, and their ability to analyze, evaluate, and apply the concepts learned. \
+      \n\nAlign each question with the specific learning outcomes for each chapter: \n{LEARNING_OUTCOMES_PER_CHAPTER} \n\n\
+      Follow this question-wise distribution: \n{DISTRIBUTION} \n\n\
+      Ensure the JSON response adheres strictly to the following format without adding extra nesting or modifications: \n{JSON_FORMAT} \n\n\
+      The questions must span different difficulty levels and types as specified in the distribution, ensuring they are age-appropriate and relevant to the grade-level understanding of the topics. 
+      Design the questions to reinforce key concepts while providing adequate coverage across all chapters."
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+
+  - name: REGEN_FEEDBACK
+    prompt_template: "\nUser Feedback Message:\n{regen_feedback}"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # EXTRACT RESOURCES ############################################
+
+  - name: EXTRACT_RESOURCE_ACTIVITIES
+    prompt_template: |
+      5E Lesson Plan:
+      {5E_LESSON_PLAN}
+      Based on the 5E Lesson Plan provided, extract the activities and present them in a JSON format according to the provided structure:
+
+      Activities:
+      Under the ‘activities’ key, create an array of activities. For each activity, include the following details:
+      - 'title': Title of the activity.
+      - 'preparation': Steps needed for preparation.
+      - 'required_materials': Materials required for the activity.
+      - 'obtaining_materials': Procedures for obtaining the materials.
+      - 'recap': Recap or summary of the activity.
+
+      Follow this structure strictly to ensure clarity and ease of understanding.
+
+      {
+        "activities": [
+          {
+            "title": "",
+            "preparation": "",
+            "required_materials": "",
+            "obtaining_materials": "",
+            "recap": ""
+          },
+          {
+            "title": "",
+            "preparation": "",
+            "required_materials": "",
+            "obtaining_materials": "",
+            "recap": ""
+          }
+        ]
+      }
+      Please adhere to the provided JSON structure and avoid adding any additional nesting or modifications. The structure is designed to ensure clarity and ease of understanding.
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: EXTRACT_RESOURCE_QUESTION_BANK
+    prompt_template: |
+      5E Lesson Plan:
+      {5E_LESSON_PLAN}
+      Based on the 5E Lesson Plan provided, extract the question bank and present it in a JSON format according to the provided structure:
+
+      Question Bank:
+      Under the ‘questionbank’ key, create nested keys ‘beginner’, ‘intermediate’, and ‘advanced’. Each of these keys should contain an array of questions, where each question includes:
+      - 'type': 'MCQ' or 'assessment'.
+      - 'question': The question itself.
+      - 'options' (for MCQs only): Multiple-choice options for the question.
+
+      Follow this structure strictly to ensure clarity and ease of understanding.
+
+      {
+        "questionbank": {
+          "beginner": [
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            }
+          ],
+          "intermediate": [
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            }
+          ],
+          "advanced": [
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "MCQ",
+              "question": "",
+              "options": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            },
+            {
+              "type": "assessment",
+              "question": ""
+            }
+          ]
+        }
+      }
+      Please adhere to the provided JSON structure and avoid adding any additional nesting or modifications. The structure is designed to ensure clarity and ease of understanding.  
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: EXTRACT_RESOURCE_REALWORLD_SCENARIOS
+    prompt_template: |
+      5E Lesson Plan:
+      {5E_LESSON_PLAN}
+      Based on the 5E Lesson Plan provided, extract the real-world scenarios and present them in a JSON format according to the provided structure:
+
+      Real-world Scenarios:
+      Under the ‘realworldscenarios’ key, create nested keys such as ‘beginner’, ‘intermediate’, and ‘advanced’. Each of these keys should contain an array of scenarios related to the lesson plan. For each scenario, include the following details:
+      - 'title': Title of the scenario.
+      - 'scenario':
+        - 'question': Question posed within the scenario.
+        - 'description': Description of the scenario.
+
+      Follow this structure strictly to ensure clarity and ease of understanding.
+
+      {
+        "realworldscenarios": {
+          "beginner": [
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            },
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            }
+          ],
+          "intermediate": [
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            },
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            }
+          ],
+          "advanced": [
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            },
+            {
+              "title": "",
+              "scenario": {
+                "question": "",
+                "description": ""
+              }
+            }
+          ]
+        }
+      }
+      Please adhere to the provided JSON structure and avoid adding any additional nesting or modifications. The structure is designed to ensure clarity and ease of understanding.
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  # LP CHECKLIST ############################################
+
+  - name: LP_CHECKLIST
+    prompt_template: "5E Lesson Plan:\n{5E_LESSON_PLAN}\n\nGiven the 5E Lesson plan provided which includes hands-on activities, real-world scenarios, and a question bank, generate a concise and crisp lesson plan for all phases of the 5E instructional model. The lesson plan should be structured like a checklist on how to approach each phase using the provided resources. The response should be in JSON format with each phase as a key and ‘activity’ and ‘materials’ as nested keys within each phase. \n\n1. ENGAGE: Start with a captivating question or a real-world scenario from the lesson plan that makes the topic relevant. Summarize the activity and the materials needed for this phase.\n2. EXPLORE: Use the hands-on activities from the lesson plan to design an exploration phase. The activities should promote curiosity and encourage hands-on exploration. Summarize the activity and the materials needed for this phase.\n3. EXPLAIN: Develop a detailed explanation phase using the concepts and theories from the lesson plan. The explanation should foster a deeper understanding of the topic. Summarize the activity and the materials needed for this phase.\n4. ELABORATE: Design an elaborate phase using the hands-on activities that allows students to apply what they have learned to new situations. Summarize the activity and the materials needed for this phase.\n5. EVALUATE: Use the question bank to plan the evaluation phase. The questions should assess the students’ understanding of the topic. Summarize the activity and the materials needed for this phase.\n\nRemember, the goal is not to regurgitate the resources, but to reference them as needed to create a cohesive and engaging lesson plan. The lesson plan should provide a comprehensive understanding of the topic and should be feasible to implement in the classroom. It should be concise, clear, and easy to follow. The response should be in JSON format with each phase as a key and ‘activity’ and ‘materials’ as nested keys within each phase. The ‘activity’ key must summarize the activities where applicable, and ‘materials’ must summarize the corresponding items and tools used to perform activities. No further nesting must be present for each phase in the JSON.\n{\n  \"ENGAGE\": {\n    \"activity\": \"\",\n    \"materials\": \"\"\n  },\n  \"EXPLORE\": {\n    \"activity\": \"\",\n    \"materials\": \"\"\n  },\n  \"EXPLAIN\": {\n    \"activity\": \"\",\n    \"materials\": \"\"\n  },\n  \"ELABORATE\": {\n    \"activity\": \"\",\n    \"materials\": \"\"\n  },\n  \"EVALUATE\": {\n    \"activity\": \"\",\n    \"materials\": \"\"\n  }\n}\nPlease adhere to the provided JSON structure and avoid adding any additional nesting or modifications. The structure is designed to ensure clarity and ease of understanding."
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  # ENGLISH PROSE ############################################
+    
+  - name: ENGLISH_PROSE_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the topic {SUB_TOPIC}, which is a part of {UNITNO} in the subject {SUBJECT}. This introduction is for the ENGAGE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. The content should align with these learning outcomes for the unit: {LEARNING_OUTCOMES}. Start with a captivating question or a real-world scenario that makes {SUB_TOPIC} relevant. Highlight intriguing facts or concepts about the {SUB_TOPIC} that will be explored in the unit. Include a short narrative or case study that links the {SUB_TOPIC} to everyday experiences or shows its broader importance. Plan warm-up activities that will introduce students to the essential vocabulary and terminology associated with {SUB_TOPIC}. The vocabulary should be restricted to words used in the textbook. The activities must be related to the objective of ‘Speaking’: {UNIT_SPEAK}.\nIntroduction: \nKey Concepts: \nReal-world Scenario: \nNarrative: \nVocabulary: \nClassroom Process (Facilitating Activities): In the ENGAGE phase, suggest a preparatory activity from the textbook. The activity should facilitate student interaction and curiosity, and should directly address the learning outcomes and be structured to captivate students’ interest in the {SUB_TOPIC}.\n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_PROSE_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase: {PREVIOUS_PHASE_CONTENT}. Use this context to generate meaningful content specifically for the EXPLORE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model.\n Craft 2-3 simple, open-ended questions for the EXPLORE phase of the 5E model that will guide students in investigating the key characteristics, behaviors, and significance of {SUB_TOPIC} in {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) for the unit: {LEARNING_OUTCOMES}. These questions must stem from ENGAGE phase, should be designed to promote curiosity, encourage hands-on exploration, and foster a deeper understanding of the role of {SUB_TOPIC}. The questions to explore must be aligned with the objectives of:\n(A) learning new vocabulary: {UNIT_VOCAB}. \n(B) listening: {UNIT_LISTEN}. \n The vocabulary should be restricted to words used in the textbook. The questions and activities should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_PROSE_EXPLAIN
+    prompt_template: "Consider the context from previous phases: {PREVIOUS_PHASE_CONTENT}. Use this context to generate meaningful content specifically for the EXPLAIN phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model.\nProvide a detailed outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC} within {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) for the unit: {LEARNING_OUTCOMES}. Plan the Explain phase such that the objectives of following aspects of learning English language are emphasized:\nReading: {UNIT_READ},Vocabulary: {UNIT_VOCAB}, Grammar: {UNIT_GRAMMAR}. Comprehension check: Check students’ comprehension by asking questions about the topic. The vocabulary should be restricted to words used in the textbook. The content should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_PROSE_ELABORATE
+    prompt_template: "Consider the context from previous phases: {PREVIOUS_PHASE_CONTENT}. Use this context to generate meaningful content specifically for the ELABORATE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model.\nDesign an activity plan for the ELABORATE phase of the 5E model that extends students’ conceptual understanding about topic: {SUB_TOPIC} in {UNITNO} of {SUBJECT} subject. The activity must align with the following learning outcome(s) of the unit: {LEARNING_OUTCOMES}. Plan a series of engaging, interactive activities.\nFirst, an individual task that fosters creative expression and practical application of knowledge. Second, a collaborative activity designed for a classroom size of fewer than 30 students. Lastly, a group activity suitable for a classroom size of more than 30 students. Both group activities should foster teamwork and communication among students, and should incorporate a competitive aspect that reinforces the learned concepts through an enjoyable challenge. Each activity must be simple yet meaningful for the teacher to implement and must add unique value to deepen students’ comprehension and extend their learning beyond the classroom.\nThe activities must be: (a) Reading aloud: the activity must be aligned with the goals of Reading: {UNIT_READ}. (b) Discussion: the students must form smaller groups to discuss the topic emphasizing the goals of Speaking: {UNIT_SPEAK}.\n The vocabulary should be restricted to words used in the textbook. The activities should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_PROSE_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase of the 5E instructional model. Do NOT include content from other phases of the 5E model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Formulate a set of multiple-choice questions (MCQs) and assessment questions for the EVALUATE phase of the 5E model that will test students’ understanding of the key facts and concepts related to {SUB_TOPIC} covered in {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) of the unit: {LEARNING_OUTCOMES}. The questions should be categorized into three difficulty levels: beginner, intermediate, and advanced.\n Beginner level questions should be direct and require basic knowledge that reflects the fundamental learning objectives of the lesson.\n Intermediate level questions should require a deeper understanding and application of the key facts and concepts.\n Advanced level questions should challenge the students to analyze, evaluate, and create based on their understanding of the material.\n \nFor the MCQs, provide four options with only one correct answer. The questions should be direct and require specific knowledge that reflects the learning outcomes of the lesson. Ensure that the instructions for the MCQs are clear, asking students to select the correct option from the choices provided, demonstrating their grasp of the material. \nFor the assessment questions, ensure clarity in the instructions, asking students to provide written responses that demonstrate their grasp of the material. Both MCQs and assessment questions must be designed to test various skills necessary to learn and master the English language: (a) reading comprehension, (b) listening skills, (c) speaking skills, (d) writing skills {UNIT_WRITE}, (e) grammar, and (f) vocabulary.\n The vocabulary should be restricted to words used in the textbook. The questions should be designed keeping in mind that the students are learning English as a second language \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  # ENGLISH POEM ############################################
+
+  - name: ENGLISH_POEM_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the poem {SUB_TOPIC}, which is a part of {UNITNO} in the subject English. This introduction is for the ENGAGE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. The content should align with these learning outcomes of the poem: {LEARNING_OUTCOMES}.\nStart with a captivating question about the poem {SUB_TOPIC} that is relevant to the students’ learning of English as a second language. Highlight intriguing facts or concepts about the poem {SUB_TOPIC} that will be explored in the unit. Include a short narrative or case study that links the {SUB_TOPIC} to everyday experiences or shows its broader importance. The narrative or case study should be relatable to the students’ cultural context and experiences.\nPlan warm-up activities that will introduce students to the essential vocabulary and terminology associated with the poem {SUB_TOPIC}. The vocabulary should be restricted to words used in the textbook. The activities must be related to the objective of ‘Speaking’: {UNIT_SPEAK}.\nIntroduction: \nKey Concepts: \nReal-world Scenario: \nNarrative: \nVocabulary: \nClassroom Process (Facilitating Activities): Design engaging activities for the ENGAGE phase that will facilitate student interaction and curiosity. These activities should directly address the learning outcomes and be structured to captivate students’ interest in the {SUB_TOPIC}. Include detailed steps for each activity. In the ENGAGE phase, suggest a preparatory activity from the textbook. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_POEM_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content specifically for the EXPLORE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model.  Craft 2-3 simple, open-ended questions for the EXPLORE phase of the 5E model that will guide students in investigating the key characteristics, behaviors, and significance of the poem {SUB_TOPIC} in {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) of the poem: {LEARNING_OUTCOMES}. These questions must stem from ENGAGE phase, should be designed to promote curiosity, encourage hands-on exploration, and foster a deeper understanding of {SUB_TOPIC}. The questions to explore must be aligned with the objectives of (a) learning new vocabulary: {UNIT_VOCAB} and (b) listening: {UNIT_LISTEN}.\n The vocabulary should be restricted to words used in the textbook. The questions should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_POEM_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content specifically for the EXPLAIN phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model. Provide a detailed outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC} of the poem within {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) of the poem: {LEARNING_OUTCOMES}. Plan the Explain phase such that the objectives of following aspects of learning English language through poems are emphasized:\n 1) Reading: {UNIT_READ},\n 2) Vocabulary: {UNIT_VOCAB},\n 3) Grammar: {UNIT_GRAMMAR}.\n4) Comprehension check: Check students' comprehension by asking questions about the topic.\n The vocabulary should be restricted to words used in the textbook. The content should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_POEM_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content specifically for the ELABORATE phase of the 5E instructional model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Do not regurgitate the context or the learning outcomes, but rather use it to maintain consistency and build upon it. Do NOT include content from other phases of the 5E model. Design an activity plan for the ELABORATE phase of the 5E model that extends students' conceptual understanding about the poem topic: {SUB_TOPIC} in {UNITNO} of {SUBJECT} subject. The activity must align with the following learning outcome(s) of the poem: {LEARNING_OUTCOMES}. Plan a series of engaging, interactive activities.\n  First, an individual task that fosters creative expression and practical application of knowledge. Second, a collaborative activity designed for a classroom size of fewer than 30 students. Lastly, a group activity suitable for a classroom size of more than 30 students. Both group activities should foster teamwork and communication among students, and should incorporate a competitive aspect that reinforces the learned concepts through an enjoyable challenge. Each activity must be simple yet meaningful for the teacher to implement and must add unique value to deepen students' comprehension and extend their learning beyond the classroom. The activities must be:\n (a) Reading aloud: the activity must be aligned with the goals of Reading: {UNIT_READ}.\n (b) Discussion: the students must form smaller groups to discuss the topic emphasizing the goals of Speaking: {UNIT_SPEAK}.\n The vocabulary should be restricted to words used in the textbook. The activities should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"    
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: ENGLISH_POEM_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase of the 5E instructional model. Do NOT include content from other phases of the 5E model. Assume the content is delivered by a teacher with knowledge only in the English subject. Avoid introducing complex scientific terminology and vocabulary outside the scope of the English subject textbook. Formulate a set of multiple-choice questions (MCQs) and assessment questions for the EVALUATE phase of the 5E model that will test students’ understanding of the key facts and concepts related to poem topic {SUB_TOPIC} covered in {UNITNO} of {SUBJECT} subject. The content must align with the following learning outcome(s) of the poem: {LEARNING_OUTCOMES}. The questions should be categorized into three difficulty levels: beginner, intermediate, and advanced.\n Beginner level questions should be direct and require basic knowledge that reflects the fundamental learning objectives of the lesson.\n Intermediate level questions should require a deeper understanding and application of the key facts and concepts.\n Advanced level questions should challenge the students to analyze, evaluate, and create based on their understanding of the material.\n \nFor the MCQs, provide four options with only one correct answer. The questions should be direct and require specific knowledge that reflects the learning outcomes of the lesson. Ensure that the instructions for the MCQs are clear, asking students to select the correct option from the choices provided, demonstrating their grasp of the material. \nFor the assessment questions, ensure clarity in the instructions, asking students to provide written responses that demonstrate their grasp of the material. Both MCQs and assessment questions must be designed to test various skills necessary to learn and master the English language: (a) reading comprehension, (b) listening skills, (c) speaking skills, (d) writing skills {UNIT_WRITE}, (e) grammar, and (f) vocabulary.\n The vocabulary should be restricted to words used in the textbook. The questions and activities should be designed keeping in mind that the students are learning English as a second language. \n\n @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SCIENCE MATH SUBTOPIC ############################################
+  
+  - name: SCIENCE_MATH_SUBTOPIC_CRISP_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the\
+      \ topic {SUB_TOPIC}, which is a part of the chapter {CHAPTER_TITLE} in the subject\
+      \ {SUBJECT}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model and should be designed using the {MODEL_OF_TEACHING} methodology. The\
+      \ content should align with these learning outcomes: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the {SUB_TOPIC}\
+      \ relevant. Outline key intriguing facts or concepts about the {SUB_TOPIC} that\
+      \ will be explored throughout the chapter. \nAdditionally, set the stage for\
+      \ language and literacy development by planning activities where students will\
+      \ encounter and use essential vocabulary and terminology associated with {SUB_TOPIC}.\
+      \ Make sure the vocabulary introduced is from the textbook. Don't reference\
+      \ the teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method.\n Introduction: (Please\
+      \ provide a one-liner) \nKey Concepts: (Please provide list of concepts as a\
+      \ one-liner) \nReal-world Scenario: (Please provide a one-liner) \nVocabulary:\
+      \ (Please provide list of vocabulary as a one-liner) \nClassroom Process (Facilitating\
+      \ Activity): Design one engaging activity for the ENGAGE phase that will facilitate\
+      \ student interaction and curiosity. The activity should directly address the\
+      \ learning outcomes and be structured to captivate students\u2019 interest in\
+      \ the {SUB_TOPIC}. Importantly, the activity must be feasible for teacher to\
+      \ implement in low-resource classrooms in India. For the activity, include:\n\
+      1. Detailed steps for preparation (Please provide a 2-3 line response).\n2.\
+      \ A list of required materials (Please provide a 2-3 line response).\n3. Information\
+      \ on where and how to obtain these materials (Please provide a 2-3 line response).\n\
+      \ Please note that the focus should be on the preparation work required for\
+      \ the activity, do NOT execute the activity. Be sure to keep the generated content\
+      \ CRISP and TO THE POINT. \
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_CRISP_EXPLORE
+    prompt_template: "Consider the content from previous phase:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLORE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Using the {MODEL_OF_TEACHING}\
+      \ methodology, craft 2-3 concise, one-liner open-ended questions for the EXPLORE\
+      \ phase of the 5E model that will guide students in investigating the key characteristics,\
+      \ behaviors, and significance of {SUB_TOPIC} in {CHAPTER_TITLE} of {SUBJECT}.\
+      \ The questions must be specific enough to guide the students towards a particular\
+      \ line of inquiry, yet open-ended enough to allow for individual interpretation\
+      \ and discovery. The exploratory questions must be within the scope of {SUB_TOPIC}\
+      \ and align with the following learning outcome(s): {LEARNING_OUTCOMES}. These\
+      \ questions should directly stem from the ENGAGE phase, allowing students to\
+      \ delve deeper into the topics introduced. These questions should be designed\
+      \ to promote curiosity, encourage hands-on exploration, and foster a deeper\
+      \ understanding of the role of {SUB_TOPIC} in the natural world or its relevance\
+      \ to the field of study. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method. Be sure to keep the generated content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_CRISP_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC}\
+      \ within {CHAPTER_TITLE} of {SUBJECT} using the {MODEL_OF_TEACHING} methodology.\
+      \ The content must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The outline should include a comprehensive list of concepts that students\
+      \ will investigate to gain a thorough understanding of {SUB_TOPIC}. These concepts\
+      \ should encompass definitions, characteristics, theories, behaviors, and any\
+      \ relevant principles or processes. Additionally, include a brief description\
+      \ of each concept, highlighting key features and facts that students will discover.\
+      \ This outline should serve as a foundation for students to build their knowledge\
+      \ and connect with the material in a meaningful way. Don\u2019t reference the\
+      \ teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method. Enumerate and outline\
+      \ {SUB_TOPIC} in the following format: \"Concept Title\": (Please provide a\
+      \ response in 1 line)\n-\"Definition\": (Please provide a response in 1 line)\n\
+      \ -\"Characteristics\": (Please provide a response in 2-3 lines)\n-\"Key Features\
+      \ and Facts\": (Please provide a response in 2-3 lines)\nClassroom Process (Facilitating\
+      \ Activity): The activity should be a continuation and detailed implementation\
+      \ of the activity from the ENGAGE and EXPLORE phases, maintaining consistency\
+      \ between phases. The activity must include:\n1.Detailed steps for implementation,\
+      \ building upon the activity and materials/items identified and prepared during\
+      \ the ENGAGE and EXPLORE phases. (Please provide a response in 2-3 lines)\n\
+      2.A recap at the end of activity, summarizing the activity, learnings, and key\
+      \ takeaways. (Please provide a response in 2-3 lines)\n Ensure the activity\
+      \ is interactive, promote student engagement, and provide a comprehensive understanding\
+      \ of the key concepts. The aim is to create a cohesive learning experience that\
+      \ transitions smoothly from the ENGAGE and EXPLORE phases to the EXPLAIN phase,\
+      \ reinforcing the learning outcomes throughout. Be sure to keep the generated\
+      \ content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_CRISP_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Using the {MODEL_OF_TEACHING}\
+      \ methodology, design an activity plan for the ELABORATE phase of the 5E model\
+      \ that applies the concepts learned about topic: {SUB_TOPIC} in the chapter\
+      \ {CHAPTER_TITLE} to real-world contexts and hands-on experiences. The activity\
+      \ plan must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The plan should include a section with real-world scenarios that each focus\
+      \ on a single aspect of the {SUB_TOPIC} to illustrate its practical significance\
+      \ and natural occurrence. The scenarios should be customized to the context\
+      \ of Karnataka\u2019s regions - north, south, and coastal - but only as and\
+      \ when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions, each focusing on one particular idea related to {SUB_TOPIC}, to\
+      \ increase curiosity and challenge students to think deeply about it. Follow\
+      \ up each question with a detailed description or answer to reinforce understanding.\
+      \ Follow this with a series of engaging, interactive activities. First, a collaborative\
+      \ activity designed for a classroom size of fewer than 30 students. Second,\
+      \ a group activity suitable for a classroom size of more than 30 students. Both\
+      \ group activities should foster teamwork and communication among students,\
+      \ and should incorporate a competitive aspect that reinforces the learned concepts\
+      \ through an enjoyable challenge. Each activity must be simple yet meaningful\
+      \ for the teacher to implement and must add unique value to deepen students'\
+      \ comprehension and extend their learning beyond the classroom. Don't reference\
+      \ the teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method. Be sure to keep the\
+      \ generated content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_CRISP_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Using the {MODEL_OF_TEACHING} methodology, formulate a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the EVALUATE\
+      \ phase of the 5E model that will test students\u2019 understanding of the key\
+      \ facts and concepts related to {SUB_TOPIC} covered in the {CHAPTER_TITLE} of\
+      \ {SUBJECT}. The content must align with the following learning outcome(s):\
+      \ {LEARNING_OUTCOMES}. The questions should be categorized into three difficulty\
+      \ levels: beginner, intermediate, and advanced.\n Beginner level questions should\
+      \ be direct and require basic knowledge that reflects the fundamental learning\
+      \ objectives of the lesson. These questions should test the students\u2019 understanding\
+      \ of the basic terms and concepts.\n Intermediate level questions should require\
+      \ a deeper understanding and application of the key facts and concepts. These\
+      \ questions should test the students\u2019 ability to apply these concepts in\
+      \ familiar contexts.\n Advanced level questions should challenge the students\
+      \ to analyze, evaluate, and create based on their understanding of the material.\
+      \ These questions should test the students\u2019 ability to apply these concepts\
+      \ in new or unfamiliar contexts.\n \nFor the MCQs, provide four options with\
+      \ only one correct answer. The questions should be direct and require specific\
+      \ knowledge that reflects the learning outcomes of the lesson. Ensure that the\
+      \ instructions for the MCQs are clear, asking students to select the correct\
+      \ option from the choices provided, demonstrating their grasp of the material.\
+      \ \nFor the assessment questions, ensure clarity in the instructions, asking\
+      \ students to provide written responses that demonstrate their grasp of the\
+      \ material. The questions should cover various aspects of {SUB_TOPIC}, including\
+      \ its principles, behaviors, or other relevant details. The questions should\
+      \ be designed in a way that they test the students\u2019 ability to apply these\
+      \ concepts, rather than just asking them to define the terms or identify the\
+      \ examples. Do not provide the answers within the prompt, as the purpose is\
+      \ to evaluate the students\u2019 independent learning outcomes. Don't reference\
+      \ the teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method.\nClassroom Process (Facilitating\
+      \ Activities): Develop a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the various levels that will test students' understanding of\
+      \ the key facts and concepts related to {SUB_TOPIC} covered in {CHAPTER_TITLE}\
+      \ of {SUBJECT}. Ensure that the questions directly address the learning outcomes\
+      \ and provide opportunities for students to demonstrate their grasp of the material.\
+      \ Be sure to keep the generated content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SOCIAL SUBTOPIC ############################################
+
+  - name: SOCIAL_SUBTOPIC_CRISP_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the\
+      \ topic {SUB_TOPIC}, which is a part of the chapter {CHAPTER_TITLE} in the subject\
+      \ {SUBJECT}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model. The content should align with these learning outcomes: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the {SUB_TOPIC}\
+      \ relevant. Outline key intriguing facts or concepts about the {SUB_TOPIC} that\
+      \ will be explored throughout the chapter. Include a short narrative or case\
+      \ study that links the {SUB_TOPIC} to everyday experiences or shows its broader\
+      \ importance in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with {SUB_TOPIC}. Make sure the vocabulary introduced is from the\
+      \ textbook.\n Introduction: (Please provide a one-liner) \nKey Concepts: (Please\
+      \ provide list of concepts as a one-liner) \nReal-world Scenario: (Please provide\
+      \ a one-liner) \n\nVocabulary: (Please provide list of vocabulary as a one-liner)\
+      \ \nClassroom Process (Facilitating Activity): Design one engaging activity\
+      \ for the ENGAGE phase that will facilitate student interaction and curiosity.\
+      \ The activity should directly address the learning outcomes and be structured\
+      \ to captivate students\u2019 interest in the {SUB_TOPIC}. Importantly, the\
+      \ activity must be feasible for teacher to implement in low-resource classrooms\
+      \ in India. For the activity, include:\n1. Detailed steps for preparation (Please\
+      \ provide a 2-3 line response).\n2. A list of required materials (Please provide\
+      \ a 2-3 line response).\n3. Information on where and how to obtain these materials\
+      \ (Please provide a 2-3 line response).\n Please note that the focus should\
+      \ be on the preparation work required for the activity, do NOT execute the activity.\
+      \ Be sure to keep the generated content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_CRISP_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n\
+      \ {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \ Craft 2-3 concise, one-liner open-ended questions for the EXPLORE phase of\
+      \ the 5E model that will guide students in investigating the key characteristics,\
+      \ behaviors, and significance of {SUB_TOPIC} in {CHAPTER_TITLE} of {SUBJECT}.\
+      \ The questions must be specific enough to guide the students towards a particular\
+      \ line of inquiry, yet open-ended enough to allow for individual interpretation\
+      \ and discovery. The exploratory questions must be within the scope of {SUB_TOPIC}\
+      \ and align with the following learning outcome(s): {LEARNING_OUTCOMES}. These\
+      \ questions should directly stem from the ENGAGE phase, allowing students to\
+      \ delve deeper into the topics introduced. These questions should be designed\
+      \ to promote curiosity, encourage hands-on exploration, and foster a deeper\
+      \ understanding of the role of {SUB_TOPIC} in the natural world or its relevance\
+      \ to the field of study. Be sure to keep the generated content CRISP and TO\
+      \ THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_CRISP_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC}\
+      \ within {CHAPTER_TITLE} of {SUBJECT}. The content must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The outline should include a comprehensive\
+      \ list of concepts that students will investigate to gain a thorough understanding\
+      \ of {SUB_TOPIC}. These concepts should encompass definitions, characteristics,\
+      \ theories, behaviors, and any relevant principles or processes. Additionally,\
+      \ include a brief description of each concept, highlighting key features and\
+      \ facts that students will discover. This outline should serve as a foundation\
+      \ for students to build their knowledge and connect with the material in a meaningful\
+      \ way. Enumerate and outline {SUB_TOPIC} in the following format: \"Concept\
+      \ Title\": (Please provide a response in 1 line) \n-\"Definition\": (Please\
+      \ provide a response in 1 line) \n -\"Characteristics\": (Please provide a response\
+      \ in 2-3 lines) \n-\"Key Features and Facts\": (Please provide a response in\
+      \ 2-3 lines) \nClassroom Process (Facilitating Activity): The activity should\
+      \ be a continuation and detailed implementation of the activity from the ENGAGE\
+      \ and EXPLORE phases, maintaining consistency between phases. The activity must\
+      \ include:\n1.Detailed steps for implementation, building upon the activity\
+      \ and materials/items identified and prepared during the ENGAGE and EXPLORE\
+      \ phases. (Please provide a response in 2-3 lines)\n2.A recap at the end of\
+      \ activity, summarizing the activity, learnings, and key takeaways. (Please\
+      \ provide a response in 2-3 lines)\n Ensure the activity are interactive, promote\
+      \ student engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout. Be sure to keep the generated content CRISP and TO THE\
+      \ POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_CRISP_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Design an activity\
+      \ plan for the ELABORATE phase of the 5E model that applies the concepts learned\
+      \ about topic: {SUB_TOPIC} in the chapter {CHAPTER_TITLE} to real-world contexts\
+      \ and hands-on experiences. The activity plan must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The plan should include a section\
+      \ with real-world scenarios that illustrates the practical significance and\
+      \ natural occurrence of {SUB_TOPIC}. The scenarios should be customized to the\
+      \ context of Karnataka\u2019s regions - north, south, and coastal - but only\
+      \ as and when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions to increase curiosity and challenge students to think deeply about\
+      \ {SUB_TOPIC}. Follow up each question with a detailed description or answer\
+      \ to reinforce understanding. Follow this with a series of engaging, interactive\
+      \ activities. First, a collaborative activity designed for a classroom size\
+      \ of fewer than 30 students. Second, a group activity suitable for a classroom\
+      \ size of more than 30 students. Both group activities should foster teamwork\
+      \ and communication among students, and should incorporate a competitive aspect\
+      \ that reinforces the learned concepts through an enjoyable challenge. Each\
+      \ activity must be simple yet meaningful for the teacher to implement and must\
+      \ add unique value to deepen students' comprehension and extend their learning\
+      \ beyond the classroom. Be sure to keep the generated content CRISP and TO THE\
+      \ POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_CRISP_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Formulate a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the EVALUATE phase of the 5E model that will test students\u2019\
+      \ understanding of the key facts and concepts related to {SUB_TOPIC} covered\
+      \ in the {CHAPTER_TITLE} of {SUBJECT}. The content must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The questions should be categorized\
+      \ into three difficulty levels: beginner, intermediate, and advanced.\n Beginner\
+      \ level questions should be direct and require basic knowledge that reflects\
+      \ the fundamental learning objectives of the lesson.\n Intermediate level questions\
+      \ should require a deeper understanding and application of the key facts and\
+      \ concepts.\n Advanced level questions should challenge the students to analyze,\
+      \ evaluate, and create based on their understanding of the material.\n \nFor\
+      \ the MCQs, provide four options with only one correct answer. The questions\
+      \ should be direct and require specific knowledge that reflects the learning\
+      \ outcomes of the lesson. Ensure that the instructions for the MCQs are clear,\
+      \ asking students to select the correct option from the choices provided, demonstrating\
+      \ their grasp of the material. \nFor the assessment questions, ensure clarity\
+      \ in the instructions, asking students to provide written responses that demonstrate\
+      \ their grasp of the material. The questions should cover various aspects of\
+      \ {SUB_TOPIC}, including its principles, behaviors, or other relevant details.\
+      \ Do not provide the answers within the prompt, as the purpose is to evaluate\
+      \ the students\u2019 independent learning outcomes. \nClassroom Process (Facilitating\
+      \ Activities): Develop a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the various levels that will test students' understanding of\
+      \ the key facts and concepts related to {SUB_TOPIC} covered in {CHAPTER_TITLE}\
+      \ of {SUBJECT}. Ensure that the questions directly address the learning outcomes\
+      \ and provide opportunities for students to demonstrate their grasp of the material.\
+      \ Be sure to keep the generated content CRISP and TO THE POINT.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SCIENCE MATH SUBTOPIC VERBOSE ############################################
+
+  - name: SCIENCE_MATH_SUBTOPIC_VERBOSE_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the\
+      \ topic {SUB_TOPIC}, which is a part of the chapter {CHAPTER_TITLE} in the subject\
+      \ {SUBJECT}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model and should be designed using the {MODEL_OF_TEACHING} methodology. The\
+      \ content should align with these learning outcomes: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the {SUB_TOPIC}\
+      \ relevant. Outline key intriguing facts or concepts about the {SUB_TOPIC} that\
+      \ will be explored throughout the chapter. Include a short narrative or case\
+      \ study that links the {SUB_TOPIC} to everyday experiences or shows its broader\
+      \ importance in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with {SUB_TOPIC}. Make sure the vocabulary introduced is from the\
+      \ textbook. Don't reference the teaching methodology {MODEL_OF_TEACHING} in\
+      \ your response, instead ensure the content aligns with the principles of the\
+      \ method.\n Introduction: \nKey Concepts: \nReal-world Scenario: \nNarrative:\
+      \ \nVocabulary: \nClassroom Process (Facilitating Activity): Design one engaging\
+      \ activity for the ENGAGE phase that will facilitate student interaction and\
+      \ curiosity. The activity should directly address the learning outcomes and\
+      \ be structured to captivate students\u2019 interest in the {SUB_TOPIC}. Importantly,\
+      \ the activity must be feasible for teacher to implement in low-resource classrooms\
+      \ in India. For the activity, include:\n1. Detailed steps for preparation.\n\
+      2. A list of required materials.\n3. Information on where and how to obtain\
+      \ these materials.\n Please note that the focus should be on the preparation\
+      \ work required for the activity, do NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_VERBOSE_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n\
+      \ {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \  Using the {MODEL_OF_TEACHING} methodology, craft 2-3 open-ended questions\
+      \ for the EXPLORE phase of the 5E model that will guide students in investigating\
+      \ the key characteristics, behaviors, and significance of {SUB_TOPIC} in {CHAPTER_TITLE}\
+      \ of {SUBJECT}. The questions must be specific enough to guide the students\
+      \ towards a particular line of inquiry, yet open-ended enough to allow for individual\
+      \ interpretation and discovery. The exploratory questions must be within the\
+      \ scope of {SUB_TOPIC} and align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ These questions should directly stem from the ENGAGE phase, allowing students\
+      \ to delve deeper into the topics introduced. These questions should be designed\
+      \ to promote curiosity, encourage hands-on exploration, and foster a deeper\
+      \ understanding of the role of {SUB_TOPIC} in the natural world or its relevance\
+      \ to the field of study. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_VERBOSE_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC}\
+      \ within {CHAPTER_TITLE} of {SUBJECT} using the {MODEL_OF_TEACHING} methodology.\
+      \ The content must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The outline should include a comprehensive list of concepts that students\
+      \ will investigate to gain a thorough understanding of {SUB_TOPIC}. These concepts\
+      \ should encompass definitions, characteristics, theories, behaviors, and any\
+      \ relevant principles or processes. Additionally, include a brief description\
+      \ of each concept, highlighting key features and facts that students will discover.\
+      \ This outline should serve as a foundation for students to build their knowledge\
+      \ and connect with the material in a meaningful way. Don't reference the teaching\
+      \ methodology {MODEL_OF_TEACHING} in your response, instead ensure the content\
+      \ aligns with the principles of the method. Enumerate and outline {SUB_TOPIC}\
+      \ in the following format: \"Concept Title\": \n-\"Definition\": \n -\"Characteristics\"\
+      : \n-\"Key Features and Facts\": \nClassroom Process (Facilitating Activity):\
+      \ The activity should be a continuation and detailed implementation of the activity\
+      \ from the ENGAGE and EXPLORE phases, maintaining consistency between phases.\
+      \ The activity must include:\n1.Detailed steps for implementation, building\
+      \ upon the activity and materials/items identified and prepared during the ENGAGE\
+      \ and EXPLORE phases.\n2.A recap at the end of activity, summarizing the activity,\
+      \ learnings, and key takeaways.\n Ensure the activity are interactive, promote\
+      \ student engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_VERBOSE_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Using the {MODEL_OF_TEACHING}\
+      \ methodology, design an activity plan for the ELABORATE phase of the 5E model\
+      \ that applies the concepts learned about topic: {SUB_TOPIC} in the chapter\
+      \ {CHAPTER_TITLE} to real-world contexts and hands-on experiences. The activity\
+      \ plan must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The plan should include a section with real-world scenarios that each focus\
+      \ on a single aspect of the {SUB_TOPIC} to illustrate its practical significance\
+      \ and natural occurrence. The scenarios should be customized to the context\
+      \ of Karnataka\u2019s regions - north, south, and coastal - but only as and\
+      \ when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions, each focusing on one particular idea related to {SUB_TOPIC}, to\
+      \ increase curiosity and challenge students to think deeply about it. Follow\
+      \ up each question with a detailed description or answer to reinforce understanding.\
+      \ Follow this with a series of engaging, interactive activities. First, a collaborative\
+      \ activity designed for a classroom size of fewer than 30 students. Second,\
+      \ a group activity suitable for a classroom size of more than 30 students. Both\
+      \ group activities should foster teamwork and communication among students,\
+      \ and should incorporate a competitive aspect that reinforces the learned concepts\
+      \ through an enjoyable challenge. Each activity must be simple yet meaningful\
+      \ for the teacher to implement and must add unique value to deepen students'\
+      \ comprehension and extend their learning beyond the classroom. Don't reference\
+      \ the teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_SUBTOPIC_VERBOSE_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Using the {MODEL_OF_TEACHING} methodology, formulate a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the EVALUATE\
+      \ phase of the 5E model that will test students\u2019 understanding of the key\
+      \ facts and concepts related to {SUB_TOPIC} covered in the {CHAPTER_TITLE} of\
+      \ {SUBJECT}. The content must align with the following learning outcome(s):\
+      \ {LEARNING_OUTCOMES}. The questions should be categorized into three difficulty\
+      \ levels: beginner, intermediate, and advanced.\n Beginner level questions should\
+      \ be direct and require basic knowledge that reflects the fundamental learning\
+      \ objectives of the lesson. These questions should test the students\u2019 understanding\
+      \ of the basic terms and concepts.\n Intermediate level questions should require\
+      \ a deeper understanding and application of the key facts and concepts. These\
+      \ questions should test the students\u2019 ability to apply these concepts in\
+      \ familiar contexts.\n Advanced level questions should challenge the students\
+      \ to analyze, evaluate, and create based on their understanding of the material.\
+      \ These questions should test the students\u2019 ability to apply these concepts\
+      \ in new or unfamiliar contexts.\n \nFor the MCQs, provide four options with\
+      \ only one correct answer. The questions should be direct and require specific\
+      \ knowledge that reflects the learning outcomes of the lesson. Ensure that the\
+      \ instructions for the MCQs are clear, asking students to select the correct\
+      \ option from the choices provided, demonstrating their grasp of the material.\
+      \ \nFor the assessment questions, ensure clarity in the instructions, asking\
+      \ students to provide written responses that demonstrate their grasp of the\
+      \ material. The questions should cover various aspects of {SUB_TOPIC}, including\
+      \ its principles, behaviors, or other relevant details. The questions should\
+      \ be designed in a way that they test the students\u2019 ability to apply these\
+      \ concepts, rather than just asking them to define the terms or identify the\
+      \ examples. Do not provide the answers within the prompt, as the purpose is\
+      \ to evaluate the students\u2019 independent learning outcomes. Don't reference\
+      \ the teaching methodology {MODEL_OF_TEACHING} in your response, instead ensure\
+      \ the content aligns with the principles of the method.\nClassroom Process (Facilitating\
+      \ Activities): Develop a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the various levels that will test students' understanding of\
+      \ the key facts and concepts related to {SUB_TOPIC} covered in {CHAPTER_TITLE}\
+      \ of {SUBJECT}. Ensure that the questions directly address the learning outcomes\
+      \ and provide opportunities for students to demonstrate their grasp of the material.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SOCIAL SUBTOPIC VERBOSE ############################################
+
+  - name: SOCIAL_SUBTOPIC_VERBOSE_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan on the\
+      \ topic {SUB_TOPIC}, which is a part of the chapter {CHAPTER_TITLE} in the subject\
+      \ {SUBJECT}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model. The content should align with these learning outcomes: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the {SUB_TOPIC}\
+      \ relevant. Outline key intriguing facts or concepts about the {SUB_TOPIC} that\
+      \ will be explored throughout the chapter. Include a short narrative or case\
+      \ study that links the {SUB_TOPIC} to everyday experiences or shows its broader\
+      \ importance in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with {SUB_TOPIC}. Make sure the vocabulary introduced is from the\
+      \ textbook.\n Introduction: \nKey Concepts: \nReal-world Scenario: \nNarrative:\
+      \ \nVocabulary: \nClassroom Process (Facilitating Activity): Design one engaging\
+      \ activity for the ENGAGE phase that will facilitate student interaction and\
+      \ curiosity. The activity should directly address the learning outcomes and\
+      \ be structured to captivate students\u2019 interest in the {SUB_TOPIC}. Importantly,\
+      \ the activity must be feasible for teacher to implement in low-resource classrooms\
+      \ in India. For the activity, include:\n1. Detailed steps for preparation.\n\
+      2. A list of required materials.\n3. Information on where and how to obtain\
+      \ these materials.\n Please note that the focus should be on the preparation\
+      \ work required for the activity, do NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_VERBOSE_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n\
+      \ {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \ Craft 2-3 open-ended questions for the EXPLORE phase of the 5E model that\
+      \ will guide students in investigating the key characteristics, behaviors, and\
+      \ significance of {SUB_TOPIC} in {CHAPTER_TITLE} of {SUBJECT}. The exploratory\
+      \ questions must be within the scope of {SUB_TOPIC} and align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. These questions should directly\
+      \ stem from the ENGAGE phase, allowing students to delve deeper into the topics\
+      \ introduced. These questions should be designed to promote curiosity, encourage\
+      \ hands-on exploration, and foster a deeper understanding of the role of {SUB_TOPIC}\
+      \ in the natural world or its relevance to the field of study.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_VERBOSE_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the {SUB_TOPIC}\
+      \ within {CHAPTER_TITLE} of {SUBJECT}. The content must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The outline should include a comprehensive\
+      \ list of concepts that students will investigate to gain a thorough understanding\
+      \ of {SUB_TOPIC}. These concepts should encompass definitions, characteristics,\
+      \ theories, behaviors, and any relevant principles or processes. Additionally,\
+      \ include a brief description of each concept, highlighting key features and\
+      \ facts that students will discover. This outline should serve as a foundation\
+      \ for students to build their knowledge and connect with the material in a meaningful\
+      \ way. Enumerate and outline {SUB_TOPIC} in the following format: \"Concept\
+      \ Title\": \n-\"Definition\": \n -\"Characteristics\": \n-\"Key Features and\
+      \ Facts\": \nClassroom Process (Facilitating Activity): The activity should\
+      \ be a continuation and detailed implementation of the activity from the ENGAGE\
+      \ and EXPLORE phases, maintaining consistency between phases. The activity must\
+      \ include:\n1.Detailed steps for implementation, building upon the activity\
+      \ and materials/items identified and prepared during the ENGAGE and EXPLORE\
+      \ phases.\n2.A recap at the end of activity, summarizing the activity, learnings,\
+      \ and key takeaways.\n Ensure the activity are interactive, promote student\
+      \ engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_VERBOSE_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Design an activity\
+      \ plan for the ELABORATE phase of the 5E model that applies the concepts learned\
+      \ about topic: {SUB_TOPIC} in the chapter {CHAPTER_TITLE} to real-world contexts\
+      \ and hands-on experiences. The activity plan must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The plan should include a section\
+      \ with real-world scenarios that illustrates the practical significance and\
+      \ natural occurrence of {SUB_TOPIC}. The scenarios should be customized to the\
+      \ context of Karnataka\u2019s regions - north, south, and coastal - but only\
+      \ as and when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions to increase curiosity and challenge students to think deeply about\
+      \ {SUB_TOPIC}. Follow up each question with a detailed description or answer\
+      \ to reinforce understanding. Follow this with a series of engaging, interactive\
+      \ activities. First, a collaborative activity designed for a classroom size\
+      \ of fewer than 30 students. Second, a group activity suitable for a classroom\
+      \ size of more than 30 students. Both group activities should foster teamwork\
+      \ and communication among students, and should incorporate a competitive aspect\
+      \ that reinforces the learned concepts through an enjoyable challenge. Each\
+      \ activity must be simple yet meaningful for the teacher to implement and must\
+      \ add unique value to deepen students' comprehension and extend their learning\
+      \ beyond the classroom.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_SUBTOPIC_VERBOSE_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Formulate a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the EVALUATE phase of the 5E model that will test students\u2019\
+      \ understanding of the key facts and concepts related to {SUB_TOPIC} covered\
+      \ in the {CHAPTER_TITLE} of {SUBJECT}. The content must align with the following\
+      \ learning outcome(s): {LEARNING_OUTCOMES}. The questions should be categorized\
+      \ into three difficulty levels: beginner, intermediate, and advanced.\n Beginner\
+      \ level questions should be direct and require basic knowledge that reflects\
+      \ the fundamental learning objectives of the lesson.\n Intermediate level questions\
+      \ should require a deeper understanding and application of the key facts and\
+      \ concepts.\n Advanced level questions should challenge the students to analyze,\
+      \ evaluate, and create based on their understanding of the material.\n \nFor\
+      \ the MCQs, provide four options with only one correct answer. The questions\
+      \ should be direct and require specific knowledge that reflects the learning\
+      \ outcomes of the lesson. Ensure that the instructions for the MCQs are clear,\
+      \ asking students to select the correct option from the choices provided, demonstrating\
+      \ their grasp of the material. \nFor the assessment questions, ensure clarity\
+      \ in the instructions, asking students to provide written responses that demonstrate\
+      \ their grasp of the material. The questions should cover various aspects of\
+      \ {SUB_TOPIC}, including its principles, behaviors, or other relevant details.\
+      \ Do not provide the answers within the prompt, as the purpose is to evaluate\
+      \ the students\u2019 independent learning outcomes. \nClassroom Process (Facilitating\
+      \ Activities): Develop a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the various levels that will test students' understanding of\
+      \ the key facts and concepts related to {SUB_TOPIC} covered in {CHAPTER_TITLE}\
+      \ of {SUBJECT}. Ensure that the questions directly address the learning outcomes\
+      \ and provide opportunities for students to demonstrate their grasp of the material.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SCIENCE MATH CHAPTER ############################################
+
+  - name: SCIENCE_MATH_CHAPTER_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan for the\
+      \ chapter {CHAPTER_TITLE} in the subject {SUBJECT}, which covers all the TOPICS:\
+      \ {SUB_TOPIC}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model and should be designed using the {MODEL_OF_TEACHING} methodology. The\
+      \ content should align with the learning outcomes of all TOPICS: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the TOPICS\
+      \ relevant. Outline key intriguing facts or concepts about the TOPICS that will\
+      \ be explored throughout the chapter. Include a short narrative or case study\
+      \ that links the TOPICS to everyday experiences or shows its broader importance\
+      \ in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with TOPICS. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS and that the vocabulary introduced is\
+      \ from the textbook. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method.\n Introduction: \nKey Concepts: \nReal-world Scenario: \nNarrative:\
+      \ \nVocabulary: \nClassroom Process (Facilitating Activity): Design one engaging\
+      \ activity for the ENGAGE phase that will facilitate student interaction and\
+      \ curiosity. The activity should directly address the learning outcomes and\
+      \ be structured to captivate students\u2019 interest in the TOPICS. Importantly,\
+      \ the activity must be feasible for teacher to implement in low-resource classrooms\
+      \ in India. For the activity, include:\n1. Detailed steps for preparation.\n\
+      2. A list of required materials.\n3. Information on where and how to obtain\
+      \ these materials.\n Please note that the focus should be on the preparation\
+      \ work required for the activity, do NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n\
+      \ {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \  Using the {MODEL_OF_TEACHING} methodology, craft 2-3 open-ended questions\
+      \ for the EXPLORE phase of the 5E model that will guide students in investigating\
+      \ the key characteristics, behaviors, and significance of all the TOPICS in\
+      \ {CHAPTER_TITLE} of {SUBJECT}.\n TOPICS: {SUB_TOPIC} \n The questions must\
+      \ be specific enough to guide the students towards a particular line of inquiry,\
+      \ yet open-ended enough to allow for individual interpretation and discovery.\
+      \ The exploratory questions must be within the scope of TOPICS and align with\
+      \ the following learning outcome(s): {LEARNING_OUTCOMES}. These questions should\
+      \ directly stem from the ENGAGE phase, allowing students to delve deeper into\
+      \ the topics introduced. These questions should be designed to promote curiosity,\
+      \ encourage hands-on exploration, and foster a deeper understanding of the role\
+      \ of TOPICS in the natural world or its relevance to the field of study. Make\
+      \ sure the content created gives equal importance to every topic in the list\
+      \ of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING} in\
+      \ your response, instead ensure the content aligns with the principles of the\
+      \ method.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the TOPICS within\
+      \ {CHAPTER_TITLE} of {SUBJECT} using the {MODEL_OF_TEACHING} methodology. \n\
+      \ TOPICS: {SUB_TOPIC} \n The content must align with the following learning\
+      \ outcome(s): {LEARNING_OUTCOMES}. The outline should include a comprehensive\
+      \ list of concepts that students will investigate to gain a thorough understanding\
+      \ of TOPICS. These concepts should encompass definitions, characteristics, theories,\
+      \ behaviors, and any relevant principles or processes. Additionally, include\
+      \ a brief description of each concept, highlighting key features and facts that\
+      \ students will discover. This outline should serve as a foundation for students\
+      \ to build their knowledge and connect with the material in a meaningful way.\
+      \ Make sure the content created gives equal importance to every topic in the\
+      \ list of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method. Enumerate and outline TOPICS in the following format: \"Concept\
+      \ Title\": \n-\"Definition\": \n -\"Characteristics\": \n-\"Key Features and\
+      \ Facts\": \nClassroom Process (Facilitating Activity): The activity should\
+      \ be a continuation and detailed implementation of the activity from the ENGAGE\
+      \ and EXPLORE phases, maintaining consistency between phases. The activity must\
+      \ include:\n1.Detailed steps for implementation, building upon the activity\
+      \ and materials/items identified and prepared during the ENGAGE and EXPLORE\
+      \ phases.\n2.A recap at the end of activity, summarizing the activity, learnings,\
+      \ and key takeaways.\n Ensure the activity are interactive, promote student\
+      \ engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Using the {MODEL_OF_TEACHING}\
+      \ methodology, design an activity plan for the ELABORATE phase of the 5E model\
+      \ that applies the concepts learned about TOPICS in the chapter {CHAPTER_TITLE}\
+      \ to real-world contexts and hands-on experiences. \n TOPICS: {SUB_TOPIC} \n\
+      \ The activity plan must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The plan should include a section with real-world scenarios that each focus\
+      \ on a single aspect of the TOPICS to illustrate its practical significance\
+      \ and natural occurrence. The scenarios should be customized to the context\
+      \ of Karnataka\u2019s regions - north, south, and coastal - but only as and\
+      \ when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions, each focusing on one particular idea related to TOPICS, to increase\
+      \ curiosity and challenge students to think deeply about it. Follow up each\
+      \ question with a detailed description or answer to reinforce understanding.\
+      \ Follow this with a series of engaging, interactive activities. First, a collaborative\
+      \ activity designed for a classroom size of fewer than 30 students. Second,\
+      \ a group activity suitable for a classroom size of more than 30 students. Both\
+      \ group activities should foster teamwork and communication among students,\
+      \ and should incorporate a competitive aspect that reinforces the learned concepts\
+      \ through an enjoyable challenge. Each activity must be simple yet meaningful\
+      \ for the teacher to implement and must add unique value to deepen students'\
+      \ comprehension and extend their learning beyond the classroom. Make sure the\
+      \ content created gives equal importance to every topic in the list of TOPICS.\
+      \ Don't reference the teaching methodology {MODEL_OF_TEACHING} in your response,\
+      \ instead ensure the content aligns with the principles of the method.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Using the {MODEL_OF_TEACHING} methodology, formulate a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the EVALUATE\
+      \ phase of the 5E model that will test students\u2019 understanding of the key\
+      \ facts and concepts related to TOPICS covered in the {CHAPTER_TITLE} of {SUBJECT}.\
+      \ \n TOPICS: {SUB_TOPIC} \n The content must align with the following learning\
+      \ outcome(s): {LEARNING_OUTCOMES}. The questions should be categorized into\
+      \ three difficulty levels: beginner, intermediate, and advanced.\n Beginner\
+      \ level questions should be direct and require basic knowledge that reflects\
+      \ the fundamental learning objectives of the lesson. These questions should\
+      \ test the students\u2019 understanding of the basic terms and concepts.\n Intermediate\
+      \ level questions should require a deeper understanding and application of the\
+      \ key facts and concepts. These questions should test the students\u2019 ability\
+      \ to apply these concepts in familiar contexts.\n Advanced level questions should\
+      \ challenge the students to analyze, evaluate, and create based on their understanding\
+      \ of the material. These questions should test the students\u2019 ability to\
+      \ apply these concepts in new or unfamiliar contexts.\n \nFor the MCQs, provide\
+      \ four options with only one correct answer. The questions should be direct\
+      \ and require specific knowledge that reflects the learning outcomes of the\
+      \ lesson. Ensure that the instructions for the MCQs are clear, asking students\
+      \ to select the correct option from the choices provided, demonstrating their\
+      \ grasp of the material. \nFor the assessment questions, ensure clarity in the\
+      \ instructions, asking students to provide written responses that demonstrate\
+      \ their grasp of the material. The questions should cover various aspects of\
+      \ TOPICS, including its principles, behaviors, or other relevant details. The\
+      \ questions should be designed in a way that they test the students\u2019 ability\
+      \ to apply these concepts, rather than just asking them to define the terms\
+      \ or identify the examples. Do not provide the answers within the prompt, as\
+      \ the purpose is to evaluate the students\u2019 independent learning outcomes.\
+      \ Make sure the content created gives equal importance to every topic in the\
+      \ list of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method.\nClassroom Process (Facilitating Activities): Develop a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the various\
+      \ levels that will test students' understanding of the key facts and concepts\
+      \ related to TOPICS covered in {CHAPTER_TITLE} of {SUBJECT}. Ensure that the\
+      \ questions directly address the learning outcomes and provide opportunities\
+      \ for students to demonstrate their grasp of the material.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SOCIAL CHAPTER ############################################
+
+  - name: SOCIAL_CHAPTER_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan for the\
+      \ chapter {CHAPTER_TITLE} in the subject {SUBJECT}, which covers all the TOPICS:\
+      \ {SUB_TOPIC}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model. The content should align with the learning outcomes of all TOPICS:\
+      \ {LEARNING_OUTCOMES}.\nStart with a captivating question or a real-world scenario\
+      \ that makes the TOPICS relevant. Outline key intriguing facts or concepts about\
+      \ the TOPICS that will be explored throughout the chapter. Include a short narrative\
+      \ or case study that links the TOPICS to everyday experiences or shows its broader\
+      \ importance in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with TOPICS. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS. \n Introduction: \nKey Concepts: \n\
+      Real-world Scenario: \nNarrative: \nVocabulary: \nClassroom Process (Facilitating\
+      \ Activity): Design one engaging activity for the ENGAGE phase that will facilitate\
+      \ student interaction and curiosity. The activity should directly address the\
+      \ learning outcomes and be structured to captivate students\u2019 interest in\
+      \ the TOPICS. Importantly, the activity must be feasible for teacher to implement\
+      \ in low-resource classrooms in India. For the activity, include:\n1. Detailed\
+      \ steps for preparation and execution.\n2. A list of required materials.\n3.\
+      \ Information on where and how to obtain these materials.\n Please note that\
+      \ the focus should be on the preparation work required for the activity, do\
+      \ NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase:\n\
+      \ {PREVIOUS_PHASE_CONTENT}.\n Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \  Craft 2-3 open-ended questions for the EXPLORE phase of the 5E model that\
+      \ will guide students in investigating the key characteristics, behaviors, and\
+      \ significance of all the TOPICS in {CHAPTER_TITLE} of {SUBJECT}.\n TOPICS:\
+      \ {SUB_TOPIC} \n The exploratory questions must be within the scope of TOPICS\
+      \ and align with the following learning outcome(s): {LEARNING_OUTCOMES}. These\
+      \ questions should directly stem from the ENGAGE phase, allowing students to\
+      \ delve deeper into the topics introduced. These questions should be designed\
+      \ to promote curiosity, encourage hands-on exploration, and foster a deeper\
+      \ understanding of the role of TOPICS in the natural world or its relevance\
+      \ to the field of study. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_EXPLAIN
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the TOPICS within\
+      \ {CHAPTER_TITLE} of {SUBJECT}. \n TOPICS: {SUB_TOPIC} \n The content must align\
+      \ with the following learning outcome(s): {LEARNING_OUTCOMES}. The outline should\
+      \ include a comprehensive list of concepts that students will investigate to\
+      \ gain a thorough understanding of TOPICS. These concepts should encompass definitions,\
+      \ characteristics, theories, behaviors, and any relevant principles or processes.\
+      \ Additionally, include a brief description of each concept, highlighting key\
+      \ features and facts that students will discover. This outline should serve\
+      \ as a foundation for students to build their knowledge and connect with the\
+      \ material in a meaningful way. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS. Enumerate and outline TOPICS in the\
+      \ following format: \"Concept Title\": \n-\"Definition\": \n -\"Characteristics\"\
+      : \n-\"Key Features and Facts\": \nClassroom Process (Facilitating Activity):\
+      \ The activity should be a continuation and detailed implementation of the activity\
+      \ from the ENGAGE and EXPLORE phases, maintaining consistency between phases.\
+      \ The activity must include:\n1.Detailed steps for implementation, building\
+      \ upon the activity and materials/items identified and prepared during the ENGAGE\
+      \ and EXPLORE phases.\n2.A recap at the end of activity, summarizing the activity,\
+      \ learnings, and key takeaways.\n Ensure the activity are interactive, promote\
+      \ student engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_ELABORATE
+    prompt_template: "Consider the context from previous phases:\n {PREVIOUS_PHASE_CONTENT}.\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Design an activity\
+      \ plan for the ELABORATE phase of the 5E model that applies the concepts learned\
+      \ about TOPICS in the chapter {CHAPTER_TITLE} to real-world contexts and hands-on\
+      \ experiences. \n TOPICS: {SUB_TOPIC} The activity plan must align with the\
+      \ following learning outcome(s): {LEARNING_OUTCOMES}. The plan should include\
+      \ a section with real-world scenarios that illustrates the practical significance\
+      \ and natural occurrence of TOPICS. The scenarios should be customized to the\
+      \ context of Karnataka\u2019s regions - north, south, and coastal - but only\
+      \ as and when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions to increase curiosity and challenge students to think deeply about\
+      \ the TOPICS. Follow up each question with a detailed description or answer\
+      \ to reinforce understanding. Follow this with a series of engaging, interactive\
+      \ activities. First, a collaborative activity designed for a classroom size\
+      \ of fewer than 30 students. Second, a group activity suitable for a classroom\
+      \ size of more than 30 students. Both group activities should foster teamwork\
+      \ and communication among students, and should incorporate a competitive aspect\
+      \ that reinforces the learned concepts through an enjoyable challenge. Each\
+      \ activity must be simple yet meaningful for the teacher to implement and must\
+      \ add unique value to deepen students' comprehension and extend their learning\
+      \ beyond the classroom. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Formulate a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the EVALUATE phase of the 5E model that will test students\u2019\
+      \ understanding of the key facts and concepts related to TOPICS covered in the\
+      \ {CHAPTER_TITLE} of {SUBJECT}. \n TOPICS: {SUB_TOPIC} \n The content must align\
+      \ with the following learning outcome(s): {LEARNING_OUTCOMES}. The questions\
+      \ should be categorized into three difficulty levels: beginner, intermediate,\
+      \ and advanced.\n Beginner level questions should be direct and require basic\
+      \ knowledge that reflects the fundamental learning objectives of the lesson.\n\
+      \ Intermediate level questions should require a deeper understanding and application\
+      \ of the key facts and concepts.\n Advanced level questions should challenge\
+      \ the students to analyze, evaluate, and create based on their understanding\
+      \ of the material.\n \nFor the MCQs, provide four options with only one correct\
+      \ answer. The questions should be direct and require specific knowledge that\
+      \ reflects the learning outcomes of the lesson. Ensure that the instructions\
+      \ for the MCQs are clear, asking students to select the correct option from\
+      \ the choices provided, demonstrating their grasp of the material. \nFor the\
+      \ assessment questions, ensure clarity in the instructions, asking students\
+      \ to provide written responses that demonstrate their grasp of the material.\
+      \ The questions should cover various aspects of TOPICS, including its principles,\
+      \ behaviors, or other relevant details. Do not provide the answers within the\
+      \ prompt, as the purpose is to evaluate the students\u2019 independent learning\
+      \ outcomes. Make sure the content created gives equal importance to every topic\
+      \ in the list of TOPICS. \nClassroom Process (Facilitating Activities): Develop\
+      \ a set of multiple-choice questions (MCQs) and assessment questions for the\
+      \ various levels that will test students' understanding of the key facts and\
+      \ concepts related to TOPICS covered in {CHAPTER_TITLE} of {SUBJECT}. Ensure\
+      \ that the questions directly address the learning outcomes and provide opportunities\
+      \ for students to demonstrate their grasp of the material.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  # ADDITIONAL RESOURCES ############################################
+
+  - name: CHAPTER_RESOURCES_JSON_HANDSONACTIVITY
+    prompt_template: "Please generate engaging activities as part of the lesson plan\
+      \ for the chapter {CHAPTER_TITLE} in the subject {SUBJECT}. These activities\
+      \ should cover all the TOPICS: {SUB_TOPIC} and align with the learning outcomes\
+      \ of the TOPICS: {LEARNING_OUTCOMES}. Each topic should be given equal importance\
+      \ in the content created. \\n\\nThe activities should:\\n1. Facilitate student\
+      \ interaction and curiosity.\\n2. Directly address the learning outcomes.\\\
+      n3. Be structured to captivate students\u2019 interest in the topics.\\n4. Be\
+      \ feasible for teachers to implement in low-resource classrooms in India.\\\
+      n\\nFor each activity, please provide the following details:\\n- \u2018title\u2019\
+      : The title of the activity.\\n- \u2018preparation\u2019: Detailed steps for\
+      \ preparation and execution.\\n- \u2018required_materials\u2019: List all required\
+      \ materials in a few sentences, specifying the quantity needed for each group\
+      \ or individual.\\n- \u2018obtaining_materials\u2019: Information on where and\
+      \ how to obtain these materials.\\n- \u2018recap\u2019: A recap at the end of\
+      \ the activity, summarizing the activity, learnings, and key takeaways.\\n\\\
+      nThe activities should be interactive, promote student engagement, and provide\
+      \ a comprehensive understanding of the key concepts. They should include an\
+      \ individual task that fosters creative expression and practical application\
+      \ of knowledge, a collaborative activity designed for a classroom size of fewer\
+      \ than 30 students, and a group activity suitable for a classroom size of more\
+      \ than 30 students. Both group activities should foster teamwork and communication\
+      \ among students, and should incorporate a competitive aspect that reinforces\
+      \ the learned concepts through an enjoyable challenge. Each activity must be\
+      \ simple yet meaningful for the teacher to implement and must add unique value\
+      \ to deepen students\u2019 comprehension and extend their learning beyond the\
+      \ classroom.\\n\\nEach activity must be in the format:\n{{\n  \"activities\"\
+      : {{\n    \"activity_1\": {{\n      \"title\": \"\",\n      \"preparation\"\
+      : \"\",\n      \"required_materials\": \"\",\n      \"obtaining_materials\"\
+      : \"\",\n      \"recap\": \"\"\n    }},\n    \"activity_2\": {{\n      \"title\"\
+      : \"\",\n      \"preparation\": \"\",\n      \"required_materials\": \"\",\n\
+      \      \"obtaining_materials\": \"\",\n      \"recap\": \"\"\n    }}\n, ...\
+      \  }}\n}}Please adhere to the provided JSON structure and avoid adding any additional\
+      \ nesting or modifications. The structure is designed to ensure clarity and\
+      \ ease of understanding.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: CHAPTER_RESOURCES_JSON_REALWORLDSCENARIO
+    prompt_template: "Please generate real-world scenarios as part of the lesson plan\
+      \ for the chapter {CHAPTER_TITLE} in the subject {SUBJECT}. These scenarios\
+      \ should cover all the TOPICS:\\n {SUB_TOPIC}.\\n The content must align with\
+      \ the learning outcomes:\\n {LEARNING_OUTCOMES}. Each topic should be given\
+      \ equal importance in the content created. Generate real-world scenarios that\
+      \ illustrate the practical significance and natural occurrence of TOPICS. The\
+      \ scenarios should be customized to the context of Karnataka\u2019s regions\
+      \ - north, south, and coastal - but only as and when relevant to the topic.\
+      \ Provide a real-world example for the three difficulty levels - beginner, intermediate,\
+      \ and advanced. Note that the beginner example must be comprehensible to all\
+      \ students. The same beginner example must be extended further in terms of depth\
+      \ and difficulty for intermediate and advanced levels. These scenarios should\
+      \ be phrased as thought-provoking questions to increase curiosity and challenge\
+      \ students to think deeply about the TOPICS. Follow up each question with a\
+      \ detailed description or answer to reinforce understanding.\\n\\nEach scenario\
+      \ must be in JSON format:\n{{\n  \"realworldscenarios\": {{\n    \"beginner\"\
+      : {{\n      \"topic_1\": {{\n        \"title\": \"\",\n        \"scenario\"\
+      : {{\n          \"question\": \"\",\n          \"description\": \"\"\n     \
+      \   }}\n      }},\n      \"topic_2\": {{\n        \"title\": \"\",\n       \
+      \ \"scenario\": {{\n          \"question\": \"\",\n          \"description\"\
+      : \"\"\n        }}\n      }},\n ...   }},\n    \"intermediate\": {{\n      \"\
+      topic_1\": {{\n        \"title\": \"\",\n        \"scenario\": {{\n        \
+      \  \"question\": \"\",\n          \"description\": \"\"\n        }}\n      }},\n\
+      \      \"topic_2\": {{\n        \"title\": \"\",\n        \"scenario\": {{\n\
+      \          \"question\": \"\",\n          \"description\": \"\"\n        }}\n\
+      \      }},\n ...}},\n    \"advanced\": {{\n      \"topic_1\": {{\n        \"\
+      title\": \"\",\n        \"scenario\": {{\n          \"question\": \"\",\n  \
+      \        \"description\": \"\"\n        }}\n      }},\n      \"topic_2\": {{\n\
+      \        \"title\": \"\",\n        \"scenario\": {{\n          \"question\"\
+      : \"\",\n          \"description\": \"\"\n        }}\n      }},\n ...}}\n  }}\n\
+      }}Please adhere to the provided JSON structure and avoid adding any additional\
+      \ nesting or modifications. The structure is designed to ensure clarity and\
+      \ ease of understanding.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+
+  - name: CHAPTER_RESOURCES_JSON_QUESTIONBANK
+    prompt_template: "Formulate a set of multiple-choice questions (MCQs) and assessment\
+      \ questions that will test students\u2019 understanding of the key facts and\
+      \ concepts related to TOPICS covered in the {CHAPTER_TITLE} of {SUBJECT}. TOPICS:\
+      \ {SUB_TOPIC}. The content must align with the following learning outcome(s):\
+      \ {LEARNING_OUTCOMES}. The questions should be categorized into three difficulty\
+      \ levels: beginner, intermediate, and advanced. \\n\\nBeginner level questions\
+      \ should be direct and require basic knowledge that reflects the fundamental\
+      \ learning objectives of the lesson. These questions should test the students\u2019\
+      \ understanding of the basic terms and concepts.\\n\\nIntermediate level questions\
+      \ should require a deeper understanding and application of the key facts and\
+      \ concepts. These questions should test the students\u2019 ability to apply\
+      \ these concepts in familiar contexts.\\n\\nAdvanced level questions should\
+      \ challenge the students to analyze, evaluate, and create based on their understanding\
+      \ of the material. These questions should test the students\u2019 ability to\
+      \ apply these concepts in new or unfamiliar contexts.\\n\\nNOTE: All the MCQs\
+      \ and assessment questions at each level have to be within the scope of textbook\
+      \ aimed at grade {GRADE} students. They should use simple vocabulary and be\
+      \ clear and specific. \\n\\nFor the MCQs, provide four options with only one\
+      \ correct answer. The questions should be direct and require specific knowledge\
+      \ that reflects the learning outcomes of the lesson. Ensure that the instructions\
+      \ for the MCQs are clear, asking students to select the correct option from\
+      \ the choices provided, demonstrating their grasp of the material. \\n\\nFor\
+      \ the assessment questions, ensure clarity in the instructions, asking students\
+      \ to provide written responses that demonstrate their grasp of the material.\
+      \ The questions should cover various aspects of TOPICS, including its principles,\
+      \ behaviors, or other relevant details. Do not provide the answers within the\
+      \ prompt, as the purpose is to evaluate the students\u2019 independent learning\
+      \ outcomes. Make sure the content created gives equal importance to every topic\
+      \ in the list of TOPICS.\\n\\nFor each level of difficulty, develop a set of\
+      \ 5 multiple-choice questions (MCQs) and 5 assessment questions that will test\
+      \ students\u2019 understanding of the key facts and concepts related to TOPICS\
+      \ covered in {CHAPTER_TITLE} of {SUBJECT}. Ensure that the questions directly\
+      \ address the learning outcomes and provide opportunities for students to demonstrate\
+      \ their grasp of the material. The questions should be clear, specific, and\
+      \ use simple vocabulary.\\n\\nThe response must be in the JSON format:\n{{\n\
+      \  \"questionbank\": {{\n    \"beginner\": {{\n      \"MCQs\": {{\n        \"\
+      content\": [\n          {{\n            \"question\": \"\",\n            \"\
+      options\": [\"\", \"\", \"\", \"\"]\n          }},\n          {{\n         \
+      \   \"question\": \"\",\n            \"options\": [\"\", \"\", \"\", \"\"]\n\
+      \          }},...\n        ]\n      }},\n      \"assessment\": {{\n        \"\
+      content\": [\n          {{\n            \"question\": \"\"\n          }},\n\
+      \          {{\n            \"question\": \"\"\n          }},\n ...       ]\n\
+      \      }}\n    }},\n    \"intermediate\": {{\n      \"MCQs\": {{\n        \"\
+      content\": [\n          {{\n            \"question\": \"\",\n            \"\
+      options\": [\"\", \"\", \"\", \"\"]\n          }},\n          {{\n         \
+      \   \"question\": \"\",\n            \"options\": [\"\", \"\", \"\", \"\"]\n\
+      \          }},...\n        ]\n      }},\n      \"assessment\": {{\n        \"\
+      content\": [\n          {{\n            \"question\": \"\"\n          }},\n\
+      \          {{\n            \"question\": \"\"\n          }},\n ...       ]\n\
+      \      }}\n    }},\n    \"advanced\": {{\n      \"MCQs\": {{\n        \"content\"\
+      : [\n          {{\n            \"question\": \"\",\n            \"options\"\
+      : [\"\", \"\", \"\", \"\"]\n          }},\n          {{\n            \"question\"\
+      : \"\",\n            \"options\": [\"\", \"\", \"\", \"\"]\n          }},...\n\
+      \        ]\n      }},\n      \"assessment\": {{\n        \"content\": [\n  \
+      \        {{\n            \"question\": \"\"\n          }},\n          {{\n \
+      \           \"question\": \"\"\n          }},\n ...       ]\n      }}\n    }}\n\
+      \  }}\n}}.Please adhere to the provided JSON structure and avoid adding any\
+      \ additional nesting or modifications. The structure is designed to ensure clarity\
+      \ and ease of understanding.
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: rag-query
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4Turbo[sivasri-gpt-4]
+  
+  # SCIENCE MATH CHAPTER MODIFICATION ############################################
+
+  - name: SCIENCE_MATH_CHAPTER_MODIFICATION_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan for the\
+      \ chapter {CHAPTER_TITLE} in the subject {SUBJECT}, which covers all the TOPICS:\
+      \ {SUB_TOPIC}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model and should be designed using the {MODEL_OF_TEACHING} methodology. The\
+      \ content should align with the learning outcomes of all TOPICS: {LEARNING_OUTCOMES}.\n\
+      Start with a captivating question or a real-world scenario that makes the TOPICS\
+      \ relevant. Outline key intriguing facts or concepts about the TOPICS that will\
+      \ be explored throughout the chapter. Include a short narrative or case study\
+      \ that links the TOPICS to everyday experiences or shows its broader importance\
+      \ in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with TOPICS. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS and that the vocabulary introduced is\
+      \ from the textbook. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method.\n Introduction: \nKey Concepts: \nReal-world Scenario: \nNarrative:\
+      \ \nVocabulary: \nClassroom Process (Facilitating Activity): Design one engaging\
+      \ activity for the ENGAGE phase that will facilitate student interaction and\
+      \ curiosity. The activity should directly address the learning outcomes and\
+      \ be structured to captivate students\u2019 interest in the TOPICS. Importantly,\
+      \ the activity must be feasible for teacher to implement in low-resource classrooms\
+      \ in India. For the activity, include:\n1. Detailed steps for preparation.\n\
+      2. A list of required materials.\n3. Information on where and how to obtain\
+      \ these materials.\n Please note that the focus should be on the preparation\
+      \ work required for the activity, do NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_MODIFICATION_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase, \
+      \ Use this context to generate meaningful content \
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \  Using the {MODEL_OF_TEACHING} methodology, craft 2-3 open-ended questions\
+      \ for the EXPLORE phase of the 5E model that will guide students in investigating\
+      \ the key characteristics, behaviors, and significance of all the TOPICS in\
+      \ {CHAPTER_TITLE} of {SUBJECT}.\n TOPICS: {SUB_TOPIC} \n The questions must\
+      \ be specific enough to guide the students towards a particular line of inquiry,\
+      \ yet open-ended enough to allow for individual interpretation and discovery.\
+      \ The exploratory questions must be within the scope of TOPICS and align with\
+      \ the following learning outcome(s): {LEARNING_OUTCOMES}. These questions should\
+      \ directly stem from the ENGAGE phase, allowing students to delve deeper into\
+      \ the topics introduced. These questions should be designed to promote curiosity,\
+      \ encourage hands-on exploration, and foster a deeper understanding of the role\
+      \ of TOPICS in the natural world or its relevance to the field of study. Make\
+      \ sure the content created gives equal importance to every topic in the list\
+      \ of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING} in\
+      \ your response, instead ensure the content aligns with the principles of the\
+      \ method.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_MODIFICATION_EXPLAIN
+    prompt_template: "Consider the context from previous phases,\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the TOPICS within\
+      \ {CHAPTER_TITLE} of {SUBJECT} using the {MODEL_OF_TEACHING} methodology. \n\
+      \ TOPICS: {SUB_TOPIC} \n The content must align with the following learning\
+      \ outcome(s): {LEARNING_OUTCOMES}. The outline should include a comprehensive\
+      \ list of concepts that students will investigate to gain a thorough understanding\
+      \ of TOPICS. These concepts should encompass definitions, characteristics, theories,\
+      \ behaviors, and any relevant principles or processes. Additionally, include\
+      \ a brief description of each concept, highlighting key features and facts that\
+      \ students will discover. This outline should serve as a foundation for students\
+      \ to build their knowledge and connect with the material in a meaningful way.\
+      \ Make sure the content created gives equal importance to every topic in the\
+      \ list of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method. Enumerate and outline TOPICS in the following format: \"Concept\
+      \ Title\": \n-\"Definition\": \n -\"Characteristics\": \n-\"Key Features and\
+      \ Facts\": \nClassroom Process (Facilitating Activity): The activity should\
+      \ be a continuation and detailed implementation of the activity from the ENGAGE\
+      \ and EXPLORE phases, maintaining consistency between phases. The activity must\
+      \ include:\n1.Detailed steps for implementation, building upon the activity\
+      \ and materials/items identified and prepared during the ENGAGE and EXPLORE\
+      \ phases.\n2.A recap at the end of activity, summarizing the activity, learnings,\
+      \ and key takeaways.\n Ensure the activity are interactive, promote student\
+      \ engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_MODIFICATION_ELABORATE
+    prompt_template: "Consider the context from previous phases,\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Using the {MODEL_OF_TEACHING}\
+      \ methodology, design an activity plan for the ELABORATE phase of the 5E model\
+      \ that applies the concepts learned about TOPICS in the chapter {CHAPTER_TITLE}\
+      \ to real-world contexts and hands-on experiences. \n TOPICS: {SUB_TOPIC} \n\
+      \ The activity plan must align with the following learning outcome(s): {LEARNING_OUTCOMES}.\
+      \ The plan should include a section with real-world scenarios that each focus\
+      \ on a single aspect of the TOPICS to illustrate its practical significance\
+      \ and natural occurrence. The scenarios should be customized to the context\
+      \ of Karnataka\u2019s regions - north, south, and coastal - but only as and\
+      \ when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions, each focusing on one particular idea related to TOPICS, to increase\
+      \ curiosity and challenge students to think deeply about it. Follow up each\
+      \ question with a detailed description or answer to reinforce understanding.\
+      \ Follow this with a series of engaging, interactive activities. First, a collaborative\
+      \ activity designed for a classroom size of fewer than 30 students. Second,\
+      \ a group activity suitable for a classroom size of more than 30 students. Both\
+      \ group activities should foster teamwork and communication among students,\
+      \ and should incorporate a competitive aspect that reinforces the learned concepts\
+      \ through an enjoyable challenge. Each activity must be simple yet meaningful\
+      \ for the teacher to implement and must add unique value to deepen students'\
+      \ comprehension and extend their learning beyond the classroom. Make sure the\
+      \ content created gives equal importance to every topic in the list of TOPICS.\
+      \ Don't reference the teaching methodology {MODEL_OF_TEACHING} in your response,\
+      \ instead ensure the content aligns with the principles of the method.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SCIENCE_MATH_CHAPTER_MODIFICATION_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Using the {MODEL_OF_TEACHING} methodology, formulate a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the EVALUATE\
+      \ phase of the 5E model that will test students\u2019 understanding of the key\
+      \ facts and concepts related to TOPICS covered in the {CHAPTER_TITLE} of {SUBJECT}.\
+      \ \n TOPICS: {SUB_TOPIC} \n The content must align with the following learning\
+      \ outcome(s): {LEARNING_OUTCOMES}. The questions should be categorized into\
+      \ three difficulty levels: beginner, intermediate, and advanced.\n Beginner\
+      \ level questions should be direct and require basic knowledge that reflects\
+      \ the fundamental learning objectives of the lesson. These questions should\
+      \ test the students\u2019 understanding of the basic terms and concepts.\n Intermediate\
+      \ level questions should require a deeper understanding and application of the\
+      \ key facts and concepts. These questions should test the students\u2019 ability\
+      \ to apply these concepts in familiar contexts.\n Advanced level questions should\
+      \ challenge the students to analyze, evaluate, and create based on their understanding\
+      \ of the material. These questions should test the students\u2019 ability to\
+      \ apply these concepts in new or unfamiliar contexts.\n \nFor the MCQs, provide\
+      \ four options with only one correct answer. The questions should be direct\
+      \ and require specific knowledge that reflects the learning outcomes of the\
+      \ lesson. Ensure that the instructions for the MCQs are clear, asking students\
+      \ to select the correct option from the choices provided, demonstrating their\
+      \ grasp of the material. \nFor the assessment questions, ensure clarity in the\
+      \ instructions, asking students to provide written responses that demonstrate\
+      \ their grasp of the material. The questions should cover various aspects of\
+      \ TOPICS, including its principles, behaviors, or other relevant details. The\
+      \ questions should be designed in a way that they test the students\u2019 ability\
+      \ to apply these concepts, rather than just asking them to define the terms\
+      \ or identify the examples. Do not provide the answers within the prompt, as\
+      \ the purpose is to evaluate the students\u2019 independent learning outcomes.\
+      \ Make sure the content created gives equal importance to every topic in the\
+      \ list of TOPICS. Don't reference the teaching methodology {MODEL_OF_TEACHING}\
+      \ in your response, instead ensure the content aligns with the principles of\
+      \ the method.\nClassroom Process (Facilitating Activities): Develop a set of\
+      \ multiple-choice questions (MCQs) and assessment questions for the various\
+      \ levels that will test students' understanding of the key facts and concepts\
+      \ related to TOPICS covered in {CHAPTER_TITLE} of {SUBJECT}. Ensure that the\
+      \ questions directly address the learning outcomes and provide opportunities\
+      \ for students to demonstrate their grasp of the material.
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+  
+  # SOCIAL CHAPTER MODIFICATION ############################################
+
+  - name: SOCIAL_CHAPTER_MODIFICATION_ENGAGE
+    prompt_template: "Generate an engaging introduction for the lesson plan for the\
+      \ chapter {CHAPTER_TITLE} in the subject {SUBJECT}, which covers all the TOPICS:\
+      \ {SUB_TOPIC}. This introduction is for the ENGAGE phase of the 5E instructional\
+      \ model. The content should align with the learning outcomes of all TOPICS:\
+      \ {LEARNING_OUTCOMES}.\nStart with a captivating question or a real-world scenario\
+      \ that makes the TOPICS relevant. Outline key intriguing facts or concepts about\
+      \ the TOPICS that will be explored throughout the chapter. Include a short narrative\
+      \ or case study that links the TOPICS to everyday experiences or shows its broader\
+      \ importance in society, nature, technology, or various fields of study.\nAdditionally,\
+      \ set the stage for language and literacy development by planning activities\
+      \ where students will encounter and use essential vocabulary and terminology\
+      \ associated with TOPICS. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS. \n Introduction: \nKey Concepts: \n\
+      Real-world Scenario: \nNarrative: \nVocabulary: \nClassroom Process (Facilitating\
+      \ Activity): Design one engaging activity for the ENGAGE phase that will facilitate\
+      \ student interaction and curiosity. The activity should directly address the\
+      \ learning outcomes and be structured to captivate students\u2019 interest in\
+      \ the TOPICS. Importantly, the activity must be feasible for teacher to implement\
+      \ in low-resource classrooms in India. For the activity, include:\n1. Detailed\
+      \ steps for preparation and execution.\n2. A list of required materials.\n3.\
+      \ Information on where and how to obtain these materials.\n Please note that\
+      \ the focus should be on the preparation work required for the activity, do\
+      \ NOT execute the activity.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_MODIFICATION_EXPLORE
+    prompt_template: "Consider the activities and discussions from the ENGAGE phase,
+      \ Use this context to generate meaningful content\
+      \ specifically for the EXPLORE phase of the 5E instructional model. Do not regurgitate\
+      \ the context or the learning outcomes, but rather use it to maintain consistency\
+      \ and build upon it. Do NOT include content from other phases of the 5E model.\
+      \  Craft 2-3 open-ended questions for the EXPLORE phase of the 5E model that\
+      \ will guide students in investigating the key characteristics, behaviors, and\
+      \ significance of all the TOPICS in {CHAPTER_TITLE} of {SUBJECT}.\n TOPICS:\
+      \ {SUB_TOPIC} \n The exploratory questions must be within the scope of TOPICS\
+      \ and align with the following learning outcome(s): {LEARNING_OUTCOMES}. These\
+      \ questions should directly stem from the ENGAGE phase, allowing students to\
+      \ delve deeper into the topics introduced. These questions should be designed\
+      \ to promote curiosity, encourage hands-on exploration, and foster a deeper\
+      \ understanding of the role of TOPICS in the natural world or its relevance\
+      \ to the field of study. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_MODIFICATION_EXPLAIN
+    prompt_template: "Consider the context from previous phases,\n\
+      \ Use this context to generate meaningful content specifically for the EXPLAIN\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model. Provide a detailed\
+      \ outline for the EXPLAIN phase of the 5E model, focusing on the TOPICS within\
+      \ {CHAPTER_TITLE} of {SUBJECT}. \n TOPICS: {SUB_TOPIC} \n The content must align\
+      \ with the following learning outcome(s): {LEARNING_OUTCOMES}. The outline should\
+      \ include a comprehensive list of concepts that students will investigate to\
+      \ gain a thorough understanding of TOPICS. These concepts should encompass definitions,\
+      \ characteristics, theories, behaviors, and any relevant principles or processes.\
+      \ Additionally, include a brief description of each concept, highlighting key\
+      \ features and facts that students will discover. This outline should serve\
+      \ as a foundation for students to build their knowledge and connect with the\
+      \ material in a meaningful way. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS. Enumerate and outline TOPICS in the\
+      \ following format: \"Concept Title\": \n-\"Definition\": \n -\"Characteristics\"\
+      : \n-\"Key Features and Facts\": \nClassroom Process (Facilitating Activity):\
+      \ The activity should be a continuation and detailed implementation of the activity\
+      \ from the ENGAGE and EXPLORE phases, maintaining consistency between phases.\
+      \ The activity must include:\n1.Detailed steps for implementation, building\
+      \ upon the activity and materials/items identified and prepared during the ENGAGE\
+      \ and EXPLORE phases.\n2.A recap at the end of activity, summarizing the activity,\
+      \ learnings, and key takeaways.\n Ensure the activity are interactive, promote\
+      \ student engagement, and provide a comprehensive understanding of the key concepts.\
+      \ The aim is to create a cohesive learning experience that transitions smoothly\
+      \ from the ENGAGE and EXPLORE phases to the EXPLAIN phase, reinforcing the learning\
+      \ outcomes throughout.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_MODIFICATION_ELABORATE
+    prompt_template: "Consider the context from previous phases,\n\
+      \ Use this context to generate meaningful content specifically for the ELABORATE\
+      \ phase of the 5E instructional model. Do not regurgitate the context or the\
+      \ learning outcomes, but rather use it to maintain consistency and build upon\
+      \ it. Do NOT include content from other phases of the 5E model.  Design an activity\
+      \ plan for the ELABORATE phase of the 5E model that applies the concepts learned\
+      \ about TOPICS in the chapter {CHAPTER_TITLE} to real-world contexts and hands-on\
+      \ experiences. \n TOPICS: {SUB_TOPIC} The activity plan must align with the\
+      \ following learning outcome(s): {LEARNING_OUTCOMES}. The plan should include\
+      \ a section with real-world scenarios that illustrates the practical significance\
+      \ and natural occurrence of TOPICS. The scenarios should be customized to the\
+      \ context of Karnataka\u2019s regions - north, south, and coastal - but only\
+      \ as and when relevant to the topic. These scenarios should be phrased as thought-provoking\
+      \ questions to increase curiosity and challenge students to think deeply about\
+      \ the TOPICS. Follow up each question with a detailed description or answer\
+      \ to reinforce understanding. Follow this with a series of engaging, interactive\
+      \ activities. First, a collaborative activity designed for a classroom size\
+      \ of fewer than 30 students. Second, a group activity suitable for a classroom\
+      \ size of more than 30 students. Both group activities should foster teamwork\
+      \ and communication among students, and should incorporate a competitive aspect\
+      \ that reinforces the learned concepts through an enjoyable challenge. Each\
+      \ activity must be simple yet meaningful for the teacher to implement and must\
+      \ add unique value to deepen students' comprehension and extend their learning\
+      \ beyond the classroom. Make sure the content created gives equal importance\
+      \ to every topic in the list of TOPICS.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+  - name: SOCIAL_CHAPTER_MODIFICATION_EVALUATE
+    prompt_template: "Please generate content specifically for the EVALUATE phase\
+      \ of the 5E instructional model. Do NOT include content from other phases of\
+      \ the 5E model. Formulate a set of multiple-choice questions (MCQs) and assessment\
+      \ questions for the EVALUATE phase of the 5E model that will test students\u2019\
+      \ understanding of the key facts and concepts related to TOPICS covered in the\
+      \ {CHAPTER_TITLE} of {SUBJECT}. \n TOPICS: {SUB_TOPIC} \n The content must align\
+      \ with the following learning outcome(s): {LEARNING_OUTCOMES}. The questions\
+      \ should be categorized into three difficulty levels: beginner, intermediate,\
+      \ and advanced.\n Beginner level questions should be direct and require basic\
+      \ knowledge that reflects the fundamental learning objectives of the lesson.\n\
+      \ Intermediate level questions should require a deeper understanding and application\
+      \ of the key facts and concepts.\n Advanced level questions should challenge\
+      \ the students to analyze, evaluate, and create based on their understanding\
+      \ of the material.\n \nFor the MCQs, provide four options with only one correct\
+      \ answer. The questions should be direct and require specific knowledge that\
+      \ reflects the learning outcomes of the lesson. Ensure that the instructions\
+      \ for the MCQs are clear, asking students to select the correct option from\
+      \ the choices provided, demonstrating their grasp of the material. \nFor the\
+      \ assessment questions, ensure clarity in the instructions, asking students\
+      \ to provide written responses that demonstrate their grasp of the material.\
+      \ The questions should cover various aspects of TOPICS, including its principles,\
+      \ behaviors, or other relevant details. Do not provide the answers within the\
+      \ prompt, as the purpose is to evaluate the students\u2019 independent learning\
+      \ outcomes. Make sure the content created gives equal importance to every topic\
+      \ in the list of TOPICS. \nClassroom Process (Facilitating Activities): Develop\
+      \ a set of multiple-choice questions (MCQs) and assessment questions for the\
+      \ various levels that will test students' understanding of the key facts and\
+      \ concepts related to TOPICS covered in {CHAPTER_TITLE} of {SUBJECT}. Ensure\
+      \ that the questions directly address the learning outcomes and provide opportunities\
+      \ for students to demonstrate their grasp of the material.\
+      \ Ensure that all text is in plain text format without any LaTeX, markdown, or special symbols.\ 
+      \ All important points should be clearly written out in plain text.\
+      @@REGEN_FEEDBACK@@"
+    llm_request_type: agentic-regeneration
+    prepend_system_prompts: False
+    prepend_system_guidelines: False
+    llm_model_id: GPT4-o[sivasri-gpt-4]
+
+system_prompts: Standard system prompts
+system_guidelines: Guidelines for all interactions

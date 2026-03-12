@@ -1,0 +1,130 @@
+_id: "telangana-science-chapter-lesson-plan"
+name: "Telangana science chapter"
+description: "Science: Introduction and prerequisites, Key words/concepts and pedagogical strategy, Recap, and Homework"
+sections:
+  - id: "lesson_mind_mapping"
+    title: "Mind-Mapping"
+    description: |
+      Create a tree-style mind map for this chapter/topic. Use the chapter or topic title as the root node. Add exactly 6 empty child nodes (leave them blank—do not fill them in). Present the mind map structure clearly so it can be easily completed or expanded later.
+
+      **Constraints:**
+      - Use strictly scientific and academic terminology.
+      - Do NOT use examples involving pain, injury, accidents, or physical harm.
+      - Focus on biological mechanisms (e.g., "Receptors", "Impulse", "CNS", "Effectors").
+
+      Example output (in markdown):
+
+      ```
+      - [Topic/Title]
+        - 
+        - 
+        - 
+        - 
+        - 
+        - 
+      ```
+
+    mode: "gpt"
+    dependencies: []
+
+  - id: "lesson_prerequisites"
+    title: "Prerequisites"
+    description: | 
+      List only the prior knowledge, concepts, or skills that students should already have before approaching this chapter. For each item, include a short, concise phrase describing what it is (e.g., "Basic understanding of plant parts – able to identify root, stem, leaf", "Familiarity with simple measurements – can use a ruler to measure length"). Do not include questions or information relating to the current topic itself.
+      
+      Write clearly and coherently to ensure the content is accessible and easily understandable.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies: []
+
+  - id: "lesson_keywords"
+    title: "Keywords"
+    description: |
+      - List all essential textbook vocabulary and any core concepts strictly related to this chapter.
+      - Do NOT repeat any keywords or concepts that have already been included in previous lesson plans.
+      - For each keyword/concept, provide its meaning in a short, clear phrase (do not copy textbook definitions; use simple language).
+      - Do not include unrelated or general terms.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+  
+  - id: "lesson_concepts_strategy"
+    title: "Concepts and pedagogical strategy"
+    description: |
+        Label each section exactly as follows and IN THIS ORDER:
+
+        **Concepts:**
+        - List all essential textbook vocabulary and any core concepts not yet introduced. Do not define them here.
+
+        **Conceptual understanding through pedagogical strategies:**
+
+        1. Concept details:
+          - For each term, provide concise bullet points that merge its definition, characteristics, key features, and important facts.
+
+        2. Activity:
+          - Design a single, hands-on activity for **EACH** concept that:
+            • Encourages students to explore or manipulate materials to see the concept in action (for example: simple experiments, model-building, sorting/classifying tasks, or guided observations).  
+            • Relies only on low-cost, easily obtained resources (e.g., paper, local natural objects, common classroom supplies).  
+            • Is structured for small groups or pairs, with clear preparation and execution steps combined in sequence.  
+            • Specifies exactly what to prepare, how to set up, and what students should do, so they directly experience or observe the concept.
+
+        3. Discussion along with questions:
+          - Provide 3–5 open-ended, scenario-based questions per concept that:
+            • Ask students to describe what they observed or built, explain why it happened, and relate it back to the concept details.  
+            • Invite comparison (“How is X similar to or different from Y?”), cause/effect (“Why did this outcome occur?”), and prediction (“What would happen if…?”).  
+            • Encourage real-world connections (“Where do you see this concept at work outside the classroom?”).  
+            • Draw on any inquiry prompts or scenarios already mentioned in earlier sections, reframed as discussion starters.
+
+        **Do NOT repeat any keywords or concepts that have already been included in previous lesson plans.**
+        [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      Use the content, activities, and discussions conducted so far as background context to help create this section.
+      Do not repeat the content itself. Instead, summarize what students are expected to have learned by this point, 
+      based on their experiences, observations, and participation in previous activities.
+
+      Provide a concise summary of the key ideas and concepts explored so far. Focus on what students should now understand, recall, or be able to explain in their own words. 
+      Ensure the summary covers all main topics equally and avoids mentioning any teaching methodology, learning model, or instructional phase. Keep the language simple and accessible.
+
+      After the summary, include 2–3 thought-provoking questions related to the topic being taught in this section. These should encourage students to reflect, make connections, or think creatively about what they have learned.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **You must provide:**
+
+      MCQs (Multiple‐Choice Questions):
+        Beginner (2 questions):
+          • Recall basic terms/concepts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Intermediate (2 questions):
+          • Apply key facts/concepts in familiar contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Advanced (2 questions):
+          • Analyze/evaluate concepts in new contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+      Short‐Answer Questions:
+        SAQ 1: (one‐liner) Explain a core principle or behavior of given subtopic(s).
+        SAQ 2: (one‐liner) Connect a key concept to a real‐world or novel scenario.
+        SAQ 3: (one‐liner) Analyze implications or consequences of a concept in `given subtopic(s).
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"

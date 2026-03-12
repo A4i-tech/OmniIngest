@@ -1,0 +1,192 @@
+_id: "telangana-math-chapter-lesson-plan"
+name: "Telangana Math chapter"
+description: "Math: Introduction and prerequisites, Key words/concepts and pedagogical strategy, Recap, and Homework"
+sections:
+  - id: "lesson_mind_mapping"
+    title: "Mind-Mapping"
+    description: |
+      Create a tree-style mind map for this chapter/topic. Use the chapter or topic title as the root node. Add exactly 6 empty child nodes (leave them blank—do not fill them in). Present the mind map structure clearly so it can be easily completed or expanded later.
+
+      Example output (in markdown):
+
+      ```
+      - [Polynomials]
+        - 
+        - 
+        - 
+        - 
+        - 
+        - 
+      ```
+
+    mode: "gpt"
+    dependencies: []
+
+  - id: "lesson_ice_breaking_intro_activity"
+    title: "Ice Breaking & Introduction Activity"
+    description: |
+        **Ice-breaking Activity:**
+        Begin the lesson with a simple, interactive ice-breaking activity that helps build rapport among students. Choose an activity that encourages participation and sharing, such as a quick math-related game, a "find someone who..." challenge, or a group puzzle using local materials. Ensure the activity is inclusive, fun, and requires minimal resources.
+
+        **LO-based Introduction Activity:**
+        Design an activity directly aligned with the chapter's Learning Outcomes (LOs) to introduce the topic. This should engage students in hands-on exploration or discussion that naturally leads into the chapter's main themes. Use easily available materials and structure the activity so that students experience or observe the core concept in action, setting the stage for deeper learning.
+
+        [Ensure all the above are feasible in low-resource Indian classrooms.]
+        mode: "rag"
+    mode: "rag"
+    dependencies: []
+
+  - id: "lesson_prerequisites"
+    title: "Prerequisites"
+    description: |
+          List only the prior knowledge, concepts, or skills that students should already have before approaching this chapter. For each item, include a short, concise phrase describing what it is (e.g., "Basic understanding of numbers – able to count, read, and write numbers up to 100", "Familiarity with basic arithmetic operations – can add and subtract single-digit numbers", "Understanding of shapes – able to identify common geometric shapes like circle, square, and triangle"). Do not include questions or information relating to the current topic itself.
+
+          Write clearly and coherently to ensure the content is accessible and easily understandable.
+    mode: "rag"
+    dependencies: []
+  
+  - id: "lesson_keywords"
+    title: "Keywords"
+    description: |
+      - List all essential textbook vocabulary and any core concepts strictly related to this chapter.
+      - Do NOT repeat any keywords or concepts that have already been included in previous lesson plans.
+      - For each keyword/concept, provide its meaning in a short, clear phrase (do not copy textbook definitions; use simple language).
+      - Do not include unrelated or general terms.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+
+  - id: "lesson_concepts_strategy"
+    title: "Concepts and pedagogical strategy"
+    description: |
+        Label each section exactly as follows and IN THIS ORDER:
+
+        **Concepts:**
+        - List all essential textbook vocabulary and any core concepts not yet introduced. Do not define them here.
+
+        **Conceptual understanding through pedagogical strategies:**
+
+        1. Concept details:
+          - For each term, provide concise bullet points that merge its definition, characteristics, key features, and important facts.
+
+        2. Activity:
+          - Design a single, hands-on activity for **EACH** concept that:
+            • Encourages students to explore or manipulate materials to see the concept in action (for example: simple experiments, model-building, sorting/classifying tasks, or guided observations).  
+            • Relies only on low-cost, easily obtained resources (e.g., paper, local natural objects, common classroom supplies).  
+            • Is structured for small groups or pairs, with clear preparation and execution steps combined in sequence.  
+            • Specifies exactly what to prepare, how to set up, and what students should do, so they directly experience or observe the concept.
+
+        3. Discussion along with questions:
+          - Provide 3–5 open-ended, scenario-based questions per concept that:
+            • Ask students to describe what they observed or built, explain why it happened, and relate it back to the concept details.  
+            • Invite comparison (“How is X similar to or different from Y?”), cause/effect (“Why did this outcome occur?”), and prediction (“What would happen if…?”).  
+            • Encourage real-world connections (“Where do you see this concept at work outside the classroom?”).  
+            • Draw on any inquiry prompts or scenarios already mentioned in earlier sections, reframed as discussion starters.
+
+        [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+  
+  - id: "lesson_problem_solving"
+    title: "Problem solving"
+    description: |
+      Instructions for Problem Solving:
+        1. Follow George Polya’s four-step process for problem solving:
+        • Understand the problem
+        • Devise a plan
+        • Carry out the plan
+        • Review the solution
+        2. Teacher will solve a problem on the blackboard.
+        3. Teacher will encourage the students to solve similar problems on their own and provide help wherever necessary.
+
+      Example Problems:
+        - Select 2–3 representative example problems from the textbook that illustrate the key concepts of the chapter.
+        - For each example, clearly state the problem, then provide a step-by-step solution following Polya’s process.
+        - Ensure the examples are relevant, accessible, and demonstrate the reasoning behind each step.
+        - Highlight any common misconceptions or errors students might make, and explain how to address them.
+
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+  
+  - id: "lesson_problem_guided_practice"
+    title: "Guided practice"
+    description: |
+      Include only the intext problems from the textbook that appear under the headings “Do this”, “Try this”, “Think and discuss”, and the exercise problems. Do not create new problems.
+
+      Clearly label each problem according to its textbook heading.
+
+      For each problem, provide a clear and step-by-step detailed solution. Ensure that the explanation walks through the reasoning process, includes all intermediate calculations, and arrives at the correct answer. The solution should be instructional and easy to follow.
+
+      Follow this structure:
+
+      Textbook Intext Problems:  
+      - Do this:  
+        1. [Problem statement]  
+        2. ...  
+      - Try this:  
+        1. [Problem statement]  
+        2. ...  
+      - Think and discuss:  
+        1. [Problem statement]  
+        2. ...  
+      - Exercise Problems:  
+        1. [Problem statement]  
+        2. ...  
+
+      Detailed Solutions:  
+      1. [Step-by-step solution with reasoning and final answer]  
+      2. ...
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+      - section_id: "lesson_problem_solving"
+  
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      - For each core concept in the lesson, write one bullet point that begins with the concept name and then merges its concise definition with its most important characteristics and facts.
+      - Do not include any introductory overview or extra commentary—only the bullet-pointed summaries.
+      - Maintain equal emphasis on every concept.
+    
+    mode: "rag"
+    dependencies:
+     - section_id: "lesson_keywords"
+     - section_id: "lesson_concepts_strategy"
+     - section_id: "lesson_problem_guided_practice"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **You must provide:**
+
+      MCQs (Multiple‐Choice Questions):
+        Beginner (2 questions):
+          • Recall basic terms/concepts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Intermediate (2 questions):
+          • Apply key facts/concepts in familiar contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+        Advanced (2 questions):
+          • Analyze/evaluate concepts in new contexts.
+          • Format: Question (one‐liner)
+            a) … b) … c) … d) …
+
+      Short‐Answer Questions:
+        SAQ 1: (one‐liner) Explain a core principle or behavior of given subtopic(s).
+        SAQ 2: (one‐liner) Connect a key concept to a real‐world or novel scenario.
+        SAQ 3: (one‐liner) Analyze implications or consequences of a concept in `given subtopic(s).
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+      - section_id: "lesson_problem_guided_practice"

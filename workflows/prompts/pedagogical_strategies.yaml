@@ -1,0 +1,130 @@
+- subject: science, biology, chemistry, physics, evs
+  strategies:
+  - name: Hands-on science
+    description: >-
+      The most important part of learning science is actually ‘doing science’ through
+      hands-on experiential learning. This can range from trial and error using materials
+      around them or basic scientific instruments and laboratory apparatus. In this
+      process, students gain conceptual understanding and develop process capacities by
+      manipulating, designing, and building.
+
+  - name: Discovery approach
+    description: >-
+      Students explore the natural world following their own interests and discover
+      patterns during their explorations. Teachers may create opportunities or draw
+      attention to phenomena for further exploration. Often followed by more structured
+      approaches to connect observations—e.g., linking shadow changes to light paths or
+      leaf venation patterns to leaf shapes.
+
+  - name: Inquiry approach
+    description: >-
+      Students navigate unknown questions and explore solutions like scientists, engaging
+      in systematic observation, visualization, experimentation, inference, communication,
+      and relation discovery. Teachers choose and scaffold the appropriate type of inquiry
+      for the concept—e.g., investigating how lens position affects image characteristics,
+      how reactant surface area influences reaction rate, or how light intensity impacts
+      photosynthesis.
+
+  - name: Project-centred approach
+    description: >-
+      Learning extends beyond the classroom over time—e.g., observing lunar phases over a
+      month. Students make real-world connections, develop artifacts (charts,
+      presentations, speeches) reflecting their understanding, and integrate concepts
+      across curricular areas—e.g., combining vocational or art studies with science through
+      visits to local craftspeople and farmers.
+
+  - name: Didactic approach
+    description: >-
+      The teacher regulates lesson flow to communicate scientific terms, phenomena, and
+      historical developments. After student discovery—e.g., of shadow length changes—the
+      teacher explains underlying concepts such as the sun’s position and its use in tracking
+      time.
+
+  - name: Demonstration
+    description: >-
+      The teacher demonstrates instruments or experimental outcomes to draw student
+      attention to relevant concepts, enriching their learning experiences.
+
+- subject: math
+  strategies:
+  - name: Play-way (activity based) method
+    description: >-
+      Uses games and activities rooted in mathematical concepts—like dominoes,
+      number checkers, counting frames, magic squares, and puzzle blocks—to build
+      students’ confidence, attitudes, and skills through hands-on, playful learning.
+
+  - name: Discovery/Inquiry-based method
+    description: >-
+      Encourages students to pose, investigate, and answer their own questions,
+      driving self-guided learning and reasoning. Connects academic content to
+      students’ lives, fostering scientific attitudes and supporting diverse learners.
+
+  - name: Problem solving method
+    description: >-
+      Engages students with word and logic puzzles (e.g., grid-process-of-elimination)
+      to teach deductive reasoning, enhancing logical and creative thinking in an
+      enjoyable, puzzle-based format.
+
+  - name: Inductive method
+    description: >-
+      Leads learners from specific examples to general rules: students study multiple
+      concrete cases and derive universal truths or formulas themselves, moving from
+      the known to the unknown and from concrete to abstract.
+
+  - name: Deductive method
+    description: >-
+      Moves from general principles to particular applications: students begin with a
+      given rule or formula and apply it to solve problems or prove theorems,
+      progressing from abstract concepts to concrete examples.
+
+- subject: social
+  strategies:
+  - name: Inquiry
+    description: >-
+      Inquiry-based methods help students understand how social scientists generate
+      knowledge by posing and testing hypotheses—e.g., investigating factors influencing
+      local migration patterns, settlement genesis, regional occupations, or coastal dietary
+      preferences.
+
+  - name: Issues-based learning
+    description: >-
+      Engages students with real social issues by integrating multiple disciplinary
+      perspectives—e.g., examining local water shortages by analyzing sources,
+      consumption patterns, distribution equity, purification steps, and social impacts.
+
+  - name: Conversations, discussions, and debates
+    description: >-
+      Facilitates focused dialogue on concepts, beliefs, and values, sometimes evolving
+      into debates—e.g., on climate change or reservation policy—while ensuring respect
+      for all social groups and encouraging perspective-taking and conflict resolution.
+
+  - name: Role plays and simulations
+    description: >-
+      Uses enacted scenarios to explore decision-making and conflict resolution—e.g.,
+      simulating a Gram Panchayat meeting to illustrate democratic institution functions.
+
+  - name: Community service and field excursions
+    description: >-
+      Combines hands-on community projects (e.g., collaborating with local agencies) and
+      educational excursions (heritage walks, museum visits, nature walks) to deepen
+      understanding and foster social sensitivity.
+
+  - name: Reflective essays
+    description: >-
+      Encourages students to articulate and assess their learning through written
+      reflections—e.g., essays on the future of Indian democracy or the impacts of dam
+      projects on agriculture.
+
+  - name: Project work
+    description: >-
+      Promotes collaborative, sustained investigations—e.g., household surveys,
+      stakeholder interviews, regional historical source analysis, market mapping—with
+      student-designed data collection, analysis, and presentations.
+
+  - name: Project work (models and artefacts)
+    description: >-
+      Provides hands-on creation of posters, collections (coins, stamps, rocks), 2D/3D
+      models (monuments, volcanoes), and multimedia (videos of local events) to apply
+      Social Science concepts in tangible forms.
+
+    

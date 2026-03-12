@@ -1,0 +1,189 @@
+_id: "telangana-math-chapter-lesson-plan"
+name: "Telangana Math chapter"
+description: "Math: Mind map, Prerequisites, Intro (unknown→known, prereq-anchored), Keywords (terms only), Concepts & conceptual understanding (with one integrated activity), Problem solving, Guided practice, Recap, Homework"
+
+sections:
+  - id: "lesson_mind_mapping"
+    title: "Mind-Mapping"
+    description: |
+      Create a tree-style mind map for this chapter/topic. Use the chapter or topic title as the root node. Add exactly 6 empty child nodes (leave them blank—do not fill them in). Present the mind map structure clearly so it can be easily completed or expanded later.
+
+      Example output (in markdown):
+
+      ```
+      - [Polynomials]
+        -
+        -
+        -
+        -
+        -
+        -
+      ```
+    mode: "gpt"
+    dependencies: []
+
+  - id: "lesson_prerequisites"
+    title: "Prerequisites"
+    description: |
+      List only the prior knowledge, concepts, or skills that students should already have before approaching this chapter. Use short, concrete phrases (e.g., "Count, read, write numbers to 100", "Add/subtract single-digit numbers", "Identify basic shapes").
+      Do not include questions or any content from the current topic.
+    mode: "rag"
+    dependencies: []
+
+  - id: "lesson_ice_breaking_intro_activity"
+    title: "Ice-breaking & LO-based Introduction (Unknown→Known, Prereq-anchored)"
+    description: |
+      **Ice-breaking (3–5 min, calm & practical):**
+      - Begin with a simple observation, puzzle, or real-life scenario that students can relate to using their *existing prerequisite knowledge*. 
+      - The prompt should feel intriguing or incomplete (an **unknown**) but not require them to already know the formal concept of this chapter. 
+      - Example types: “Notice something unusual in these shapes/measurements/numbers…”, “What patterns do you see here?”, “Why do you think this works like that?”  
+      - Avoid asking students to classify, solve, or explain using knowledge they will only acquire after the lesson.  
+
+      **Single meaningful LO-based introduction:**
+      - Design *one* short hands-on or discussion-based activity that uses this initial unknown prompt to spark curiosity.  
+      - Keep the task achievable with current skills but leave space for students to wonder about what they *don’t yet know*.  
+      - Make it clear to students that this activity is just the starting point: it will be **built upon in the Concepts & Strategy section** to formalize and deepen understanding.  
+
+      **Requirements:**
+      - Materials must be low-cost and locally available.  
+      - Specify: Materials, Grouping (pairs/small groups), Time, Setup, Step-by-step procedure, and Teacher prompts.  
+      - Keep it calm, inclusive, and feasible in low-resource Indian classrooms.  
+
+      [Ensure activity flows from unknown → known and sets up the coming section.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+
+
+
+  - id: "lesson_keywords"
+    title: "Keywords (terms only)"
+    description: |
+      - List essential textbook vocabulary and core terms strictly for this chapter.
+      - Provide *terms only* (no meanings/definitions here) to avoid repetition.
+      - Do NOT repeat terms already covered in earlier lesson plans.
+      - Keep unrelated or overly general terms out.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+
+  - id: "lesson_concepts_strategy"
+    title: "Concepts and conceptual understanding (with one integrated activity)"
+    description: |
+      Label subsections exactly as follows and in this order:
+
+      **Concepts:**
+      - List all essential terms and core concepts not yet introduced (no definitions here).
+
+      **Conceptual understanding:**
+      - For each concept, write 2–4 concise bullets that merge its definition, key features, and important facts (avoid duplication from other sections).
+
+      **Integrated activity for connected concepts:**
+      - Provide *one* hands-on activity that starts from an unfamiliar prompt/situation (**unknown**) and leads students to formalize/recognize the target concept(s) (**known**).
+      - This activity may **extend or build upon the Ice-breaking/Intro activity** if it supports concept formation naturally and does not break the lesson flow.  
+      - Include: Materials (low-cost), Grouping, Time, Setup, Sequential steps (preparation + execution), and Teacher prompts tied to each step.
+      - The activity must lead to concept formation with a clear unknown → known progression.
+      - Prefer standard classroom-proven ideas; add an alternative only if it’s clearly usable.
+
+      **Discussion (specific, non-qualitative):**
+      - Give 3–5 open-ended but *answerable* questions tied to what students built/observed, helping them articulate the shift from initial confusion (unknown) to recognized ideas (known).
+      - Use compare/contrast, cause/effect, prediction, and real-world connections.
+      - Phrase questions so students can respond concretely (avoid vague, essay-style prompts).
+
+      [Ensure feasibility in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_ice_breaking_intro_activity"
+
+  - id: "lesson_problem_solving"
+    title: "Problem solving"
+    description: |
+      **Approach (Polya’s 4 steps):**
+      1) Understand the problem  
+      2) Devise a plan  
+      3) Carry out the plan  
+      4) Review the solution
+
+      **Teacher-worked examples (standard & specific):**
+      - Select 2–3 representative *standard textbook* problems covering the key concepts.
+      - For each: state the problem, then show a clear, step-by-step solution following Polya’s stages.
+      - Highlight typical misconceptions and how to correct them.
+      - Keep prompts concrete; avoid qualitative/essay-style questions.
+
+      **Student attempt:**
+      - Students try similar problems; teacher circulates and scaffolds as needed.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+
+  - id: "lesson_problem_guided_practice"
+    title: "Guided practice"
+    description: |
+      Use only the textbook’s in-text and exercise problems. Do not create new problems.
+
+      **Include and label exactly as in the textbook:**
+      - Do this:
+        1. [Problem statement]
+        2. ...
+      - Try this:
+        1. [Problem statement]
+        2. ...
+      - Think and discuss:
+        1. [Problem statement]
+        2. ...
+      - Exercise Problems:
+        1. [Problem statement]
+        2. ...
+
+      **Detailed solutions (specific and stepwise):**
+      - Provide full, step-by-step solutions with reasoning and intermediate calculations.
+      - Maintain textbook numbering and ensure none of the standard problems are omitted.
+      - Avoid qualitative/overly open-ended items; focus on concrete, solvable steps.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+      - section_id: "lesson_problem_solving"
+
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      - For each core concept, write one bullet that starts with the concept name and concisely merges its definition with the most important characteristics/facts.
+      - No extra commentary or overview; keep emphasis balanced across concepts.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+      - section_id: "lesson_problem_guided_practice"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **MCQs (concrete, solvable):**
+        Beginner (2):
+          - Recall basic facts or direct properties from the chapter.
+          - Format: One-liner with options a) b) c) d)
+
+        Intermediate (2):
+          - Apply key facts/procedures in familiar contexts (one- or two-step).
+          - Format: One-liner with options a) b) c) d)
+
+        Challenging (2):
+          - Multi-step reasoning within the chapter scope (no vague or essay-style items).
+          - Format: One-liner with options a) b) c) d)
+
+      **Short-Answer Questions (one-liners, specific):**
+        SAQ 1: State a core principle or property from the chapter.  
+        SAQ 2: Connect a key concept to a simple, concrete real-world scenario.  
+        SAQ 3: Solve or reason about a small variation on a standard exercise item (no qualitative essays).
+
+      *Keep wording simple and student-friendly; prioritize clarity over abstraction.*
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+      - section_id: "lesson_problem_guided_practice"

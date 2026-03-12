@@ -1,0 +1,138 @@
+- name: LESSON_INTRO_PREREQUISITES
+  segment: Introduction and prerequisites
+  prompt_template: |
+    Generate the **Introduction and Prerequisites** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with the learning outcomes:  
+    `{LEARNING_OUTCOMES}`.
+    **Output plain text only (no Markdown/LaTeX/symbols)**—label each section exactly:
+
+    Introduction:  
+      • A brief paragraph (2–4 sentences) that hooks students—pose a captivating question or set a vivid scene around `{SUB_TOPIC}`.
+
+    Key Concepts:  
+      • A comma-separated one-liner listing the 3–5 most essential ideas students must grasp.
+
+    Real-world Scenario:  
+      • A short descriptive paragraph (2–3 sentences) illustrating how `{SUB_TOPIC}` appears in everyday life, industry, or the local context.
+
+    Narrative:  
+      • A concise illustrative story or context (2–3 sentences) connecting the topic to students’ experiences or interests.
+
+    Vocabulary:  
+      • A comma-separated one-liner of critical textbook terms to introduce and define.
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_KEYWORDS_STRATEGY
+  segment: Key words/concepts and pedagogical strategy
+  prompt_template: |
+    Consider the context from the previous segment:
+    {PREVIOUS_PHASE_CONTENT}
+
+    Here is a description of various pedagogical strategies that can be used in the classroom:
+        {PEDAGOGICAL_STRATEGIES}
+
+    Generate the **Key Words/Concepts, Concept Details, Classroom Process, and Strategy Alignment** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with `{LEARNING_OUTCOMES}`.  
+    **Output (plain text only)**—label each section exactly as follows and IN THIS ORDER:
+
+    Keywords/Concepts:  
+      • A comma-separated one-liner of 4–6 core terms or ideas introduced in this lesson.
+
+    Concept Details:  
+      For each term in Keywords/Concepts, provide the following separately:  
+      - Definition: (one-liner)  
+      - Characteristics: (2–3 lines)  
+      - Key Features & Facts: (2–3 lines)
+
+    Classroom Process (Activity Development):  
+      – Preparation Steps: (2–3 lines summarizing the original setup)  
+      – Materials & Sourcing: (2–3 lines on what’s needed and where to obtain it)  
+      – Detailed Steps: (2–3 lines describing how to run the activity)  
+      – Recap: (2–3 lines summarizing the flow, student learnings, and takeaways)  
+      – Strategy Alignment: (one-liner) Identify which pedagogical strategy from the list above this activity exemplifies.
+
+    [Ensure all the above are feasible in low-resource Indian classrooms.]
+
+    @@REGEN_FEEDBACK@@
+    
+- name: LESSON_PROBLEM_SOLVING
+  segment: Problem solving and guided practice
+  prompt_template: |
+    Generate the **Problem Solving and Guided Practice** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with the learning outcomes:  
+    `{LEARNING_OUTCOMES}`. Follow these requirements precisely:
+
+    Practice Problems:
+      • Create 2–3 questions that involve numerical calculations or matching items with textbook illustrations.  
+      • Each question must reference a specific figure, diagram, or example from the textbook and be stated in 1–2 sentences.
+
+    Detailed Solutions:
+      • For each practice problem, provide a step-by-step explanation in 3–5 sentences.  
+      • Show all calculations or matching logic, using the textbook’s terminology and concepts.
+
+    Inquiry Questions:
+      • Conclude with 1–2 open-ended questions that encourage students to investigate key aspects of `{SUB_TOPIC}`.  
+      • Each inquiry question should be phrased in 1–2 sentences and invite deeper thinking.
+
+    **Output plain text only (no Markdown, LaTeX, or symbols).**  
+    Label each section exactly as shown above.  
+    @@REGEN_FEEDBACK@@
+  
+- name: LESSON_RECAPITULATION
+  segment: Recapitulation
+  prompt_template: |
+    Consider the context from previous segments:
+    {PREVIOUS_PHASE_CONTENT}
+
+    Generate the **Recapitulation** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with the learning outcomes:  
+    `{LEARNING_OUTCOMES}`. Cover **all** the important concepts introduced so far. 
+    **Output plain text only (no Markdown, LaTeX, or symbols)**—label each section exactly:
+
+    Recap Overview:  
+      • A concise paragraph (3–4 sentences) summarizing the major ideas and how they connect within `{SUB_TOPIC}`.
+
+    Key Concept Summaries:  
+      For each of the 3–5 most important concepts, provide:  
+      - Concept Title: (one-liner)  
+      - Definition: (one-liner)  
+      - Key Features & Facts: (2–3 sentences highlighting essential details)
+
+    Thought‐Provoking Questions:  
+      • Two open‐ended, one‐liner questions that prompt students to reflect on relationships between concepts and their real‐world applications.
+
+    Application Activity:  
+      • A brief activity description (2–3 sentences) that asks students to apply two or more concepts together in a simple task or discussion.
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_HOMEWORK
+  segment: Homework
+  prompt_template: |
+    Generate the **Homework** segment for `{SUB_TOPIC}`, part of chapter `{CHAPTER_TITLE}` in `{SUBJECT}`, aligned with the learning outcomes: `{LEARNING_OUTCOMES}`.  
+      **Output plain text only (no markdown/LaTeX/symbols), and do NOT include answers.**  
+      **You must provide:**
+
+      MCQs (Multiple‐Choice Questions):
+          Beginner (2 questions):  
+          • Recall basic terms/concepts.  
+          • Format: Question (one‐liner)  
+           a) … b) … c) … d) …
+
+          Intermediate (2 questions):  
+          • Apply key facts/concepts in familiar contexts.  
+          • Format: Question (one‐liner)  
+           a) … b) … c) … d) …
+
+          Advanced (2 questions):  
+          • Analyze/evaluate concepts in new contexts.  
+          • Format: Question (one‐liner)  
+           a) … b) … c) … d) …
+        
+      Short‐Answer Questions:
+        SAQ 1: (one‐liner) Explain a core principle or behavior of `{SUB_TOPIC}`.  
+        SAQ 2: (one‐liner) Connect a key concept to a real‐world or novel scenario.  
+        SAQ 3: (one‐liner) Analyze implications or consequences of a concept in `{SUB_TOPIC}`.
+      
+      @@REGEN_FEEDBACK@@

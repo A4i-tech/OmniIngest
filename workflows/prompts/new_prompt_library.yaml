@@ -1,0 +1,125 @@
+- name: LESSON_INTRO_PREREQUISITES
+  prompt_template: |
+    Generate the **Introduction and Prerequisites** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with the learning outcomes:  
+    `{LEARNING_OUTCOMES}`.
+    **Output plain text only (no Markdown/LaTeX/symbols)**—label each section exactly:
+
+    Introduction:  
+      • A brief paragraph (2–4 sentences) that hooks students—pose a captivating question or set a vivid scene around `{SUB_TOPIC}`.
+
+    Key Concepts:  
+      • A comma-separated one-liner listing the 3–5 most essential ideas students must grasp.
+
+    Real-world Scenario:  
+      • A short descriptive paragraph (2–3 sentences) illustrating how `{SUB_TOPIC}` appears in everyday life, industry, or the local context.
+
+    Narrative:  
+      • A concise illustrative story or context (2–3 sentences) connecting the topic to students’ experiences or interests.
+
+    Vocabulary:  
+      • A comma-separated one-liner of critical textbook terms to introduce and define.
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_KEYWORDS_STRATEGY
+  prompt_template: |
+    Consider the context from the previous segment:
+    {PREVIOUS_PHASE_CONTENT}
+
+    Generate the **Key Words/Concepts and Pedagogical Strategy** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with `{LEARNING_OUTCOMES}`.  
+    **Output (plain text only)**—label each section exactly as follows and IN THIS ORDER:
+
+    Keywords/Concepts:  
+      • A comma-separated one-liner of 4–6 core terms or ideas introduced in this lesson.
+
+    Concept Details:  
+      For each term in Keywords/Concepts, provide the following **separately**:  
+      - Definition: (one-liner)  
+      - Characteristics: (2–3 lines)  
+      - Key Features & Facts: (2–3 lines)
+
+    Classroom Process (Activity Development):  
+      – Preparation Steps: (2–3 lines summarizing the original setup)  
+      – Materials & Sourcing: (2–3 lines on what’s needed and where to obtain it)  
+      – Detailed steps for running the activity, building on the materials above (2–3 lines)  
+      – Recap summarizing the activity flow, student learnings, and key takeaways (2–3 lines)  
+    
+    [Ensure all the above are feasible in low-resource Indian classrooms.]
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_REALWORLD_ACTIVITIES
+  prompt_template: |
+    Consider the context from previous segments:
+    {PREVIOUS_PHASE_CONTENT}
+
+    Generate **Real-world Scenarios and Interactive Activities** for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`), aligned with `{LEARNING_OUTCOMES}`.  
+    **Output plain text only**—for **each** of 2–3 scenarios, include exactly:
+
+    Scenario (Question):
+      • A one-liner posing a thought-provoking question about `{SUB_TOPIC}`, tailored to Telangana state.
+
+    Explanation:
+      • One to two sentences that answer the scenario’s question and reinforce the core concept.
+
+    Interactive Activities:
+      • **<30 students:** One collaborative activity with clear purpose, student roles, and steps.  
+      • **>30 students:** One group activity featuring a competitive element to deepen understanding.  
+      • Both must be simple, low-resource, meaningful, and extend learning beyond the classroom.
+
+    Materials & Preparation:
+      • A one-liner listing required materials and how to source them locally.
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_RECAPITULATION
+  prompt_template: |
+    Consider the context from the previous segment:
+    {PREVIOUS_PHASE_CONTENT}
+
+    Generate the **Recapitulation** segment for `{SUB_TOPIC}`  
+    (Chapter: `{CHAPTER_TITLE}`, Subject: `{SUBJECT}`) and aligned with  
+    the learning outcomes: `{LEARNING_OUTCOMES}`, craft **2–3 open-ended, one-liner questions** that:
+      – Guide students to investigate the key characteristics, behaviors, and significance of `{SUB_TOPIC}`  
+      – Build directly on what was introduced in previous segments 
+      – Are specific enough to focus inquiry yet open-ended enough for individual interpretation
+
+    **Output plain text only**—label each exactly:
+    Question 1: (one-liner)
+    Question 2: (one-liner)
+    Question 3: (one-liner, if applicable)
+
+    @@REGEN_FEEDBACK@@
+
+- name: LESSON_HOMEWORK
+  prompt_template: |
+    Generate the **Homework** segment for `{SUB_TOPIC}`, part of chapter `{CHAPTER_TITLE}` in `{SUBJECT}`, aligned with the learning outcomes: `{LEARNING_OUTCOMES}`.  
+    **Output plain text only (no markdown/LaTeX/symbols), and do NOT include answers.**  
+    **You must provide:**
+
+    MCQs (Multiple‐Choice Questions):
+      Beginner level (MCQ 1):
+        • Purpose: direct recall of basic terms and concepts.  
+        Question: (one‐liner)  
+        a) … b) … c) … d) …
+      Intermediate level (MCQ 2):
+        • Purpose: application of key facts and concepts in a familiar context.  
+        Question: (one‐liner)  
+        a) … b) … c) … d) …
+      Advanced level (MCQ 3):
+        • Purpose: analysis/evaluation—apply concepts in a new or unfamiliar context.  
+        Question: (one‐liner)  
+        a) … b) … c) … d) …
+
+    Short‐Answer Questions:
+      SAQ 1:
+        • Purpose: explain one of the core principles or behaviors of `{SUB_TOPIC}`.  
+        Question: (one‐liner)
+      SAQ 2:
+        • Purpose: connect a key concept to a real‐world or novel scenario, demonstrating deeper understanding.  
+        Question: (one‐liner)
+
+    @@REGEN_FEEDBACK@@

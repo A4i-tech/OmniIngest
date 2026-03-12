@@ -26,7 +26,12 @@ dependencies = [
     "azure-cognitiveservices-speech>=1.47.0",
     "pytest-cov>=7.0.0",
     "pydantic-ai>=1.48.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
 ]
+
+[project.scripts]
+period-plan = "omni_ingest.flows.period_plan_generation.cli:main"
 
 [project.optional-dependencies]
 dev = [

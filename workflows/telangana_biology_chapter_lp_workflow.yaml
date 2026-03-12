@@ -1,0 +1,123 @@
+_id: "telangana-biology-chapter-lesson-plan"
+name: "Telangana biology chapter"
+description: "Biology: Mind map, Prerequisites, Keywords (terms only), Concepts & conceptual understanding (with one integrated activity), Recap, and Homework"
+
+sections:
+  - id: "lesson_mind_mapping"
+    title: "Mind-Mapping"
+    description: |
+      Create a tree-style mind map for this chapter/topic. Use the chapter or topic title as the root node. Add exactly 6 empty child nodes (leave them blank—do not fill them in). Present the mind map structure clearly so it can be easily completed or expanded later.
+
+      Example output (in markdown):
+
+      ```
+      - [Topic]
+        -
+        -
+        -
+        -
+        -
+        -
+      ```
+    mode: "gpt"
+    dependencies: []
+
+  - id: "lesson_prerequisites"
+    title: "Prerequisites"
+    description: | 
+      List only the prior knowledge, concepts, or skills that students should already have before approaching this chapter.  
+      Use short, concrete phrases (e.g., "Identify basic plant parts", "Familiarity with simple measurements like length or weight").  
+      Do not include questions or content from the current topic.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies: []
+
+  - id: "lesson_keywords"
+    title: "Keywords (terms only)"
+    description: |
+      - List all essential textbook vocabulary and core terms strictly for this chapter.
+      - Provide *terms only* (no definitions here).
+      - Do NOT repeat any keywords or concepts already introduced in previous lesson plans.
+      - Keep unrelated or overly general terms out.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+  
+  - id: "lesson_concepts_strategy"
+    title: "Concepts and conceptual understanding (with one integrated activity)"
+    description: |
+      Label subsections exactly as follows and in this order:
+
+      **Concepts:**
+      - List all essential terms and core concepts not yet introduced (no definitions here).
+
+      **Conceptual understanding:**
+      - For each concept, write 2–4 concise bullets that merge its definition, characteristics, key features, and important facts.  
+      - Avoid repeating definitions already covered under Keywords.
+
+      **Integrated activity:**
+      - Design *one meaningful activity* that helps students explore the key concepts together.  
+      - The activity should:
+        • Begin from an unfamiliar observation or question (**unknown**) and guide students toward the scientific explanation (**known**).  
+        • Be age-appropriate, sensitive, and respectful (avoid culturally inappropriate or impractical tasks such as role play on reproduction, clay modeling of sensitive topics, etc.).  
+        • Use low-cost, safe, easily available classroom or local materials.  
+        • Be structured for small groups/pairs, with clear preparation, execution steps, and teacher prompts.  
+        • Be suitable for school-going students across grades.
+
+      **Discussion (specific, student-friendly):**
+      - Provide 3–5 open-ended but *answerable* questions based on what students observed/experienced.  
+      - Use compare/contrast, cause/effect, prediction, and real-world applications.  
+      - Phrase questions so students can respond concretely, not in vague or essay form.
+
+      [Ensure feasibility in low-resource Indian classrooms.]
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_prerequisites"
+      - section_id: "lesson_keywords"
+
+  - id: "lesson_recapitulation"
+    title: "Recapitulation"
+    description: |
+      Use the content, activities, and discussions conducted so far as background context.  
+      Do not repeat the content itself. Instead, summarize what students are expected to have learned, based on their experiences, observations, and participation in previous activities.
+
+      Provide a concise, balanced summary of the key ideas and concepts explored so far.  
+      Keep the language simple and accessible, focusing on what students should now understand, recall, or explain in their own words.  
+
+      After the summary, include 2–3 thought-provoking but age-appropriate reflection questions.  
+      These should encourage students to connect ideas, predict outcomes, or think creatively about what they have learned.
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"
+
+  - id: "lesson_homework"
+    title: "Homework"
+    description: |
+      **MCQs (Multiple‐Choice Questions):**
+        Beginner (2):
+          - Recall basic terms/concepts from the chapter.
+          - Format: Question (one-liner)
+            a) … b) … c) … d) …
+
+        Intermediate (2):
+          - Apply key facts/concepts in familiar contexts.
+          - Format: Question (one-liner)
+            a) … b) … c) … d) …
+
+        Advanced (2):
+          - Analyze/evaluate concepts in new contexts.
+          - Format: Question (one-liner)
+            a) … b) … c) … d) …
+
+      **Short‐Answer Questions:**
+        SAQ 1: (one-liner) Explain a core principle or behavior of given subtopic(s).  
+        SAQ 2: (one-liner) Connect a key concept to a simple real-world or novel scenario.  
+        SAQ 3: (one-liner) Predict implications or consequences of a concept in the given subtopic(s).
+
+      *Ensure all items are specific, age-appropriate, and feasible for school students.*
+    mode: "rag"
+    dependencies:
+      - section_id: "lesson_keywords"
+      - section_id: "lesson_concepts_strategy"

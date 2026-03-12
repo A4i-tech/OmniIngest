@@ -1,0 +1,140 @@
+_id: telangana-additional-resources
+name: Telangana Period Plan Resources lesson plan
+description: "Resource generation: Hands-on Activity, Real-world Scenario, Question Bank"
+sections:
+  - id: section_hands_on_activity
+    title: Hands-on Activity
+    description: |
+      Generate engaging hands-on activities for the chapter:
+      • Cover each topic equally and align each activity with all learning outcomes.
+      • Include three activity types:
+        1. Individual creative task that fosters practical application and expression.
+        2. Collaborative activity for up to 30 students emphasizing teamwork and communication.
+        3. Group activity for more than 30 students incorporating a competitive element.
+      • Ensure every activity:
+        - Facilitates student interaction and curiosity.
+        - Directly addresses the relevant learning outcomes.
+        - Captivates interest and is feasible in low-resource settings.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: rag
+    dependencies: []
+    output_format:
+      activity_1:
+        title: ""
+        preparation: ""
+        required_materials: ""
+        obtaining_materials: ""
+        recap: ""
+      activity_2:
+        title: ""
+        preparation: ""
+        required_materials: ""
+        obtaining_materials: ""
+        recap: ""
+
+  - id: section_real_world_scenario
+    title: Real-world Scenario
+    description: |
+      Generate thought-provoking real-world scenarios for each topic:
+      • Cover each topic equally and align with all learning outcomes.
+      • Provide scenarios at three levels—beginner, intermediate, advanced—using the same base example and extending complexity.
+      • When relevant, customize scenarios to Karnataka’s north, south, and coastal regions, using regional context only where it enhances understanding of the topic.
+
+      [Ensure all the above are feasible in low-resource Indian classrooms.]
+    mode: rag
+    dependencies: []
+    output_format:
+      beginner:
+        topic_1:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+        topic_2:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+      intermediate:
+        topic_1:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+        topic_2:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+      advanced:
+        topic_1:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+        topic_2:
+          title: ""
+          scenario:
+            description: ""
+            question: ""
+
+  - id: section_question_bank
+    title: Question Bank
+    description: |
+      Generate a comprehensive question bank that includes:
+
+      • Multiple-choice questions (MCQs) with four options and one correct answer
+      • Assessment questions requiring written responses
+
+      For each of these difficulty levels:
+      • Beginner: Direct questions testing basic knowledge and fundamental concepts
+      • Intermediate: Questions requiring deeper understanding and application in familiar contexts
+      • Advanced: Questions challenging students to analyze, evaluate and apply concepts in new contexts
+
+      Requirements:
+      • 5 MCQs and 5 assessment questions per difficulty level
+      • All questions must align with the learning outcomes
+      • Content should stay within textbook scope for the target grade
+      • Use simple, clear vocabulary appropriate for students
+      • Ensure equal coverage of all chapter topics
+      • Do not include answers for assessment questions
+    mode: rag
+    dependencies: []
+    output_format:
+      beginner:
+        MCQs:
+          content:
+            - question: ""
+              options:
+                - ""
+                - ""
+                - ""
+                - ""
+        assessment:
+          content:
+            - question: ""
+      intermediate:
+        MCQs:
+          content:
+            - question: ""
+              options:
+                - ""
+                - ""
+                - ""
+                - ""
+        assessment:
+          content:
+            - question: ""
+      advanced:
+        MCQs:
+          content:
+            - question: ""
+              options:
+                - ""
+                - ""
+                - ""
+                - ""
+        assessment:
+          content:
+            - question: ""
