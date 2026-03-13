@@ -14,9 +14,8 @@ import datetime
 import sys
 from pathlib import Path
 
-from .config import PeriodPlanConfig
 from . import api_runner, curated_to_payloads, excel_to_curated, manifest, validate
-
+from .config import PeriodPlanConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

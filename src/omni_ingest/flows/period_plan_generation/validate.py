@@ -11,7 +11,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-
 # ---------------------------------------------------------------------------
 # Shared validators
 # ---------------------------------------------------------------------------
@@ -22,7 +21,7 @@ def validate_chapter_id_structure(value: str) -> str:
     if len(parts) != 6:
         raise ValueError("must have 6 comma-separated parts: Board,Medium,Grade,Subject,Number,Title")
     expected_prefixes = ["Board=", "Medium=", "Grade=", "Subject=", "Number=", "Title="]
-    for part, prefix in zip(parts, expected_prefixes):
+    for part, prefix in zip(parts, expected_prefixes, strict=True):
         if not part.startswith(prefix):
             raise ValueError(f"must contain '{prefix}' segment in order")
         if not part[len(prefix) :].strip():

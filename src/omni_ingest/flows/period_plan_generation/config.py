@@ -62,7 +62,7 @@ class PeriodPlanConfig(BaseModel):
     discourse_types: DiscourseTypesConfig = Field(default_factory=DiscourseTypesConfig)
 
     @classmethod
-    def from_yaml(cls, path: Path | str) -> "PeriodPlanConfig":
+    def from_yaml(cls, path: Path | str) -> PeriodPlanConfig:
         p = Path(path)
         data: dict[str, Any] = yaml.safe_load(p.read_text(encoding="utf-8"))
         return cls.model_validate(data)

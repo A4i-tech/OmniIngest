@@ -16,7 +16,7 @@ from .config import PeriodPlanConfig
 
 
 def _load_workflow_template(path: Path) -> dict[str, Any]:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    return dict(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
 def _substitute_workflow(
