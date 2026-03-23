@@ -12,8 +12,6 @@ steps:
   - agent: enrichment
   - agent: embedding
   - agent: indexing
-    config:
-      vector_store_kind: lancedb
   - agent: kg_builder
   - agent: graph_indexing
   - agent: ingestion_logger

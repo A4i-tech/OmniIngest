@@ -5,10 +5,13 @@ from uuid import UUID
 import pytest
 import yaml
 
+import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import VectorIndexingAgent
+from omni_ingest.core.config import InMemoryVectorStoreConfig, LanceDBVectorStoreConfig
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
+from omni_ingest.port.vector_store import InMemoryVectorStore, LanceDBVectorStore
 
 
 @pytest.mark.parametrize(
@@ -75,6 +78,20 @@ async def test_pipeline_with_default_config():
         assert chunking_step.overlap == 50  # type: ignore
 
 
+def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        pipeline_module.settings,
+        "vector_store",
+        LanceDBVectorStoreConfig(table_name="env_vectors", path=tmp_path / "lancedb", vector_size=256),
+    )
+
+    store = pipeline_module.settings.vector_store.build()
+
+    assert isinstance(store, LanceDBVectorStore)
+    assert store.table_name == "env_vectors"
+    assert store.vector_size == 256
+
+
 @pytest.mark.asyncio
 async def test_knowledge_base_adapter_search_text():
     from unittest.mock import AsyncMock, patch
@@ -92,6 +109,25 @@ async def test_knowledge_base_adapter_search_text():
 
         mock_embed.assert_awaited_once_with("query")
         mock_vector.search.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_store_selection_ignores_yaml_storage_config(monkeypatch):
+    monkeypatch.setattr(pipeline_module.settings, "vector_store", InMemoryVectorStoreConfig(vector_size=1536))
+
+    config = {
+        "store": {"type": "qdrant", "collection": "yaml_should_be_ignored"},
+        "steps": [{"agent": "indexing"}],
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
+        yaml.dump(config, tmp)
+        tmp.flush()
+        runner = create_pipeline_from_config(Path(tmp.name))
+
+    assert isinstance(runner.vector_store, InMemoryVectorStore)
+    assert isinstance(runner.steps[0], VectorIndexingAgent)
+    assert runner.steps[0].store is runner.vector_store
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,5 @@ steps:
     config:
       model: "openai:text-embedding-3-large"
   - agent: indexing
-    config:
-      vector_store_kind: lancedb
   - agent: kg_builder
   - agent: graph_indexing

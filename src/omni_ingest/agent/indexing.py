@@ -43,8 +43,6 @@ class VectorIndexingAgent(BaseModel, Step):
     """
 
     store: Any = Field(..., description="The physical database where data will be saved")
-    vector_store_kind: str = Field("lancedb", description="Vector database type", examples=["lancedb", "qdrant"])
-    vector_store_space: str = Field("default", description="The 'room' or collection name where data lives")
     deduplication_strategy: DeduplicationStrategyConfig = Field(default_factory=NormalizedTextHashDeduplicationStrategy, description="Strategy used to skip duplicate chunks before indexing")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
@@ -73,8 +71,8 @@ class VectorIndexingAgent(BaseModel, Step):
                     knowledge_item_id=pid,
                     tenant_id=ctx.tenant_id,
                     text=i.content,
-                    vector_store_kind=self.vector_store_kind,
-                    vector_store_space=self.vector_store_space,
+                    vector_store_kind=self.store.kind,
+                    vector_store_space=self.store.space,
                     vector_store_ref_id=str(i.id),
                     metadata=i.metadata,
                 )

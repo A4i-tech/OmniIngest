@@ -21,7 +21,6 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from ..port.vector_store import InMemoryVectorStore
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepResult, StepStatus
 from .protocol import VectorStore
 
@@ -228,46 +227,17 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
         raw_config = yaml.safe_load(f)
 
     config = PipelineConfig.model_validate(raw_config)
-    store = _create_vector_store(config.store)
-    graph_store = _create_graph_store(config.graph_store)
+    vector_store = settings.vector_store.build()
+    graph_store = settings.graph_store.build()
 
     steps = []
     for s in config.steps:
         cls = get_step_class(s.agent, factory)
-        kwargs = _resolve_step_kwargs(cls, s.config, {"store": store, "graph_store": graph_store})
+        kwargs = _resolve_step_kwargs(cls, s.config, {"store": vector_store, "graph_store": graph_store})
         steps.append(cls(**kwargs))
 
     toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
-    return PipelineRunner(steps=steps, vector_store=store, graph_store=graph_store, toolsets=toolsets)
-
-
-def _create_vector_store(c: dict[str, Any]):
-    t = c.get("type", "in_memory")
-    if t == "lancedb":
-        from ..port.vector_store import LanceDBVectorStore
-
-        return LanceDBVectorStore(table_name=c.get("table", "default_vectors"), db_path=c.get("path"), vector_size=c.get("vector_size", 1536))
-    if t == "qdrant":
-        from ..port.vector_store import QdrantVectorStore
-
-        return QdrantVectorStore(
-            col=c.get("collection", "default"),
-            url=c.get("url"),
-            key=c.get("api_key"),
-            size=c.get("vector_size", 1536),
-        )
-    return InMemoryVectorStore()
-
-
-def _create_graph_store(c: dict[str, Any]):
-    t = c.get("type", "in_memory")
-    if t == "neo4j":
-        from ..port.graph_store import Neo4jGraphStore
-
-        return Neo4jGraphStore(uri=str(c.get("uri")), user=str(c.get("user")), password=str(c.get("password")))
-    from ..port.graph_store import InMemoryGraphStore
-
-    return InMemoryGraphStore()
+    return PipelineRunner(steps=steps, vector_store=vector_store, graph_store=graph_store, toolsets=toolsets)
 
 
 def _resolve_step_kwargs(cls: type, conf: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:

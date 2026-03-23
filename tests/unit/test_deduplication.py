@@ -15,6 +15,8 @@ from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedReso
 class RecordingVectorStore:
     def __init__(self):
         self.upsert_calls: list[list[KnowledgeItem]] = []
+        self.kind = self.__class__.__name__
+        self.space = "default"
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:
         self.upsert_calls.append(list(items))
@@ -49,7 +51,7 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
     )
 
     vector_store = RecordingVectorStore()
-    agent = VectorIndexingAgent(store=vector_store, vector_store_kind="memory", vector_store_space="test_space")
+    agent = VectorIndexingAgent(store=vector_store)
     ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[
@@ -111,7 +113,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         source_uri=source_uri,
     )
     first_store = RecordingVectorStore()
-    first_agent = VectorIndexingAgent(store=first_store, deduplication_strategy=strategy, vector_store_kind="memory", vector_store_space="test_space")
+    first_agent = VectorIndexingAgent(store=first_store, deduplication_strategy=strategy)
     first_item = KnowledgeItem(content="Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
     first_ctx = IngestionContext(
         tenant_id=tenant.id,
@@ -133,7 +135,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         source_uri=source_uri,
     )
     second_store = RecordingVectorStore()
-    second_agent = VectorIndexingAgent(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy(), vector_store_kind="memory", vector_store_space="test_space")
+    second_agent = VectorIndexingAgent(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy())
     replay_item = KnowledgeItem(content="Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
     replay_ctx = IngestionContext(
         tenant_id=tenant.id,

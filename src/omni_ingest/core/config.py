@@ -3,13 +3,127 @@
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import AnyHttpUrl, DirectoryPath, NewPath, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, DirectoryPath, Field, NewPath, PositiveInt, SecretStr
 from pydantic_ai.embeddings import KnownEmbeddingModelName
 from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class InMemoryVectorStoreConfig(BaseModel):
+    type: Literal["in_memory"] = "in_memory"
+    vector_size: PositiveInt = 1536
+
+    def build(self):
+        from ..port.vector_store import InMemoryVectorStore
+        return InMemoryVectorStore(vector_size=self.vector_size)
+
+
+class LanceDBVectorStoreConfig(BaseModel):
+    type: Literal["lancedb"] = "lancedb"
+    table_name: str = "default_vectors"
+    path: DirectoryPath | NewPath = DirectoryPath("./lancedb_data")
+    vector_size: PositiveInt = 1536
+
+    def build(self):
+        from ..port.vector_store import LanceDBVectorStore
+        return LanceDBVectorStore(table_name=self.table_name, db_path=str(self.path), vector_size=self.vector_size)
+
+
+class QdrantVectorStoreConfig(BaseModel):
+    type: Literal["qdrant"] = "qdrant"
+    url: AnyHttpUrl = AnyHttpUrl("http://localhost:6333")
+    api_key: SecretStr | None = None
+    collection_name: str = "default"
+    vector_size: PositiveInt = 1536
+
+    def build(self):
+        from ..port.vector_store import QdrantVectorStore
+        return QdrantVectorStore(
+            col=self.collection_name,
+            url=str(self.url),
+            key=self.api_key.get_secret_value() if self.api_key else None,
+            size=self.vector_size,
+        )
+
+
+class MongoVectorStoreConfig(BaseModel):
+    type: Literal["mongo"] = "mongo"
+    uri: str
+    database_name: str
+    collection_name: str
+    index_name: str = "vector_index"
+    num_candidates: PositiveInt = 100
+
+    def build(self):
+        from ..port.vector_store import MongoVectorStore
+
+        return MongoVectorStore(
+            uri=self.uri,
+            database_name=self.database_name,
+            collection_name=self.collection_name,
+            index_name=self.index_name,
+            num_candidates=self.num_candidates,
+        )
+
+
+class AzureVectorSearchStoreConfig(BaseModel):
+    type: Literal["azure_vector_search"] = "azure_vector_search"
+    endpoint: AnyHttpUrl
+    api_key: SecretStr
+    index_name: str
+
+    def build(self):
+        from ..port.vector_store import AzureVectorSearchStore
+
+        return AzureVectorSearchStore(
+            endpoint=str(self.endpoint),
+            api_key=self.api_key.get_secret_value(),
+            index_name=self.index_name,
+        )
+
+
+class ChromaVectorStoreConfig(BaseModel):
+    type: Literal["chroma"] = "chroma"
+    collection_name: str = "default"
+    path: DirectoryPath | NewPath = DirectoryPath("./chroma_data")
+
+    def build(self):
+        from ..port.vector_store import ChromaVectorStore
+
+        return ChromaVectorStore(collection_name=self.collection_name, path=str(self.path))
+
+
+class InMemoryGraphStoreConfig(BaseModel):
+    type: Literal["in_memory"] = "in_memory"
+
+    def build(self):
+        from ..port.graph_store import InMemoryGraphStore
+
+        return InMemoryGraphStore()
+
+
+class Neo4jGraphStoreConfig(BaseModel):
+    type: Literal["neo4j"] = "neo4j"
+    uri: str
+    user: str
+    password: SecretStr
+
+    def build(self):
+        from ..port.graph_store import Neo4jGraphStore
+        return Neo4jGraphStore(uri=self.uri, user=self.user, password=self.password.get_secret_value())
+
+
+type VectorStoreConfig = Annotated[
+    InMemoryVectorStoreConfig | LanceDBVectorStoreConfig | QdrantVectorStoreConfig | MongoVectorStoreConfig | AzureVectorSearchStoreConfig | ChromaVectorStoreConfig,
+    Field(discriminator="type"),
+]
+type GraphStoreConfig = Annotated[
+    InMemoryGraphStoreConfig | Neo4jGraphStoreConfig,
+    Field(discriminator="type"),
+]
 
 
 class Settings(BaseSettings):
@@ -24,14 +138,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
-    qdrant_url: AnyHttpUrl = AnyHttpUrl("http://localhost:6333")
-    """URL for Qdrant vector database"""
+    vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)
+    """Vector store configuration selected entirely through environment configuration"""
 
-    qdrant_api_key: SecretStr | None = None
-    """API key for Qdrant"""
-
-    lancedb_path: DirectoryPath | NewPath = DirectoryPath("./lancedb_data")
-    """Local path for LanceDB storage"""
+    graph_store: GraphStoreConfig = Field(default_factory=InMemoryGraphStoreConfig)
+    """Graph store configuration selected entirely through environment configuration"""
 
     azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""
@@ -39,7 +150,7 @@ class Settings(BaseSettings):
     azure_speech_region: str | None = None
     """Azure Speech SDK service region"""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
 
 settings = Settings()
@@ -57,12 +168,7 @@ class ProfileManager:
 
     def _substitute_env_vars(self, content: str) -> str:
         pattern = re.compile(r"\$\{env\.(\w+)\}")
-
-        def replace(match):
-            var_name = match.group(1)
-            return os.environ.get(var_name, match.group(0))
-
-        return pattern.sub(replace, content)
+        return pattern.sub(lambda match: os.environ.get(match.group(1), match.group(0)), content)
 
     def load_profile(self, profile_name: str) -> dict[str, Any]:
         profile_path = self.profiles_dir / f"{profile_name}.yaml"

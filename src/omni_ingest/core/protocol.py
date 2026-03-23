@@ -8,23 +8,6 @@ from pydantic import PositiveInt
 from .model import KnowledgeItem
 
 
-@runtime_checkable
-class ObjectStore(Protocol):
-    """
-    Interface for binary data storage systems.
-
-    The ObjectStore protocol defines methods for the persistence and
-    retrieval of raw binary data, such as documents, images, or audio files,
-    across various storage backends.
-    """
-
-    async def put(self, data: bytes, key: str, metadata: dict | None = None) -> str: ...
-    async def get(self, key: str) -> bytes: ...
-    async def exists(self, key: str) -> bool: ...
-    async def delete(self, key: str) -> None: ...
-    async def close(self) -> None: ...
-
-
 class VectorStore(Protocol):
     """
     Interface for vector-based search and retrieval systems.
@@ -48,6 +31,16 @@ class VectorStore(Protocol):
 
     async def close(self) -> None:
         """Closes the connection to the store."""
+        ...
+
+    @property
+    def kind(self) -> str:
+        """Stable identifier for the backing vector store implementation."""
+        ...
+
+    @property
+    def space(self) -> str:
+        """Logical namespace used by the vector store, such as a table or collection."""
         ...
 
 

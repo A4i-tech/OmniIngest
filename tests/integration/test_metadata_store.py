@@ -143,7 +143,7 @@ async def test_pipeline_registration(metadata_store):
 async def test_indexing_agent_registers_chunks(metadata_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     vstore = InMemoryVectorStore()
-    agent = VectorIndexingAgent(store=vstore, vector_store_kind="memory", vector_store_space="test_space")
+    agent = VectorIndexingAgent(store=vstore)
     item = KnowledgeItem(content="Chunk 1", metadata={"embedding": [0.1] * 1536})
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=""))
     res = await PipelineRunner([agent]).run(ctx)

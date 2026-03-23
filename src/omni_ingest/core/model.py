@@ -117,7 +117,5 @@ class PipelineConfig(BaseModel):
     domain_profile: str = Field("default", description="Domain profile name")
     input_modality: str | None = Field(None, description="Expected input modality", examples=["text", "document", "audio"])
     description: str | None = Field(None, description="Purpose of this pipeline")
-    store: dict[str, Any] = Field(default_factory=dict, description="Configuration for the metadata store")
-    graph_store: dict[str, Any] = Field(default_factory=dict, description="Configuration for the graph store")
     steps: list[StepConfig] = Field(..., description="Ordered list of agentic steps to execute")
     tool_vendors: dict[str, MCPServerTypes] = Field(default_factory=dict, description="Configured tool vendors available for agents")

@@ -8,5 +8,3 @@ steps:
   - agent: enrichment
   - agent: embedding
   - agent: indexing
-    config:
-      vector_store_kind: lancedb
