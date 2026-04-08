@@ -18,7 +18,9 @@ from omni_ingest.agent.governance import (
     QualityVerifierAgent,
 )
 from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.agent.misc import PipelineAgent
+from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepResult, StepStatus
+from omni_ingest.core.pipeline import PipelineRunner
 
 
 def create_ctx(store, content):
@@ -222,3 +224,29 @@ async def test_ingestion_logger_agent(store):
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "timestamp" in result.metadata
+
+
+def test_pipeline_agent_resolves_runner_from_config_path(tmp_path):
+    config_path = tmp_path / "null.yaml"
+    config_path.write_text("steps: []\n")
+    agent = PipelineAgent(pipeline=config_path)
+    assert isinstance(agent.pipeline, PipelineRunner)
+
+
+def test_pipeline_agent_rejects_missing_config_path(tmp_path):
+    with pytest.raises(ValueError, match="Pipeline config file not found"):
+        PipelineAgent(pipeline=tmp_path / "missing.yaml")
+
+
+@pytest.mark.asyncio
+async def test_pipeline_agent_returns_last_nested_step_result(store):
+    final_result = StepResult(status=StepStatus.SUCCESS, metadata={"nested": "done"})
+    runner = PipelineRunner(steps=[])
+    ctx = create_ctx(store, "nested content")
+
+    with patch.object(runner, "run", new=AsyncMock(return_value=[StepResult(status=StepStatus.SUCCESS), final_result])) as mock_run:
+        agent = PipelineAgent(pipeline=runner)
+        result = await agent.run(ctx)
+
+    mock_run.assert_awaited_once_with(ctx)
+    assert result is final_result

@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+import json
 import logging
 import traceback
 from collections.abc import AsyncIterator, Mapping
@@ -48,6 +49,8 @@ _STEP_FACTORY: StepFactory = {
     "indexing": agent.indexing.VectorIndexingAgent,
     "keyword_indexing": agent.indexing.KeywordIndexingAgent,
     "graph_indexing": agent.indexing.GraphIndexingAgent,
+
+    "pipeline": agent.misc.PipelineAgent
 }
 
 class PipelineRunner:
@@ -215,7 +218,7 @@ def lookup_step_id(step: Step, factory: StepFactory | None = None) -> str | None
     return None
 
 
-def create_pipeline_from_config(config_path: Path, factory: StepFactory | None = None) -> PipelineRunner:
+def create_pipeline_from_config(config_path: Path, factory: StepFactory | None = None, config_args: dict[str, str] | None = None) -> PipelineRunner:
     """
     Factory function to create a PipelineRunner from a YAML configuration file.
 
@@ -233,7 +236,8 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
     steps = []
     for s in config.steps:
         cls = get_step_class(s.agent, factory)
-        kwargs = _resolve_step_kwargs(cls, s.config, {"store": vector_store, "graph_store": graph_store})
+        resolved_config = json.loads(json.dumps(s.config).format_map(config_args or {}))
+        kwargs = _resolve_step_kwargs(cls, resolved_config, {"store": vector_store, "graph_store": graph_store})
         steps.append(cls(**kwargs))
 
     toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
