@@ -10,10 +10,18 @@ from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepSta
 
 
 class StructureAgent(BaseModel, Step, AgentMixin):
-    prompt: str = Field(...)
-    json_schema: dict[str, Any] = Field(...)
-    metadata_key: str | None = Field(None)
-    method: Literal["set", "append", "update"] = Field("set")
+    """
+    Extracts structured metadata from text items using an LLM.
+
+    The supplied JSON schema defines the modeled output. The extracted value
+    can replace a metadata field, extend a metadata list, or update the
+    item metadata directly.
+    """
+
+    prompt: str = Field(..., description="Prompt template. Use {text} for item text")
+    json_schema: dict[str, Any] = Field(..., description="JSON schema for the structured model output")
+    metadata_key: str | None = Field(None, description="Metadata field used by set and append methods")
+    method: Literal["set", "append", "update"] = Field("set", description="How extracted data is applied to item metadata")
 
     _output_key: str = PrivateAttr("output")
     _output_type: type[BaseModel] = PrivateAttr()
