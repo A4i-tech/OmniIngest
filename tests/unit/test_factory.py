@@ -8,6 +8,7 @@ import yaml
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import VectorIndexingAgent
+from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.config import InMemoryVectorStoreConfig, LanceDBVectorStoreConfig
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
@@ -76,6 +77,40 @@ async def test_pipeline_with_default_config():
 
         assert chunking_step.chunk_size == 512  # type: ignore
         assert chunking_step.overlap == 50  # type: ignore
+
+
+def test_pipeline_inlines_local_yaml_component(tmp_path):
+    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}, {"agent": "chunking", "config": {"chunk_size": 64}}]}))
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "component"}]}))
+
+    runner = create_pipeline_from_config(root)
+
+    assert [type(step) for step in runner.steps] == [TextAgent, SentenceChunkingAgent]
+    assert runner.steps[1].chunk_size == 64  # type: ignore
+
+
+def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    (profiles / "keyword_indexing.yaml").write_text(yaml.dump({"steps": [{"agent": "chunking", "config": {"chunk_size": 32}}]}))
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "keyword_indexing"}]}))
+    monkeypatch.chdir(tmp_path)
+
+    runner = create_pipeline_from_config(root)
+
+    assert len(runner.steps) == 1
+    assert isinstance(runner.steps[0], SentenceChunkingAgent)
+    assert runner.steps[0].chunk_size == 32  # type: ignore
+
+
+def test_pipeline_detects_component_cycles(tmp_path):
+    (tmp_path / "a.yaml").write_text(yaml.dump({"steps": [{"agent": "b"}]}))
+    (tmp_path / "b.yaml").write_text(yaml.dump({"steps": [{"agent": "a"}]}))
+
+    with pytest.raises(ValueError, match="Pipeline component cycle detected"):
+        create_pipeline_from_config(tmp_path / "a.yaml")
 
 
 def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):

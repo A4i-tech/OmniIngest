@@ -21,7 +21,7 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepResult, StepStatus
+from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepConfig, StepResult, StepStatus
 from .protocol import VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
@@ -227,15 +227,12 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
         config_path: Path to the .yaml configuration file.
         factory: Factory to use to resolve and load steps from.
     """
-    with config_path.open() as f:
-        raw_config = yaml.safe_load(f)
-
-    config = PipelineConfig.model_validate(raw_config)
+    config = _load_pipeline_config(config_path)
     vector_store = settings.vector_store.build()
     graph_store = settings.graph_store.build()
 
     steps = []
-    for s in config.steps:
+    for s in _flatten_steps(config.steps, config_path.parent, factory):
         cls = get_step_class(s.agent, factory)
         #resolved_config = json.loads(json.dumps(s.config).format_map(config_args or {}))
         kwargs = _resolve_step_kwargs(cls, s.config, {"store": vector_store, "graph_store": graph_store})
@@ -243,6 +240,39 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
 
     toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
     return PipelineRunner(steps=steps, vector_store=vector_store, graph_store=graph_store, toolsets=toolsets)
+
+
+def _load_pipeline_config(path: Path) -> PipelineConfig:
+    with path.open() as f:
+        return PipelineConfig.model_validate(yaml.safe_load(f))
+
+
+def _flatten_steps(steps: list[StepConfig], base_dir: Path, factory: StepFactory | None = None, stack: tuple[Path, ...] = ()) -> list[StepConfig]:
+    flat = []
+    for step in steps:
+        if path := _resolve_step_pipeline_path(step.agent, base_dir, factory):
+            path = path.resolve()
+            if path in stack:
+                cycle = " -> ".join(str(p) for p in (*stack, path))
+                raise ValueError(f"Pipeline component cycle detected: {cycle}")
+            flat.extend(_flatten_steps(_load_pipeline_config(path).steps, path.parent, factory, (*stack, path)))
+        else:
+            flat.append(step)
+    return flat
+
+
+def _resolve_step_pipeline_path(agent_id: str, base_dir: Path, factory: StepFactory | None = None) -> Path | None:
+    path = Path(agent_id)
+    if not path.suffix: path = path.with_suffix(".yaml")
+
+    local = path if path.is_absolute() else base_dir / path
+    if local.is_file(): return local
+
+    profile = Path("profiles") / path
+    if profile.is_file(): return profile
+
+    get_step_class(agent_id, factory)
+    return None
 
 
 def _resolve_step_kwargs(cls: type, conf: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
