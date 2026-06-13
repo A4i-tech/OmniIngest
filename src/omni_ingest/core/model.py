@@ -1,7 +1,7 @@
 """Pydantic data models for knowledge items, contexts, and results."""
 
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Generic, TypeVar, final
 from uuid import UUID, uuid4
@@ -15,7 +15,7 @@ from pydantic_ai.models import KnownModelName
 from .config import settings
 
 
-class StepStatus(str, Enum):
+class StepStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"

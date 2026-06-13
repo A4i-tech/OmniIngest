@@ -22,10 +22,13 @@ class StructureAgent(BaseModel, Step, AgentMixin):
     def build_output_type(self):
         schema = self.json_schema
         if self.method == "update":
-            if schema.get("type") != "object": raise ValueError("update requires object schema")
+            if schema.get("type") != "object":
+                raise ValueError("update requires object schema")
         else:
-            if self.metadata_key is None: raise ValueError(f"{self.method} requires metadata_key")
-            if self.method == "append" and schema.get("type") != "array": raise ValueError(f"{self.method} requires array schema")
+            if self.metadata_key is None:
+                raise ValueError(f"{self.method} requires metadata_key")
+            if self.method == "append" and schema.get("type") != "array":
+                raise ValueError(f"{self.method} requires array schema")
             schema = {"type": "object", "properties": {self._output_key: schema}, "required": [self._output_key]}
 
         self._output_type = generate_dynamic_models(schema, config=GenerateConfig(formatters=[]))["Model"]

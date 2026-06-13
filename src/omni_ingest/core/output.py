@@ -7,8 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .model import IngestionContext, ResolvedResource, StepStatus
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
+from .model import IngestionContext, ResolvedResource, StepStatus
 
 
 class OutputResult(BaseModel):
@@ -81,6 +81,8 @@ class GraphStoreOutput(BaseModel, Output):
         if not kg_data or not ctx.items:
             return OutputResult(status=StepStatus.SKIPPED, error="No KG data found in context")
 
-        if nodes := kg_data.get("nodes"): await self.store.upsert_nodes(nodes)
-        if edges := kg_data.get("edges"): await self.store.upsert_edges(edges)
+        if nodes := kg_data.get("nodes"):
+            await self.store.upsert_nodes(nodes)
+        if edges := kg_data.get("edges"):
+            await self.store.upsert_edges(edges)
         return OutputResult(status=StepStatus.SUCCESS, metadata={"graph_nodes": len(kg_data.get("nodes", []))})

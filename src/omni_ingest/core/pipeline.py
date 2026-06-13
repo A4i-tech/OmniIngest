@@ -11,11 +11,12 @@ from typing import Any
 from uuid import UUID
 
 import yaml
+from fastmcp import Client
 from fastmcp.mcp_config import MCPConfig
 from pydantic import PositiveInt, validate_call
 from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
-from pydantic_ai.toolsets.fastmcp import FastMCPToolset
+from pydantic_ai.mcp import MCPToolset
 
 from .. import agent
 from ..core import event
@@ -233,8 +234,7 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
         #resolved_config = json.loads(json.dumps(s.config).format_map(config_args or {}))
         kwargs = _resolve_step_kwargs(cls, s.config, {})
         steps.append(cls(**kwargs))
-
-    toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
+    toolsets = {k: MCPToolset(Client(MCPConfig(mcpServers={k: v}).to_dict())) for k, v in config.tool_vendors.items()}
     return PipelineRunner(steps=steps, toolsets=toolsets)
 
 
@@ -259,13 +259,16 @@ def _flatten_steps(steps: list[StepConfig], base_dir: Path, factory: StepFactory
 
 def _resolve_step_pipeline_path(agent_id: str, base_dir: Path, factory: StepFactory | None = None) -> Path | None:
     path = Path(agent_id)
-    if not path.suffix: path = path.with_suffix(".yaml")
+    if not path.suffix:
+        path = path.with_suffix(".yaml")
 
     local = path if path.is_absolute() else base_dir / path
-    if local.is_file(): return local
+    if local.is_file():
+        return local
 
     profile = Path("profiles") / path
-    if profile.is_file(): return profile
+    if profile.is_file():
+        return profile
 
     get_step_class(agent_id, factory)
     return None
