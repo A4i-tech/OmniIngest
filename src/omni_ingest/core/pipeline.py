@@ -37,8 +37,7 @@ _STEP_FACTORY: StepFactory = {
     "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
     "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
 
-    "enrichment": agent.enrichment.DomainEnrichmentAgent,
-    "learning_outcome": agent.enrichment.LearningOutcomeExtractionAgent,
+    "structure": agent.structure.StructureAgent,
     "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
     "faq_generation": agent.enrichment.FAQGenerationAgent,
 
@@ -48,7 +47,6 @@ _STEP_FACTORY: StepFactory = {
 
     "embedding": agent.indexing.EmbeddingAgent,
     "indexing": agent.indexing.VectorIndexingAgent,
-    "keyword_indexing": agent.indexing.KeywordIndexingAgent,
     "graph_indexing": agent.indexing.GraphIndexingAgent,
 
     "pipeline": agent.misc.PipelineAgent
@@ -280,7 +278,9 @@ def _resolve_step_kwargs(cls: type, conf: dict[str, Any], resources: dict[str, A
 
     if issubclass(cls, BaseModel):
         fields = cls.model_fields
-        return {p: conf[p] if p in conf else resources[p] for p in fields if p in conf or p in resources}
+        kwargs = {p: resources[p] for p in fields if p in resources}
+        kwargs.update(conf)
+        return kwargs
 
     try:
         sig = inspect.signature(cls.__init__)

@@ -1,0 +1,11 @@
+pipeline_id: keyword_indexing
+steps:
+  - agent: structure
+    config:
+      metadata_key: keywords
+      method: append
+      prompt: "Extract 5-10 descriptive keywords from the text. Content: {text}"
+      json_schema:
+        type: array
+        items:
+          type: string

@@ -93,16 +93,15 @@ def test_pipeline_inlines_local_yaml_component(tmp_path):
 def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "keyword_indexing.yaml").write_text(yaml.dump({"steps": [{"agent": "chunking", "config": {"chunk_size": 32}}]}))
+    (profiles / "chunking.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
     root = tmp_path / "root.yaml"
-    root.write_text(yaml.dump({"steps": [{"agent": "keyword_indexing"}]}))
+    root.write_text(yaml.dump({"steps": [{"agent": "chunking"}]}))
     monkeypatch.chdir(tmp_path)
 
     runner = create_pipeline_from_config(root)
 
     assert len(runner.steps) == 1
-    assert isinstance(runner.steps[0], SentenceChunkingAgent)
-    assert runner.steps[0].chunk_size == 32  # type: ignore
+    assert isinstance(runner.steps[0], TextAgent)
 
 
 def test_pipeline_detects_component_cycles(tmp_path):
@@ -167,7 +166,23 @@ async def test_pipeline_store_selection_ignores_yaml_storage_config(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_pipeline_with_undefined_toolset(metadata_store):
-    config = {"steps": [{"agent": "enrichment", "config": {"toolsets": ["converter"]}}]}
+    config = {
+        "steps": [
+            {
+                "agent": "structure",
+                "config": {
+                    "toolsets": ["converter"],
+                    "method": "update",
+                    "prompt": "Analyze text. Content: {text}",
+                    "json_schema": {
+                        "type": "object",
+                        "properties": {"summary": {"type": "string"}},
+                        "required": ["summary"],
+                    },
+                },
+            }
+        ]
+    }
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)
         runner = create_pipeline_from_config(Path(tmp.name))

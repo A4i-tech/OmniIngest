@@ -42,9 +42,6 @@ steps:
   - agent: text
   - agent: markdown_cleaning
   - agent: enrichment
-    config:
-      model: "openai:gpt-5"
-      prompt_template: "Summarize this content and extract key technical entities."
   - agent: chunking
     config:
       chunk_size: 512

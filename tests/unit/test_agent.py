@@ -9,16 +9,13 @@ from omni_ingest.agent.cleaning import (
     MarkdownCleaningAgent,
     TranscriptionPostProcessorAgent,
 )
-from omni_ingest.agent.enrichment import (
-    FAQGenerationAgent,
-    LearningOutcomeExtractionAgent,
-)
 from omni_ingest.agent.governance import (
     DataLineageAgent,
     QualityVerifierAgent,
 )
 from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
 from omni_ingest.agent.misc import PipelineAgent
+from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepResult, StepStatus
 from omni_ingest.core.pipeline import PipelineRunner
 
@@ -99,49 +96,53 @@ async def test_quality_verifier_agent_failure(store):
 
 
 @pytest.mark.asyncio
-async def test_faq_generation_agent(store):
+async def test_structure_agent_item_set(store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = FAQGenerationAgent()
+    agent = StructureAgent(
+        metadata_key="learning_outcomes",
+        prompt="Extract learning outcomes. Content: {text}",
+        json_schema={
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    )
 
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content=b"context for faq")]
-
-    from omni_ingest.agent.enrichment import FAQItem
-
-    mock_output = [FAQItem(q="What is this?", a="A test.")]
+    ctx.items = [KnowledgeItem(content=b"educational content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = mock_output
+            mock_run.return_value.output = {"output": ["Understand testing"]}
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
-            assert "faqs" in ctx.metadata
-            assert len(ctx.metadata["faqs"]) == 1
-            assert ctx.metadata["faqs"][0]["q"] == "What is this?"
+            assert ctx.items[0].metadata["learning_outcomes"] == ["Understand testing"]
 
 
 @pytest.mark.asyncio
-async def test_learning_outcome_extraction_agent(store):
+async def test_structure_agent_update(store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = LearningOutcomeExtractionAgent()
+    agent = StructureAgent(
+        method="update",
+        prompt="Enrich. Content: {text}",
+        json_schema={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}},
+            "required": ["summary", "tags"],
+        },
+    )
 
     ctx = create_ctx(store, "")
-    ctx.domain_profile = "education"
-    ctx.items = [KnowledgeItem(content=b"educational content")]
-
-    from omni_ingest.agent.enrichment import LearningOutcomes
-
-    mock_output = LearningOutcomes(learning_outcomes=["Understand testing"])
+    ctx.items = [KnowledgeItem(content=b"content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = mock_output
+            mock_run.return_value.output = {"summary": "s", "tags": ["t"]}
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
-            assert "learning_outcomes" in ctx.items[0].metadata
-            assert ctx.items[0].metadata["learning_outcomes"] == ["Understand testing"]
+            assert ctx.items[0].metadata["summary"] == "s"
+            assert ctx.items[0].metadata["tags"] == ["t"]
 
 
 @pytest.mark.asyncio

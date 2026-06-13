@@ -25,7 +25,6 @@ class MCPCallingAgent(BaseModel, Step, AgentMixin):
         )
         return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=response.output.bark.encode())], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
 
-
 def create_runner(config: dict[str, Any]):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)

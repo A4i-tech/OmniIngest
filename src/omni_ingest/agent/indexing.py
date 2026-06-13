@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
 from ..core.config import settings
-from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import IngestionContext, ResolvedResource, Step, StepResult, StepStatus
 from .deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
 
 
@@ -86,34 +86,6 @@ class VectorIndexingAgent(BaseModel, Step):
                 "deduplication_scope": deduplication_result.scope,
             },
         )
-
-
-class Keywords(BaseModel):
-    keywords: list[str] = Field(..., description="Extracted keywords from content")
-
-
-class KeywordIndexingAgent(BaseModel, Step, AgentMixin):
-    """
-    Identifies and indexes searchable keywords from KnowledgeItems.
-
-    This agent utilizes an LLM to extract primary keywords and phrases
-    from text content, facilitating keyword-based search and filtering
-    operations.
-    """
-
-    async def run(self, ctx: IngestionContext) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No items for keywords")
-
-        prompt_tmpl = "Extract 5-10 descriptive keywords from the text. Content: {text}"
-
-        agent = self._agent(ctx)
-        for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.decode()), output_type=Keywords)
-            keywords = res.output.keywords
-            item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
-
-        return StepResult(status=StepStatus.SUCCESS, metadata={"items_processed": len(ctx.items)})
 
 
 class GraphIndexingAgent(BaseModel, Step):
