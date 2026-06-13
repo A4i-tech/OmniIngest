@@ -1,14 +1,17 @@
 """Agents for modality transformation."""
 
 import io
+import mimetypes
+from typing import Any, BinaryIO
 
 from pydantic import BaseModel, Field
+from pydantic_ai import BinaryContent
 
-from ..core.model import ByteContent, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
-from ..parser import parse
+from ..core.model import AgentMixin, ByteContent, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+from ..parser import parse_audio, parse_document, parse_text
 
 
-class TextAgent(BaseModel, Step):
+class TextAgent(BaseModel, Step, AgentMixin):
     """
     Transforms incoming modality into textual content.
 
@@ -23,17 +26,53 @@ class TextAgent(BaseModel, Step):
 
     encoding: str = Field("utf-8", description="Encoding used for decoded text bytes")
 
+    image_conversion_prompt: str = Field("""
+        Convert the image into a complete, accessibility-focused text description for someone who cannot see it.
+        Capture all visible text exactly, describe the layout, objects, people, actions, relationships, colors, symbols, charts, tables, UI elements, and any important visual context.
+        Preserve reading order where possible.
+        Be factual, avoid guessing, and clearly mark anything uncertain.
+        The output should let a visually impaired person understand and reason about the image without needing to view it.
+    """.strip(), description="The prompt to use when transforming image to text.")
+
+
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        await self.convert(ctx.resource, ctx.resource.uri)
+        await self.convert(ctx, ctx.resource, ctx.resource.uri)
         for item in ctx.items:
-            await self.convert(item, item.source_uri or ctx.resource.uri)
+            await self.convert(ctx, item, item.source_uri or ctx.resource.uri)
         return StepResult(status=StepStatus.SUCCESS, metadata={"content_type": ctx.resource.content_type})
 
-    async def convert(self, obj: ByteContent, uri: str) -> None:
+
+    async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
         if not obj.content_type.startswith("text/"):
-            text, metadata = await parse(uri, io.BytesIO(obj.content), encoding=self.encoding)
+            text, metadata = await self.parse(ctx, uri, io.BytesIO(obj.content), encoding=self.encoding)
             obj.metadata.update(metadata)
             obj.content = text.encode(self.encoding)
             if not (ct := obj.content_type).startswith("text/") and ct != "application/x-empty":
                 raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
         obj.content_encoding = self.encoding
+
+
+    async def parse(self, ctx: IngestionContext[ResolvedResource], path: str, stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
+        content_type, _ = mimetypes.guess_type(path)
+        content_type = content_type or "application/octet-stream"
+
+        if content_type.startswith("audio/"):
+            content, metadata = await parse_audio(path, stream)
+            metadata["selected_parser"] = "audio"
+            return content, metadata
+        if content_type.startswith("text/"):
+            content, metadata = await parse_text(stream, encoding=encoding)
+            metadata["selected_parser"] = "text"
+            return content, metadata
+        if content_type.startswith("application/"):
+            content, metadata = await parse_document(stream, encoding=encoding)
+            metadata["selected_parser"] = "document"
+            return content, metadata
+        if content_type.startswith("image/"):
+            result = await self._agent(ctx).run(
+                [BinaryContent(data=stream.read(), media_type=content_type)],
+                instructions=self.image_conversion_prompt,
+            )
+            return result.output, {"selected_parser": "image"}
+
+        raise ValueError(f"Unsupported data URI MIME type: {content_type!r}")

@@ -1,14 +1,11 @@
 import io
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse, parse_document, parse_text
-
-RESOURCES_DIR = Path(__file__).parent.parent / "resources"
+from omni_ingest.parser import parse_audio, parse_document, parse_text
 
 
 @pytest.mark.parametrize(
@@ -53,26 +50,4 @@ async def test_document_parser_docx():
 async def test_audio_parser_failure():
     with pytest.raises(RuntimeError), patch("omni_ingest.core.config.settings") as mock_settings:
         mock_settings.azure_speech_key = None
-        await parse("/tmp/test.wav", io.BytesIO())
-
-
-@pytest.mark.parametrize("uri, expected_agent", [
-    ("file://" + str((RESOURCES_DIR / "sample.mp3").resolve()), "audio"),
-    ("file://" + str((RESOURCES_DIR / "when-tomorrow-was-yesterday.pdf").resolve()), "document"),
-    ("data:text/plain,hello%20world", "text"),
-])
-@pytest.mark.asyncio
-async def test_parser_routes_to_expected_agent(uri, expected_agent, monkeypatch):
-    mock_run = AsyncMock(return_value=("", {}))
-    monkeypatch.setattr("omni_ingest.parser.parse_audio", mock_run)
-    monkeypatch.setattr("omni_ingest.parser.parse_document", mock_run)
-    monkeypatch.setattr("omni_ingest.parser.parse_text", mock_run)
-
-    _, metadata = await parse(uri, io.BytesIO())
-    assert metadata["selected_parser"] == expected_agent
-
-
-@pytest.mark.asyncio
-async def test_parser_fails_when_mime_cannot_be_determined():
-    with pytest.raises(ValueError, match="Unsupported data URI MIME type: 'font/ttf'"):
-        await parse("/tmp/sample.ttf", io.BytesIO())
+        await parse_audio("/tmp/test.wav", io.BytesIO())

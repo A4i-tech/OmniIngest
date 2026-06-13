@@ -1,7 +1,6 @@
 import asyncio
 import io
 import json
-import mimetypes
 import re
 import shutil
 import tempfile
@@ -158,23 +157,3 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     if content.startswith(b"PK\x03\x04"):
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
-
-
-async def parse(path: str, stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
-    content_type, _ = mimetypes.guess_type(path)
-    content_type = content_type or "application/octet-stream"
-
-    if content_type.startswith("audio/"):
-        content, metadata = await parse_audio(path, stream)
-        metadata["selected_parser"] = "audio"
-        return content, metadata
-    if content_type.startswith("text/"):
-        content, metadata = await parse_text(stream, encoding=encoding)
-        metadata["selected_parser"] = "text"
-        return content, metadata
-    if content_type.startswith("application/"):
-        content, metadata = await parse_document(stream, encoding=encoding)
-        metadata["selected_parser"] = "document"
-        return content, metadata
-
-    raise ValueError(f"Unsupported data URI MIME type: {content_type!r}")
