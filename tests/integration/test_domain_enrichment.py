@@ -51,4 +51,3 @@ async def test_graph_indexing_agent(metadata_store):
     res = await PipelineRunner([graph_agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS
     assert res[0].metadata["graph_nodes"] == 2
-    assert item.structured_views["knowledge_graph"]["nodes"][0]["id"] == "n1"

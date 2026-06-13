@@ -42,15 +42,8 @@ class KnowledgeItem(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the knowledge item")
     tenant_id: UUID | None = Field(None, description="Identifier for the associated tenant or organization")
-    domain_profile: str = Field("default", description="Categorization label for the data domain")
-    modality: str = Field("text", description="Data format", examples=["text", "audio", "image"])
     source_uri: str | None = Field(None, description="Origin URI of the raw data")
-    title: str | None = Field(None, description="Human-readable title for the item")
     content: str = Field("", description="The primary data content of the item")
-    description: str | None = Field(None, description="A brief summary of the item content")
-    embeddings: list[dict[str, Any]] | None = Field(None, description="Vector representations for semantic search operations")
-    structured_views: dict[str, Any] = Field(default_factory=dict, description="Organized data representations")
-    lineage: dict[str, Any] = Field(default_factory=dict, description="Metadata trace documenting the item's creation and transformation history")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary key-value pairs for additional contextual information")
 
 

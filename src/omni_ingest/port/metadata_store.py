@@ -108,6 +108,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 domain_profile=domain_profile,
                 modality=modality,
                 source_uri=source_uri,
+                content=content,
                 pipeline_version_id=pipeline_version_id,
                 title=title,
                 description=description,
@@ -125,15 +126,8 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 return KnowledgeItem(
                     id=r.id,
                     tenant_id=r.tenant_id,
-                    domain_profile=r.domain_profile,
-                    modality=r.modality,
                     source_uri=r.source_uri,
                     content=r.content or "",
-                    title=r.title,
-                    description=r.description,
-                    embeddings=r.embeddings,
-                    structured_views=r.structured_views or {},
-                    lineage=r.lineage or {},
                     metadata=r.metadata_ or {},
                 )
             return None
@@ -184,15 +178,8 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 KnowledgeItem(
                     id=r.id,
                     tenant_id=r.tenant_id,
-                    domain_profile=r.domain_profile,
-                    modality=r.modality,
                     source_uri=r.source_uri,
                     content=r.content or "",
-                    title=r.title,
-                    description=r.description,
-                    embeddings=r.embeddings,
-                    structured_views=r.structured_views or {},
-                    lineage=r.lineage or {},
                     metadata=r.metadata_ or {},
                 )
                 for r in records

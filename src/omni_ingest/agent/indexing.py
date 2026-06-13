@@ -133,8 +133,4 @@ class GraphIndexingAgent(BaseModel, Step):
         if edges := kg_data.get("edges"):
             await self.graph_store.upsert_edges(edges)
 
-        for item in ctx.items:
-            item.structured_views = item.structured_views or {}
-            item.structured_views["knowledge_graph"] = kg_data
-
         return StepResult(status=StepStatus.SUCCESS, metadata={"graph_nodes": len(kg_data.get("nodes", []))})

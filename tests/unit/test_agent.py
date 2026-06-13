@@ -90,7 +90,7 @@ async def test_quality_verifier_agent_failure(store):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
             mock_run.return_value.output = mock_output
             result = await agent.run(ctx)
-    
+
             assert result.status == StepStatus.FAILURE
             assert result.error is not None and "Quality check failed" in result.error
             assert result.metadata["quality_score"] == 0.4
@@ -149,7 +149,7 @@ async def test_data_lineage_agent(store):
     ctx.items = [KnowledgeItem(content="test", metadata={})]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
-    assert "run_id" in ctx.items[0].lineage
+    assert "run_id" in result.metadata
 
 
 @pytest.mark.asyncio
@@ -178,13 +178,14 @@ async def test_vector_indexing_agent(store):
 
 @pytest.mark.asyncio
 async def test_graph_indexing_agent(store):
-    agent = GraphIndexingAgent(graph_store=AsyncMock())
+    mock_store = AsyncMock()
+    agent = GraphIndexingAgent(graph_store=mock_store)
     ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content="test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
-    assert "knowledge_graph" in ctx.items[0].structured_views
+    mock_store.upsert_nodes.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -197,7 +198,6 @@ async def test_graph_indexing_agent_with_store(store):
 
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
-    assert "knowledge_graph" in ctx.items[0].structured_views
     mock_store.upsert_nodes.assert_awaited_once()
     mock_store.upsert_edges.assert_awaited_once()
 

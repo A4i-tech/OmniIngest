@@ -43,9 +43,8 @@ async def test_knowledge_item_crud(metadata_store):
 
     item = await metadata_store.get_knowledge_item(item_id)
     assert item is not None
-    assert item.domain_profile == "education_shiksha"
-    assert item.modality == "document"
-    assert item.title == "Chapter 1: Introduction"
+    assert item.content == ""
+    assert item.source_uri == "blob://test/chapter1.pdf"
     assert item.metadata["grade"] == 6
 
 

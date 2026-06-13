@@ -44,10 +44,6 @@ class DataLineageAgent(BaseModel, Step):
             "items_count": len(ctx.items) if ctx.items else 0,
             "timestamp": str(datetime.now(UTC)),
         }
-        if ctx.items:
-            for item in ctx.items:
-                item.lineage = lineage
-
         return StepResult(status=StepStatus.SUCCESS, metadata=lineage)
 
 

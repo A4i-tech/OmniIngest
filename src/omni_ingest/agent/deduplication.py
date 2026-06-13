@@ -175,7 +175,7 @@ def _deterministic_identity(item: KnowledgeItem, ctx: IngestionContext[ResolvedR
     position_keys = ("char_start", "source_idx", "page", "start_offset_ms", "end_offset_ms")
     position = "|".join(f"{k}={item.metadata[k]}" for k in position_keys if k in item.metadata)
     normalized = _normalize_text(item.content)
-    return "|".join((str(ctx.tenant_id), source_uri, item.domain_profile, item.modality, position, normalized))
+    return "|".join((str(ctx.tenant_id), source_uri, ctx.domain_profile, position, normalized))
 
 
 def _normalize_text(text: str) -> str:
