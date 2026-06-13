@@ -13,6 +13,4 @@ steps:
   - agent: embedding
     config:
       model: "openai:text-embedding-3-large"
-  - agent: indexing
   - agent: kg_builder
-  - agent: graph_indexing

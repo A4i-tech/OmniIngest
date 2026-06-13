@@ -1,13 +1,10 @@
-"""Agents for generating embeddings and persisting data to vector and graph stores."""
-
-from typing import Any
+"""Agents for generating embeddings."""
 
 from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
 from ..core.config import settings
-from ..core.model import IngestionContext, ResolvedResource, Step, StepResult, StepStatus
-from .deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
+from ..core.model import IngestionContext, Step, StepResult, StepStatus
 
 
 class EmbeddingAgent(BaseModel, Step):
@@ -31,78 +28,3 @@ class EmbeddingAgent(BaseModel, Step):
             item.metadata["embedding"] = emb
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(ctx.items)})
-
-
-class VectorIndexingAgent(BaseModel, Step):
-    """
-    Persists KnowledgeItems into a vector storage system.
-
-    This agent is responsible for the upsertion of processed and enriched
-    data into a configured vector database, ensuring that information
-    is indexed and available for retrieval by AI applications.
-    """
-
-    store: Any = Field(..., description="The physical database where data will be saved")
-    deduplication_strategy: DeduplicationStrategyConfig = Field(default_factory=NormalizedTextHashDeduplicationStrategy, description="Strategy used to skip duplicate chunks before indexing")
-
-    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No items")
-        deduplication_result = await self.deduplication_strategy.deduplicate(ctx.items, ctx)
-        items_to_index = deduplication_result.kept_items
-
-        if not items_to_index:
-            return StepResult(
-                status=StepStatus.SUCCESS,
-                metadata={
-                    "count": 0,
-                    "input_count": deduplication_result.input_count,
-                    "deduplicated_count": deduplication_result.dropped_count,
-                    "deduplication_strategy": deduplication_result.strategy,
-                    "deduplication_scope": deduplication_result.scope,
-                },
-            )
-
-        await self.store.upsert(items_to_index)
-        if ctx.store and (pid := ctx.metadata.get("knowledge_item_id")):
-            for i in items_to_index:
-                await ctx.store.create_chunk(
-                    chunk_id=i.id,
-                    knowledge_item_id=pid,
-                    tenant_id=ctx.tenant_id,
-                    text=i.decode(),
-                    vector_store_kind=self.store.kind,
-                    vector_store_space=self.store.space,
-                    vector_store_ref_id=str(i.id),
-                    metadata=i.metadata,
-                )
-        return StepResult(
-            status=StepStatus.SUCCESS,
-            metadata={
-                "count": len(items_to_index),
-                "input_count": deduplication_result.input_count,
-                "deduplicated_count": deduplication_result.dropped_count,
-                "deduplication_strategy": deduplication_result.strategy,
-                "deduplication_scope": deduplication_result.scope,
-            },
-        )
-
-
-class GraphIndexingAgent(BaseModel, Step):
-    """
-    Indexes extracted knowledge graph data into a graph database.
-    """
-
-    graph_store: Any = Field(..., description="The GraphStore implementation to use")
-
-    async def run(self, ctx: IngestionContext) -> StepResult:
-        kg_data = ctx.metadata.get("kg_data")
-        if not kg_data or not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No KG data found in context")
-
-        if nodes := kg_data.get("nodes"):
-            await self.graph_store.upsert_nodes(nodes)
-        if edges := kg_data.get("edges"):
-            await self.graph_store.upsert_edges(edges)
-
-        return StepResult(status=StepStatus.SUCCESS, metadata={"graph_nodes": len(kg_data.get("nodes", []))})

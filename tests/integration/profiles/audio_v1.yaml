@@ -9,4 +9,3 @@ steps:
       segment_duration: 30
   - agent: enrichment
   - agent: embedding
-  - agent: indexing

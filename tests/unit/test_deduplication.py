@@ -8,8 +8,8 @@ from omni_ingest.agent.deduplication import (
     NoDeduplicationStrategy,
     ShingleJaccardDeduplicationStrategy,
 )
-from omni_ingest.agent.indexing import VectorIndexingAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.output import VectorStoreOutput
 
 
 class RecordingVectorStore:
@@ -23,7 +23,7 @@ class RecordingVectorStore:
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_store):
+async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_store):
     tenant = await metadata_store.create_tenant("dedup-default", "Dedup Default")
     source_uri = "file://source-default.txt"
 
@@ -51,7 +51,7 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
     )
 
     vector_store = RecordingVectorStore()
-    agent = VectorIndexingAgent(store=vector_store)
+    output = VectorStoreOutput(store=vector_store)
     ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[
@@ -63,7 +63,7 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
         resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert result.metadata["count"] == 1
@@ -78,9 +78,9 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent_no_deduplication_strategy_keeps_duplicates():
+async def test_vector_store_output_no_deduplication_strategy_keeps_duplicates():
     vector_store = RecordingVectorStore()
-    agent = VectorIndexingAgent(store=vector_store, deduplication_strategy=NoDeduplicationStrategy())
+    output = VectorStoreOutput(store=vector_store, deduplication_strategy=NoDeduplicationStrategy())
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
@@ -90,7 +90,7 @@ async def test_vector_indexing_agent_no_deduplication_strategy_keeps_duplicates(
         resource=ResolvedResource(uri="file://same.txt", content=b""),
     )
 
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert result.metadata["count"] == 2
@@ -101,7 +101,7 @@ async def test_vector_indexing_agent_no_deduplication_strategy_keeps_duplicates(
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_source_chunks(metadata_store):
+async def test_vector_store_output_deterministic_id_strategy_skips_existing_source_chunks(metadata_store):
     tenant = await metadata_store.create_tenant("dedup-deterministic", "Deterministic Dedup")
     source_uri = "file://stable-source.txt"
     strategy = DeterministicIdDeduplicationStrategy()
@@ -113,7 +113,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         source_uri=source_uri,
     )
     first_store = RecordingVectorStore()
-    first_agent = VectorIndexingAgent(store=first_store, deduplication_strategy=strategy)
+    first_output = VectorStoreOutput(store=first_store, deduplication_strategy=strategy)
     first_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
     first_ctx = IngestionContext(
         tenant_id=tenant.id,
@@ -123,7 +123,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
-    first_result = await first_agent.run(first_ctx)
+    first_result = await first_output.write(first_ctx)
 
     assert first_result.metadata["count"] == 1
     deterministic_id = str(first_item.id)
@@ -135,7 +135,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         source_uri=source_uri,
     )
     second_store = RecordingVectorStore()
-    second_agent = VectorIndexingAgent(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy())
+    second_output = VectorStoreOutput(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy())
     replay_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
     replay_ctx = IngestionContext(
         tenant_id=tenant.id,
@@ -145,7 +145,7 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
         resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
-    second_result = await second_agent.run(replay_ctx)
+    second_result = await second_output.write(replay_ctx)
 
     assert str(replay_item.id) == deterministic_id
     assert second_result.status == StepStatus.SUCCESS
@@ -157,9 +157,9 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent_shingle_jaccard_strategy_skips_near_duplicates():
+async def test_vector_store_output_shingle_jaccard_strategy_skips_near_duplicates():
     vector_store = RecordingVectorStore()
-    agent = VectorIndexingAgent(
+    output = VectorStoreOutput(
         store=vector_store,
         deduplication_strategy=ShingleJaccardDeduplicationStrategy(threshold=0.8),
     )
@@ -173,7 +173,7 @@ async def test_vector_indexing_agent_shingle_jaccard_strategy_skips_near_duplica
         resource=ResolvedResource(uri="file://near-duplicates.txt", content=b""),
     )
 
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert result.metadata["count"] == 2

@@ -20,4 +20,3 @@ steps:
               type: string
         required: [patient_summary, medical_tags]
   - agent: embedding
-  - agent: indexing

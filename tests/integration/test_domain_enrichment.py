@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from omni_ingest.agent.indexing import GraphIndexingAgent
 from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.output import GraphStoreOutput
 from omni_ingest.core.pipeline import PipelineRunner
 
 
@@ -65,12 +65,12 @@ async def test_structure_agent_does_not_branch_on_domain(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_graph_indexing_agent(metadata_store):
-    graph_agent = GraphIndexingAgent(graph_store=AsyncMock())
+async def test_graph_store_output(metadata_store):
+    output = GraphStoreOutput(store=AsyncMock())
     item = KnowledgeItem(content=b"Test content")
     ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b""))
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}, {"id": "n2"}], "edges": []}
 
-    res = await PipelineRunner([graph_agent]).run(ctx)
-    assert res[0].status == StepStatus.SUCCESS
-    assert res[0].metadata["graph_nodes"] == 2
+    res = await output.write(ctx)
+    assert res.status == StepStatus.SUCCESS
+    assert res.metadata["graph_nodes"] == 2

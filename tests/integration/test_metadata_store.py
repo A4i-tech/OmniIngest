@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 
 from omni_ingest.agent.governance import IngestionLoggerAgent
-from omni_ingest.agent.indexing import VectorIndexingAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import PipelineRunner
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
@@ -139,14 +139,14 @@ async def test_pipeline_registration(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_indexing_agent_registers_chunks(metadata_store, tenant):
+async def test_vector_store_output_registers_chunks(metadata_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     vstore = InMemoryVectorStore()
-    agent = VectorIndexingAgent(store=vstore)
+    output = VectorStoreOutput(store=vstore)
     item = KnowledgeItem(content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=b""))
-    res = await PipelineRunner([agent]).run(ctx)
-    assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
+    res = await output.write(ctx)
+    assert res.status == StepStatus.SUCCESS, f"Output failed: {res.error}"
     chunks = await metadata_store.get_chunks_by_knowledge_item(ki_id)
     assert len(chunks) == 1
     assert chunks[0].text == "Chunk 1"

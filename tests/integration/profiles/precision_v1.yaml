@@ -13,4 +13,3 @@ steps:
       model: "openai:text-embedding-3-large"
       dimensions: 1024
       batch_size: 10
-  - agent: indexing

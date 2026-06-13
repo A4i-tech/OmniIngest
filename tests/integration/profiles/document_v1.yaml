@@ -8,4 +8,3 @@ steps:
   - agent: page_chunking
   - agent: enrichment
   - agent: embedding
-  - agent: indexing

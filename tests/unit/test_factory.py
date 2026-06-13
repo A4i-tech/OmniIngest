@@ -7,19 +7,17 @@ import yaml
 
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.agent.indexing import VectorIndexingAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.config import InMemoryVectorStoreConfig, LanceDBVectorStoreConfig
+from omni_ingest.core.config import LanceDBVectorStoreConfig
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
-from omni_ingest.port.vector_store import InMemoryVectorStore, LanceDBVectorStore
+from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
 @pytest.mark.parametrize(
     "cls, config, shared, expected_keys_values",
     [
         (SentenceChunkingAgent, {"chunk_size": 256, "overlap": 30}, {}, {"chunk_size": 256, "overlap": 30}),
-        (VectorIndexingAgent, {}, {"store": "MOCK_STORE"}, {"store": "MOCK_STORE"}),
         (SentenceChunkingAgent, {"chunk_size": 100}, {"chunk_size": 999}, {"chunk_size": 100}),
     ],
 )
@@ -143,25 +141,6 @@ async def test_knowledge_base_adapter_search_text():
 
         mock_embed.assert_awaited_once_with("query")
         mock_vector.search.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_pipeline_store_selection_ignores_yaml_storage_config(monkeypatch):
-    monkeypatch.setattr(pipeline_module.settings, "vector_store", InMemoryVectorStoreConfig(vector_size=1536))
-
-    config = {
-        "store": {"type": "qdrant", "collection": "yaml_should_be_ignored"},
-        "steps": [{"agent": "indexing"}],
-    }
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
-        yaml.dump(config, tmp)
-        tmp.flush()
-        runner = create_pipeline_from_config(Path(tmp.name))
-
-    assert isinstance(runner.vector_store, InMemoryVectorStore)
-    assert isinstance(runner.steps[0], VectorIndexingAgent)
-    assert runner.steps[0].store is runner.vector_store
 
 
 @pytest.mark.asyncio

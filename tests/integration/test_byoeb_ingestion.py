@@ -5,7 +5,9 @@ import pytest
 import yaml
 
 from omni_ingest.core.model import IngestionContext, StepStatus
-from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config, lookup_step_id
+from omni_ingest.core.output import VectorStoreOutput
+from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config
+from omni_ingest.port.vector_store import InMemoryVectorStore
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
@@ -13,11 +15,9 @@ RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 @pytest.mark.asyncio
 async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
     config = {
-        "store": {"type": "in_memory"},
         "steps": [
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
             {"agent": "embedding"},
-            {"agent": "indexing", "config": {"vector_store": "in_memory"}},
         ],
     }
     config_path = tmp_path / "pipeline.yaml"
@@ -25,18 +25,17 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
         yaml.dump(config, f)
 
     pipeline = create_pipeline_from_config(config_path)
+    vector_store = InMemoryVectorStore()
+    output = VectorStoreOutput(store=vector_store)
 
     tid = uuid4()
 
     blueberries_path = RESOURCES_DIR / "blueberries-are-now-green.txt"
-    res1 = await pipeline.run(IngestionContext(tenant_id=tid, resource=blueberries_path, store=metadata_store))
+    res1 = await pipeline.run(IngestionContext(tenant_id=tid, resource=blueberries_path, store=metadata_store), output=output)
     assert res1[-1].status == StepStatus.SUCCESS
 
-    indexing_step = next(s for s in pipeline.steps if lookup_step_id(s) == "indexing")
-    vector_store = indexing_step.store  # type: ignore
-
     patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"
-    res2 = await pipeline.run(IngestionContext(tenant_id=tid, resource=patients_path, store=metadata_store))
+    res2 = await pipeline.run(IngestionContext(tenant_id=tid, resource=patients_path, store=metadata_store), output=output)
     assert res2[-1].status == StepStatus.SUCCESS
 
     class DummyMetadataStore:

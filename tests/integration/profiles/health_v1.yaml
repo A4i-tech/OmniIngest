@@ -10,4 +10,3 @@ steps:
       overlap: 50
   - agent: enrichment
   - agent: embedding
-  - agent: indexing

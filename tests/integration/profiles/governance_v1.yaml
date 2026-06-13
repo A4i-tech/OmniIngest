@@ -7,5 +7,4 @@ steps:
   - agent: chunking
   - agent: lineage
   - agent: embedding
-  - agent: indexing
   - agent: ingestion_logger

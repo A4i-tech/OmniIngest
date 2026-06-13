@@ -31,13 +31,9 @@ LANCEDB_PATH=./lancedb_data
 ```
 
 ### Usage: Semantic ingestion pipeline
-This example demonstrates a complete workflow: parsing a technical document, cleaning the markdown, and extracting semantic tags and summaries before indexing into a vector store.
+This example demonstrates a complete workflow: parsing a technical document, cleaning the markdown, extracting semantic tags and summaries, and writing the final context to a vector store.
 
 ```yaml
-store:
-  type: lancedb
-  table: knowledge_base
-  path: ./lancedb_data
 steps:
   - agent: text
   - agent: markdown_cleaning
@@ -46,7 +42,6 @@ steps:
     config:
       chunk_size: 512
   - agent: embedding
-  - agent: indexing
 ```
 
 ```python
@@ -54,14 +49,17 @@ import asyncio
 from pathlib import Path
 from omni_ingest.core.pipeline import create_pipeline_from_config
 from omni_ingest.core.model import IngestionContext
+from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
+from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
 async def main():
     pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
     mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///./knowledge.db")
+    output = VectorStoreOutput(store=LanceDBVectorStore(table_name="knowledge_base", db_path="./lancedb_data"))
     ctx = IngestionContext(resource=Path("research_paper.pdf"), store=mstore)
-    results = await pipeline.run(ctx)
+    results = await pipeline.run(ctx, output=output)
     print(f"Processed {sum(len(e.items) for e in results)} items.")
 
 if __name__ == "__main__":

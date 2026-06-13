@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -13,7 +14,7 @@ from omni_ingest.agent.governance import (
     DataLineageAgent,
     QualityVerifierAgent,
 )
-from omni_ingest.agent.indexing import GraphIndexingAgent, VectorIndexingAgent
+from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, VectorStoreOutput
 from omni_ingest.agent.misc import PipelineAgent
 from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepResult, StepStatus
@@ -170,36 +171,54 @@ async def test_page_chunking_agent(store):
 
 
 @pytest.mark.asyncio
-async def test_vector_indexing_agent(store):
-    agent = VectorIndexingAgent(store=store)
+async def test_json_file_output(store, tmp_path):
+    output = JsonFileOutput(path=tmp_path / "items.json")
+    ctx = create_ctx(store, "resource")
+    ctx.metadata["source"] = "unit"
+    ctx.items = [KnowledgeItem(content=b"test", metadata={"tag": "x"})]
+
+    result = await output.write(ctx)
+    data = json.loads(output.path.read_text())
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.output_paths == {"json": str(output.path)}
+    assert data["resource"]["content"] == "resource"
+    assert data["metadata"] == {"source": "unit"}
+    assert data["items"][0]["content"] == "test"
+    assert data["items"][0]["metadata"] == {"tag": "x"}
+
+
+@pytest.mark.asyncio
+async def test_vector_store_output(store):
+    output = VectorStoreOutput(store=store)
     ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"embedding": [0.1] * 1536})]
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
     assert await store.count() == 1
 
 
 @pytest.mark.asyncio
-async def test_graph_indexing_agent(store):
+async def test_graph_store_output(store):
     mock_store = AsyncMock()
-    agent = GraphIndexingAgent(graph_store=mock_store)
+    output = GraphStoreOutput(store=mock_store)
     ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
     mock_store.upsert_nodes.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_graph_indexing_agent_with_store(store):
+async def test_graph_store_output_with_edges(store):
     mock_store = AsyncMock()
-    agent = GraphIndexingAgent(graph_store=mock_store)
+    output = GraphStoreOutput(store=mock_store)
     ctx = create_ctx(store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
-    result = await agent.run(ctx)
+    result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
     mock_store.upsert_nodes.assert_awaited_once()
     mock_store.upsert_edges.assert_awaited_once()

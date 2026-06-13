@@ -10,5 +10,4 @@ steps:
       segment_duration: 60
   - agent: enrichment
   - agent: embedding
-  - agent: indexing
   - agent: ingestion_logger

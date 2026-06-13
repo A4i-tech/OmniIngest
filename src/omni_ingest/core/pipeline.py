@@ -22,6 +22,7 @@ from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
 from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepConfig, StepResult, StepStatus
+from .output import Output, OutputResult
 from .protocol import VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
@@ -46,8 +47,6 @@ _STEP_FACTORY: StepFactory = {
     "quality": agent.governance.QualityVerifierAgent,
 
     "embedding": agent.indexing.EmbeddingAgent,
-    "indexing": agent.indexing.VectorIndexingAgent,
-    "graph_indexing": agent.indexing.GraphIndexingAgent,
 
     "pipeline": agent.misc.PipelineAgent
 }
@@ -61,19 +60,18 @@ class PipelineRunner:
     lifecycle of the ingestion process, including error handling and status reporting.
     """
 
-    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, vector_store: VectorStore | None = None, graph_store: Any | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None):
+    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None):
         self.steps = steps
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
-        self.vector_store = vector_store
-        self.graph_store = graph_store
         self.toolsets = toolsets
+        self.output_result: OutputResult | None = None
 
         if logger is None:
             logger = logging.getLogger(__name__)
             logger.addHandler(logging.NullHandler())
         self.logger = logger
 
-    async def run(self, ctx: IngestionContext[Any]) -> list[StepResult]:
+    async def run(self, ctx: IngestionContext[Any], output: Output | None = None) -> list[StepResult]:
         """
         Executes the ingestion pipeline.
 
@@ -99,6 +97,8 @@ class PipelineRunner:
                 event.publish(e)
                 if isinstance(e, event.PipelineStepEndEvent):
                     result.append(e.step_result)
+            if output is not None and all(r.status != StepStatus.FAILURE for r in result):
+                self.output_result = await output.write(ctx)
             return result
         finally:
             del PIPELINE_RUNNERS[ctx.run_id]
@@ -226,18 +226,16 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
         factory: Factory to use to resolve and load steps from.
     """
     config = _load_pipeline_config(config_path)
-    vector_store = settings.vector_store.build()
-    graph_store = settings.graph_store.build()
 
     steps = []
     for s in _flatten_steps(config.steps, config_path.parent, factory):
         cls = get_step_class(s.agent, factory)
         #resolved_config = json.loads(json.dumps(s.config).format_map(config_args or {}))
-        kwargs = _resolve_step_kwargs(cls, s.config, {"store": vector_store, "graph_store": graph_store})
+        kwargs = _resolve_step_kwargs(cls, s.config, {})
         steps.append(cls(**kwargs))
 
     toolsets = {k: FastMCPToolset(MCPConfig(mcpServers={k: v})) for k, v in config.tool_vendors.items()}
-    return PipelineRunner(steps=steps, vector_store=vector_store, graph_store=graph_store, toolsets=toolsets)
+    return PipelineRunner(steps=steps, toolsets=toolsets)
 
 
 def _load_pipeline_config(path: Path) -> PipelineConfig:

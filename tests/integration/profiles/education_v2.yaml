@@ -12,7 +12,5 @@ steps:
   - agent: faq_generation
   - agent: enrichment
   - agent: embedding
-  - agent: indexing
   - agent: kg_builder
-  - agent: graph_indexing
   - agent: ingestion_logger

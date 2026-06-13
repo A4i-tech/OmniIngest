@@ -11,4 +11,3 @@ steps:
     config:
       prompt_template: "Verify if this cleaned content is readable and coherent. Return JSON with 'score' and 'feedback'.\n\n{text}"
   - agent: embedding
-  - agent: indexing

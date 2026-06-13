@@ -5,8 +5,9 @@ import pytest
 import yaml
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.agent.indexing import EmbeddingAgent, VectorIndexingAgent
+from omni_ingest.agent.indexing import EmbeddingAgent
 from omni_ingest.core.model import IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import PipelineRunner, create_pipeline_from_config
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
@@ -47,21 +48,23 @@ async def test_embedding_agent_standalone(metadata_store):
 @pytest.mark.asyncio
 async def test_full_ingestion_flow(metadata_store):
     store = InMemoryVectorStore()
-    steps = [SentenceChunkingAgent(), EmbeddingAgent(), VectorIndexingAgent(store=store)]
+    steps = [SentenceChunkingAgent(), EmbeddingAgent()]
 
-    results = await PipelineRunner(steps=steps).run(IngestionContext(resource=ResolvedResource(uri="", content=b"Hello world. Test."), store=metadata_store))
+    runner = PipelineRunner(steps=steps)
+    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=store))
     assert all(r.status == StepStatus.SUCCESS for r in results) and await store.count() >= 1
+    assert runner.output_result is not None and runner.output_result.status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio
 async def test_yaml_pipeline_factory(metadata_store):
-    config = {"steps": [{"agent": "chunking"}, {"agent": "embedding"}, {"agent": "indexing"}]}
+    config = {"steps": [{"agent": "chunking"}, {"agent": "embedding"}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)
         tmp.flush()
         results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(resource=ResolvedResource(uri="", content=b"YAML test."), store=metadata_store))
-        assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 3
+        assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 2
 
 
 @pytest.mark.asyncio
