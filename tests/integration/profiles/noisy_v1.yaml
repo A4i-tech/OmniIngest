@@ -3,6 +3,7 @@ domain_profile: generic
 input_modality: document
 description: "Pipeline optimized for noisy/boilerplate HTML and poor formatting"
 steps:
+  - agent: text
   - agent: markdown_cleaning
     config:
       prompt_template: "Extract only the core lesson content from this noisy data. Remove all navigation, footers, and ads. Output cleaned markdown.\n\n{text}"

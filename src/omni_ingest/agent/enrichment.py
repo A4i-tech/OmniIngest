@@ -29,7 +29,7 @@ class DomainEnrichmentAgent(BaseModel, Step, AgentMixin):
             return StepResult(status=StepStatus.SKIPPED, error="No items to enrich")
         agent = self._agent(ctx)
         for item in ctx.items:
-            prompt = self.prompt_template.format(text=item.content)
+            prompt = self.prompt_template.format(text=item.decode())
             res = await agent.run(prompt, output_type=DomainEnrichmentResult)
             item.metadata.update(res.output.model_dump())
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"enriched_count": len(ctx.items)})
@@ -58,7 +58,7 @@ class LearningOutcomeExtractionAgent(BaseModel, Step, AgentMixin):
         prompt_tmpl = "Extract a list of learning outcomes from the following educational content. Content: {text}"
 
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=LearningOutcomes)
+            res = await agent.run(prompt_tmpl.format(text=item.decode()), output_type=LearningOutcomes)
             item.metadata["learning_outcomes"] = res.output.learning_outcomes
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"extracted_for": len(ctx.items)})
 
@@ -98,7 +98,7 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step, AgentMixin):
 
         all_nodes, all_edges = [], []
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=KGData)
+            res = await agent.run(prompt_tmpl.format(text=item.decode()), output_type=KGData)
             data = res.output
             all_nodes.extend([n.model_dump() for n in data.nodes])
             all_edges.extend([e.model_dump() for e in data.edges])
@@ -126,7 +126,7 @@ class FAQGenerationAgent(BaseModel, Step, AgentMixin):
             return StepResult(status=StepStatus.SKIPPED, error="No items for FAQ generation")
 
         agent = self._agent(ctx)
-        combined = "\n".join(i.content[:1000] for i in ctx.items[:5])
+        combined = "\n".join(i.decode()[:1000] for i in ctx.items[:5])
         prompt = f"Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {combined}"
         res = await agent.run(prompt, output_type=list[FAQItem], instructions="You are a helpful assistant that generates FAQs in JSON format.")
         faqs = [f.model_dump() for f in res.output]

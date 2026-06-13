@@ -3,6 +3,7 @@ domain_profile: health
 input_modality: document
 description: "Medical-focused pipeline with custom enrichment prompts"
 steps:
+  - agent: text
   - agent: chunking
   - agent: enrichment
     config:

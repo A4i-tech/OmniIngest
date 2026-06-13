@@ -44,8 +44,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
-        content, metadata = await parse(path, stream)
-        return ResolvedResource(uri=path, content=content, metadata=metadata)
+        return ResolvedResource(uri=path, content=stream.read())
 
 
 async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
@@ -56,7 +55,7 @@ async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
 
     if parse_limit is not None and len(paths) > parse_limit:
         for path in paths[parse_limit:]:
-            yield ResolvedResource(uri=path, content="")
+            yield ResolvedResource(uri=path, content=b"")
 
 
 @asynccontextmanager
@@ -137,31 +136,31 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
     return " ".join(transcript), {"text_len": len(full_text), "word_count": len(words)}
 
 
-async def parse_text(stream: BinaryIO, strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
-   content = stream.read().decode("utf-8")
-   if strip_html and bool(re.search(r"<[a-zA-Z][^>]*>", content[:1000])):
-       p = _HTMLTextExtractor()
-       try:
-           p.feed(content)
-           content = p.get_text()
-       except Exception:
-           content = re.sub(r"<[^>]+>", " ", content)
-   if normalize_whitespace:
-       content = re.sub(r"\s+", " ", content)
-       content = "\n".join(line.strip() for line in content.split("\n") if line.strip()).strip()
-   return content, {"original_length": len(content), "parsed_length": len(content)}
+async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
+    content = stream.read().decode(encoding)
+    if strip_html and bool(re.search(r"<[a-zA-Z][^>]*>", content[:1000])):
+        p = _HTMLTextExtractor()
+        try:
+            p.feed(content)
+            content = p.get_text()
+        except Exception:
+            content = re.sub(r"<[^>]+>", " ", content)
+    if normalize_whitespace:
+        content = re.sub(r"\s+", " ", content)
+        content = "\n".join(line.strip() for line in content.split("\n") if line.strip()).strip()
+    return content, {"original_length": len(content), "parsed_length": len(content)}
 
 
-async def parse_document(stream: BinaryIO) -> tuple[str, dict[str, Any]]:
+async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
     content = stream.read()
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
     if content.startswith(b"PK\x03\x04"):
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
-    return content.decode("utf-8"), {}
+    return content.decode(encoding), {}
 
 
-async def parse(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]:
+async def parse(path: str, stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
     content_type, _ = mimetypes.guess_type(path)
     content_type = content_type or "application/octet-stream"
 
@@ -170,11 +169,11 @@ async def parse(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]:
         metadata["selected_parser"] = "audio"
         return content, metadata
     if content_type.startswith("text/"):
-        content, metadata = await parse_text(stream)
+        content, metadata = await parse_text(stream, encoding=encoding)
         metadata["selected_parser"] = "text"
         return content, metadata
     if content_type.startswith("application/"):
-        content, metadata = await parse_document(stream)
+        content, metadata = await parse_document(stream, encoding=encoding)
         metadata["selected_parser"] = "document"
         return content, metadata
 

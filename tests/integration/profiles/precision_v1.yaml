@@ -3,6 +3,7 @@ domain_profile: generic
 input_modality: document
 description: "High-precision pipeline with small chunks and large embedding dimensions"
 steps:
+  - agent: text
   - agent: chunking
     config:
       chunk_size: 256

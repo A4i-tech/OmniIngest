@@ -3,6 +3,7 @@ domain_profile: generic
 input_modality: document
 description: "Standard pipeline with mandatory data lineage audit"
 steps:
+  - agent: text
   - agent: chunking
   - agent: lineage
   - agent: embedding

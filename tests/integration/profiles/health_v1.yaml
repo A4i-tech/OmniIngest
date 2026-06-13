@@ -3,6 +3,7 @@ domain_profile: health
 input_modality: document
 description: "Healthcare-focused pipeline for knowledge base ingestion with deduplication focus"
 steps:
+  - agent: text
   - agent: chunking
     config:
       chunk_size: 512

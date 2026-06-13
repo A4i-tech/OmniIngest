@@ -1,17 +1,16 @@
-from pathlib import Path
-
 import io
-import pytest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
+import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import read_resources, parse, parse_document, parse_text
+from omni_ingest.parser import parse, parse_document, parse_text
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "raw_text, strip_html, normalize_whitespace, expected_text",
     [
@@ -23,7 +22,7 @@ RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 )
 @pytest.mark.asyncio
 async def test_text_parser(raw_text, strip_html, normalize_whitespace, expected_text):
-    content, _ = await parse_text(io.BytesIO(raw_text.encode("utf-8")), strip_html=strip_html, normalize_whitespace=normalize_whitespace)
+    content, _ = await parse_text(io.BytesIO(raw_text.encode()), strip_html=strip_html, normalize_whitespace=normalize_whitespace)
     assert content == expected_text
 
 
@@ -69,8 +68,8 @@ async def test_parser_routes_to_expected_agent(uri, expected_agent, monkeypatch)
     monkeypatch.setattr("omni_ingest.parser.parse_document", mock_run)
     monkeypatch.setattr("omni_ingest.parser.parse_text", mock_run)
 
-    async for resource in read_resources(uri):
-        assert resource.metadata["selected_parser"] == expected_agent
+    _, metadata = await parse(uri, io.BytesIO())
+    assert metadata["selected_parser"] == expected_agent
 
 
 @pytest.mark.asyncio

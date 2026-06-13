@@ -43,7 +43,7 @@ async def test_knowledge_item_crud(metadata_store):
 
     item = await metadata_store.get_knowledge_item(item_id)
     assert item is not None
-    assert item.content == ""
+    assert item.content == b""
     assert item.source_uri == "blob://test/chapter1.pdf"
     assert item.metadata["grade"] == 6
 
@@ -112,7 +112,7 @@ async def test_pipeline_run_tracking(metadata_store):
 
 @pytest.mark.asyncio
 async def test_db_registry_logging(metadata_store):
-    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=""))
+    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b""))
     runner = PipelineRunner(steps=[IngestionLoggerAgent()])
     results = await runner.run(ctx)
     assert results[0].status == StepStatus.SUCCESS
@@ -143,8 +143,8 @@ async def test_indexing_agent_registers_chunks(metadata_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     vstore = InMemoryVectorStore()
     agent = VectorIndexingAgent(store=vstore)
-    item = KnowledgeItem(content="Chunk 1", metadata={"embedding": [0.1] * 1536})
-    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=""))
+    item = KnowledgeItem(content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
+    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=b""))
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
     chunks = await metadata_store.get_chunks_by_knowledge_item(ki_id)

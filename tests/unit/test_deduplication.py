@@ -55,12 +55,12 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
     ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[
-            KnowledgeItem(content="  HELLO   WORLD  ", metadata={"embedding": [0.1, 0.2, 0.3]}),
-            KnowledgeItem(content="Fresh content", metadata={"embedding": [0.4, 0.5, 0.6]}),
+            KnowledgeItem(content=b"  HELLO   WORLD  ", metadata={"embedding": [0.1, 0.2, 0.3]}),
+            KnowledgeItem(content=b"Fresh content", metadata={"embedding": [0.4, 0.5, 0.6]}),
         ],
         store=metadata_store,
         metadata={"knowledge_item_id": new_item_id},
-        resource=ResolvedResource(uri=source_uri, content=""),
+        resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
     result = await agent.run(ctx)
@@ -70,11 +70,11 @@ async def test_vector_indexing_agent_defaults_to_normalized_text_hash(metadata_s
     assert result.metadata["deduplicated_count"] == 1
     assert result.metadata["deduplication_strategy"] == "normalized_text_hash"
     assert len(vector_store.upsert_calls) == 1
-    assert [item.content for item in vector_store.upsert_calls[0]] == ["Fresh content"]
+    assert [item.content for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
 
     chunks = await metadata_store.get_chunks_by_knowledge_item(new_item_id)
     assert len(chunks) == 1
-    assert chunks[0].metadata_["dedup_normalized_text_hash"] == hashlib.sha256("fresh content".encode("utf-8")).hexdigest()
+    assert chunks[0].metadata_["dedup_normalized_text_hash"] == hashlib.sha256(b"fresh content").hexdigest()
 
 
 @pytest.mark.asyncio
@@ -84,10 +84,10 @@ async def test_vector_indexing_agent_no_deduplication_strategy_keeps_duplicates(
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(content="Same chunk", metadata={"embedding": [0.1]}),
-            KnowledgeItem(content="Same chunk", metadata={"embedding": [0.2]}),
+            KnowledgeItem(content=b"Same chunk", metadata={"embedding": [0.1]}),
+            KnowledgeItem(content=b"Same chunk", metadata={"embedding": [0.2]}),
         ],
-        resource=ResolvedResource(uri="file://same.txt", content=""),
+        resource=ResolvedResource(uri="file://same.txt", content=b""),
     )
 
     result = await agent.run(ctx)
@@ -114,13 +114,13 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
     )
     first_store = RecordingVectorStore()
     first_agent = VectorIndexingAgent(store=first_store, deduplication_strategy=strategy)
-    first_item = KnowledgeItem(content="Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
+    first_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
     first_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[first_item],
         store=metadata_store,
         metadata={"knowledge_item_id": initial_item_id},
-        resource=ResolvedResource(uri=source_uri, content=""),
+        resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
     first_result = await first_agent.run(first_ctx)
@@ -136,13 +136,13 @@ async def test_vector_indexing_agent_deterministic_id_strategy_skips_existing_so
     )
     second_store = RecordingVectorStore()
     second_agent = VectorIndexingAgent(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy())
-    replay_item = KnowledgeItem(content="Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
+    replay_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
     replay_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[replay_item],
         store=metadata_store,
         metadata={"knowledge_item_id": replay_item_id},
-        resource=ResolvedResource(uri=source_uri, content=""),
+        resource=ResolvedResource(uri=source_uri, content=b""),
     )
 
     second_result = await second_agent.run(replay_ctx)
@@ -166,11 +166,11 @@ async def test_vector_indexing_agent_shingle_jaccard_strategy_skips_near_duplica
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(content="alpha beta gamma delta epsilon zeta", metadata={"embedding": [0.1]}),
-            KnowledgeItem(content="alpha beta gamma delta epsilon zeta eta", metadata={"embedding": [0.2]}),
-            KnowledgeItem(content="completely different content here", metadata={"embedding": [0.3]}),
+            KnowledgeItem(content=b"alpha beta gamma delta epsilon zeta", metadata={"embedding": [0.1]}),
+            KnowledgeItem(content=b"alpha beta gamma delta epsilon zeta eta", metadata={"embedding": [0.2]}),
+            KnowledgeItem(content=b"completely different content here", metadata={"embedding": [0.3]}),
         ],
-        resource=ResolvedResource(uri="file://near-duplicates.txt", content=""),
+        resource=ResolvedResource(uri="file://near-duplicates.txt", content=b""),
     )
 
     result = await agent.run(ctx)
@@ -181,6 +181,6 @@ async def test_vector_indexing_agent_shingle_jaccard_strategy_skips_near_duplica
     assert result.metadata["deduplication_strategy"] == "shingle_jaccard"
     assert len(vector_store.upsert_calls) == 1
     assert [item.content for item in vector_store.upsert_calls[0]] == [
-        "alpha beta gamma delta epsilon zeta",
-        "completely different content here",
+        b"alpha beta gamma delta epsilon zeta",
+        b"completely different content here",
     ]

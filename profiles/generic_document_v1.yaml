@@ -3,6 +3,7 @@ domain_profile: generic
 input_modality: document
 description: "Default pipeline for new applications - handles PDFs, DOCX, text files"
 steps:
+  - agent: text
   - agent: markdown_cleaning
   - agent: chunking
     config:

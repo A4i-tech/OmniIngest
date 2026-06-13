@@ -29,7 +29,7 @@ async def test_discovery_adapter_unified_search():
     assert len(items) == 1
     assert items[0].id == item_id
 
-    ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, content="Content", metadata={"embedding": [0.1] * 1536})
+    ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, content=b"Content", metadata={"embedding": [0.1] * 1536})
     await vstore.upsert([ki])
 
     results = await adapter.query(tenant_id=tenant_id, query=[0.1] * 1536)

@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar, final
 from uuid import UUID, uuid4
 
+import magic
 from fastmcp.mcp_config import MCPServerTypes
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, StrictBytes
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 
@@ -22,15 +23,28 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class ResolvedResource(BaseModel):
-    uri: str = Field(...)
-    content: str = Field(...)
+class ByteContent(BaseModel):
+    content: StrictBytes = Field(...)
+    content_encoding: str = Field("utf-8")
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def content_type(self) -> str:
+        return magic.from_buffer(self.content, mime=True)
+
+    def decode(self) -> str:
+        if not self.content_type.startswith("text/"):
+            raise ValueError(f"Expected text content, got {self.content_type}")
+        return self.content.decode(self.content_encoding)
+
+
+class ResolvedResource(ByteContent):
+    uri: str = Field(...)
 
 type Resource = ResolvedResource | AnyUrl | Path
 
 
-class KnowledgeItem(BaseModel):
+class KnowledgeItem(ByteContent):
     """
     Represents a discrete unit of information within the framework.
 
@@ -43,7 +57,7 @@ class KnowledgeItem(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the knowledge item")
     tenant_id: UUID | None = Field(None, description="Identifier for the associated tenant or organization")
     source_uri: str | None = Field(None, description="Origin URI of the raw data")
-    content: str = Field("", description="The primary data content of the item")
+    content: StrictBytes = Field(b"", description="The primary byte content of the item")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary key-value pairs for additional contextual information")
 
 

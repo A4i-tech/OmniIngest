@@ -24,6 +24,8 @@ from omni_ingest.core.pipeline import PipelineRunner
 
 
 def create_ctx(store, content):
+    if isinstance(content, str):
+        content = content.encode()
     return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", content=content), store=store, domain_profile="education")
 
 
@@ -36,7 +38,7 @@ async def test_markdown_cleaning_agent(store):
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
-        assert ctx.resource.content == "## Clean"
+        assert ctx.resource.content == b"## Clean"
 
 
 @pytest.mark.asyncio
@@ -49,7 +51,7 @@ async def test_transcription_post_processor_agent(store):
         result = await agent.run(ctx)
 
         assert result.status == StepStatus.SUCCESS
-        assert ctx.resource.content == "Hello"
+        assert ctx.resource.content == b"Hello"
 
 
 @pytest.mark.asyncio
@@ -58,7 +60,7 @@ async def test_quality_verifier_agent_success(store):
     agent = QualityVerifierAgent(min_quality_score=0.7)
 
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="test content", metadata={})]
+    ctx.items = [KnowledgeItem(content=b"test content")]
 
     from omni_ingest.agent.governance import QualityReport
 
@@ -80,7 +82,7 @@ async def test_quality_verifier_agent_failure(store):
     agent = QualityVerifierAgent(min_quality_score=0.7)
 
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="bad content", metadata={})]
+    ctx.items = [KnowledgeItem(content=b"bad content")]
 
     from omni_ingest.agent.governance import QualityReport
 
@@ -102,7 +104,7 @@ async def test_faq_generation_agent(store):
     agent = FAQGenerationAgent()
 
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="context for faq", metadata={})]
+    ctx.items = [KnowledgeItem(content=b"context for faq")]
 
     from omni_ingest.agent.enrichment import FAQItem
 
@@ -126,7 +128,7 @@ async def test_learning_outcome_extraction_agent(store):
 
     ctx = create_ctx(store, "")
     ctx.domain_profile = "education"
-    ctx.items = [KnowledgeItem(content="educational content", metadata={})]
+    ctx.items = [KnowledgeItem(content=b"educational content")]
 
     from omni_ingest.agent.enrichment import LearningOutcomes
 
@@ -146,7 +148,7 @@ async def test_learning_outcome_extraction_agent(store):
 async def test_data_lineage_agent(store):
     agent = DataLineageAgent()
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="test", metadata={})]
+    ctx.items = [KnowledgeItem(content=b"test")]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "run_id" in result.metadata
@@ -170,7 +172,7 @@ async def test_page_chunking_agent(store):
 async def test_vector_indexing_agent(store):
     agent = VectorIndexingAgent(store=store)
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="test", metadata={"embedding": [0.1] * 1536})]
+    ctx.items = [KnowledgeItem(content=b"test", metadata={"embedding": [0.1] * 1536})]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert await store.count() == 1
@@ -181,7 +183,7 @@ async def test_graph_indexing_agent(store):
     mock_store = AsyncMock()
     agent = GraphIndexingAgent(graph_store=mock_store)
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -193,7 +195,7 @@ async def test_graph_indexing_agent_with_store(store):
     mock_store = AsyncMock()
     agent = GraphIndexingAgent(graph_store=mock_store)
     ctx = create_ctx(store, "")
-    ctx.items = [KnowledgeItem(content="test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
     result = await agent.run(ctx)

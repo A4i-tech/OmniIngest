@@ -28,6 +28,8 @@ PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
 
 type StepFactory = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
+    "text": agent.modality.TextAgent,
+
     "chunking": agent.chunking.SentenceChunkingAgent,
     "page_chunking": agent.chunking.PageChunkingAgent,
     "timed_chunking": agent.chunking.TimedChunkingAgent,

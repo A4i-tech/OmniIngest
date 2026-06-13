@@ -26,6 +26,7 @@ dependencies = [
     "azure-cognitiveservices-speech>=1.48.2",
     "pytest-cov>=7.0.0",
     "pydantic-ai>=1.48.0",
+    "python-magic>=0.4.27",
 ]
 
 [project.optional-dependencies]

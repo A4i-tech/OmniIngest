@@ -11,8 +11,8 @@ from omni_ingest.core.pipeline import PipelineRunner
 @pytest.mark.asyncio
 async def test_domain_enrichment_flow(metadata_store):
     agent = DomainEnrichmentAgent()
-    item = KnowledgeItem(content="Sample text about machine learning and neural networks.")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=""))
+    item = KnowledgeItem(content=b"Sample text about machine learning and neural networks.")
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b""))
 
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -23,8 +23,8 @@ async def test_domain_enrichment_flow(metadata_store):
 @pytest.mark.asyncio
 async def test_learning_outcome_extraction(metadata_store):
     ed_agent = LearningOutcomeExtractionAgent()
-    item = KnowledgeItem(content="The student will learn about Newton's laws of motion.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=ResolvedResource(uri="", content=""))
+    item = KnowledgeItem(content=b"The student will learn about Newton's laws of motion.")
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=ResolvedResource(uri="", content=b""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -34,8 +34,8 @@ async def test_learning_outcome_extraction(metadata_store):
 @pytest.mark.asyncio
 async def test_learning_outcome_skips_non_education(metadata_store):
     ed_agent = LearningOutcomeExtractionAgent()
-    item = KnowledgeItem(content="Some content.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=ResolvedResource(uri="", content=""))
+    item = KnowledgeItem(content=b"Some content.")
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=ResolvedResource(uri="", content=b""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SKIPPED
@@ -44,8 +44,8 @@ async def test_learning_outcome_skips_non_education(metadata_store):
 @pytest.mark.asyncio
 async def test_graph_indexing_agent(metadata_store):
     graph_agent = GraphIndexingAgent(graph_store=AsyncMock())
-    item = KnowledgeItem(content="Test content")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=""))
+    item = KnowledgeItem(content=b"Test content")
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b""))
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}, {"id": "n2"}], "edges": []}
 
     res = await PipelineRunner([graph_agent]).run(ctx)

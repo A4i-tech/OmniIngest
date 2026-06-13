@@ -34,8 +34,8 @@ async def test_tenant_isolation_vector_search():
 
     t1_id, t2_id = uuid4(), uuid4()
 
-    ki1 = KnowledgeItem(id=uuid4(), tenant_id=t1_id, content="T1 Content", metadata={"embedding": [0.1] * 1536})
-    ki2 = KnowledgeItem(id=uuid4(), tenant_id=t2_id, content="T2 Content", metadata={"embedding": [0.1] * 1536})
+    ki1 = KnowledgeItem(id=uuid4(), tenant_id=t1_id, content=b"T1 Content", metadata={"embedding": [0.1] * 1536})
+    ki2 = KnowledgeItem(id=uuid4(), tenant_id=t2_id, content=b"T2 Content", metadata={"embedding": [0.1] * 1536})
 
     await vstore.upsert([ki1, ki2])
 

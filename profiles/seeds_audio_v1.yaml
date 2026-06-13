@@ -3,7 +3,7 @@ domain_profile: accessibility_seeds
 input_modality: audio
 description: "SEEDS audio ingestion for IVR recordings and podcasts with timed chunking"
 steps:
-  - agent: audio_parser
+  - agent: text
   - agent: transcription_post_processor
   - agent: timed_chunking
     config:

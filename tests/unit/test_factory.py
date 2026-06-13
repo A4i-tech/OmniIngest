@@ -54,7 +54,7 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
         f.flush()
 
         pipeline = create_pipeline_from_config(Path(f.name))
-        ctx = IngestionContext(resource=ResolvedResource(uri="", content="First sentence. Second sentence. Third sentence."), store=metadata_store)
+        ctx = IngestionContext(resource=ResolvedResource(uri="", content=b"First sentence. Second sentence. Third sentence."), store=metadata_store)
 
         results = await pipeline.run(ctx)
 
@@ -137,6 +137,6 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
         yaml.dump(config, tmp)
         runner = create_pipeline_from_config(Path(tmp.name))
 
-    result = await runner.run(IngestionContext(items=[KnowledgeItem(content="I am clueless about the current state of LLMs.")], store=metadata_store, resource=ResolvedResource(uri="", content="")))
+    result = await runner.run(IngestionContext(items=[KnowledgeItem(content=b"I am clueless about the current state of LLMs.")], store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
     assert all(r.status == StepStatus.FAILURE for r in result)
     assert all(r.error == "Toolsets not configured in context: ['converter']" for r in result)

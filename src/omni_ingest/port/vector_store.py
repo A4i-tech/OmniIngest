@@ -56,7 +56,7 @@ class LanceDBVectorStore(VectorStore):
                     {
                         "id": str(i.id),
                         "vector": emb,
-                        "content": i.content,
+                        "content": i.decode(),
                         "tenant_id": "" if i.tenant_id is None else str(i.tenant_id),
                         "source_uri": i.source_uri or "",
                         "metadata": json.dumps(i.metadata),
@@ -79,7 +79,7 @@ class LanceDBVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row["id"])),
-                    content=str(row["content"] or ""),
+                    content=str(row["content"] or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -146,7 +146,7 @@ class QdrantVectorStore(VectorStore):
                 id=str(i.id),
                 vector=i.metadata["embedding"],
                 payload={
-                    DOCUMENT_CONTENT_FIELD: i.content,
+                    DOCUMENT_CONTENT_FIELD: i.decode(),
                     DOCUMENT_TENANT_ID_FIELD: "" if i.tenant_id is None else str(i.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: i.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(i.metadata),
@@ -170,7 +170,7 @@ class QdrantVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row.id)),
-                    content=str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or ""),
+                    content=str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -236,7 +236,7 @@ class MongoVectorStore(VectorStore):
                     {
                         DOCUMENT_ID_FIELD: str(item.id),
                         DOCUMENT_VECTOR_FIELD: embedding,
-                        DOCUMENT_CONTENT_FIELD: item.content,
+                        DOCUMENT_CONTENT_FIELD: item.decode(),
                         DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                         DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                         DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -282,7 +282,7 @@ class MongoVectorStore(VectorStore):
                 results.append(
                     KnowledgeItem(
                         id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or ""),
+                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                         tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                         source_uri=None if not source_uri else str(source_uri),
                         metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -339,7 +339,7 @@ class AzureVectorSearchStore(VectorStore):
                 {
                     DOCUMENT_ID_FIELD: str(item.id),
                     DOCUMENT_VECTOR_FIELD: embedding,
-                    DOCUMENT_CONTENT_FIELD: item.content,
+                    DOCUMENT_CONTENT_FIELD: item.decode(),
                     DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -384,7 +384,7 @@ class AzureVectorSearchStore(VectorStore):
                 items.append(
                     KnowledgeItem(
                         id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or ""),
+                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                         tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                         source_uri=None if not source_uri else str(source_uri),
                         metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -436,7 +436,7 @@ class ChromaVectorStore(VectorStore):
             if embedding is None:
                 continue
             ids.append(str(item.id))
-            documents.append(item.content)
+            documents.append(item.decode())
             embeddings.append(embedding)
             metadatas.append(
                 {
@@ -467,7 +467,7 @@ class ChromaVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(item_id)),
-                    content=str(content or ""),
+                    content=str(content or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(raw_metadata) if isinstance(raw_metadata, str) else dict(raw_metadata),

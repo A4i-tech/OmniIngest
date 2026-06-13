@@ -3,6 +3,7 @@ domain_profile: health_byoeb
 input_modality: text
 description: "BYOEB knowledge base ingestion for healthcare FAQ and document content"
 steps:
+  - agent: text
   - agent: markdown_cleaning
   - agent: enrichment
     config:

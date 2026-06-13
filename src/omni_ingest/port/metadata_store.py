@@ -127,7 +127,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    content=r.content or "",
+                    content=(r.content or "").encode(),
                     metadata=r.metadata_ or {},
                 )
             return None
@@ -179,7 +179,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    content=r.content or "",
+                    content=(r.content or "").encode(),
                     metadata=r.metadata_ or {},
                 )
                 for r in records

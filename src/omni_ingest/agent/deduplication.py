@@ -120,7 +120,7 @@ class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            normalized_hash = _normalized_text_hash(item.content)
+            normalized_hash = _normalized_text_hash(item.decode())
             item.metadata[_NORMALIZED_TEXT_HASH_KEY] = normalized_hash
             if normalized_hash in seen_hashes:
                 continue
@@ -148,7 +148,7 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            item_shingles = _shingles(item.content, self.shingle_size)
+            item_shingles = _shingles(item.decode(), self.shingle_size)
             item.metadata[_SHINGLE_SIZE_KEY] = self.shingle_size
             if any(_jaccard_similarity(item_shingles, existing) >= self.threshold for existing in seen_shingles):
                 continue
@@ -174,7 +174,7 @@ def _deterministic_identity(item: KnowledgeItem, ctx: IngestionContext[ResolvedR
     source_uri = item.source_uri or ctx.resource.uri or ""
     position_keys = ("char_start", "source_idx", "page", "start_offset_ms", "end_offset_ms")
     position = "|".join(f"{k}={item.metadata[k]}" for k in position_keys if k in item.metadata)
-    normalized = _normalize_text(item.content)
+    normalized = _normalize_text(item.decode())
     return "|".join((str(ctx.tenant_id), source_uri, ctx.domain_profile, position, normalized))
 
 
@@ -188,7 +188,7 @@ def _normalized_text_hash(text: str, existing_hash: str | None = None) -> str:
     if existing_hash:
         return existing_hash
     normalized = _normalize_text(text)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return hashlib.sha256(normalized.encode()).hexdigest()
 
 
 def _shingles(text: str, shingle_size: int) -> set[str]:

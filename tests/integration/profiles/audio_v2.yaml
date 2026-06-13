@@ -3,6 +3,7 @@ domain_profile: accessibility
 input_modality: audio
 description: "Advanced audio pipeline with transcription post-processing"
 steps:
+  - agent: text
   - agent: transcription_post_processor
   - agent: timed_chunking
     config:

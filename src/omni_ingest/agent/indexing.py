@@ -25,7 +25,7 @@ class EmbeddingAgent(BaseModel, Step):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to embed")
 
-        texts = [i.content for i in ctx.items]
+        texts = [i.decode() for i in ctx.items]
         res = await Embedder(self.model).embed_documents(texts)
         for item, emb in zip(ctx.items, res.embeddings, strict=True):
             item.metadata["embedding"] = emb
@@ -70,7 +70,7 @@ class VectorIndexingAgent(BaseModel, Step):
                     chunk_id=i.id,
                     knowledge_item_id=pid,
                     tenant_id=ctx.tenant_id,
-                    text=i.content,
+                    text=i.decode(),
                     vector_store_kind=self.store.kind,
                     vector_store_space=self.store.space,
                     vector_store_ref_id=str(i.id),
@@ -109,7 +109,7 @@ class KeywordIndexingAgent(BaseModel, Step, AgentMixin):
 
         agent = self._agent(ctx)
         for item in ctx.items:
-            res = await agent.run(prompt_tmpl.format(text=item.content), output_type=Keywords)
+            res = await agent.run(prompt_tmpl.format(text=item.decode()), output_type=Keywords)
             keywords = res.output.keywords
             item.metadata["keywords"] = list(set(item.metadata.get("keywords", []) + keywords))
 

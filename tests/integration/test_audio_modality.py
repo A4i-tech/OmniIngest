@@ -10,7 +10,7 @@ from omni_ingest.parser import read_resources
 @pytest.mark.asyncio
 async def test_timed_chunking_from_word_timestamps():
     ctx = IngestionContext(
-        resource=ResolvedResource(uri="", content=""),
+        resource=ResolvedResource(uri="", content=b""),
         metadata={
             "word_timestamps": [
                 {"Word": "Hello", "Offset": 10000000, "Duration": 2000000},
@@ -27,9 +27,9 @@ async def test_timed_chunking_from_word_timestamps():
 
     assert result.status == StepStatus.SUCCESS
     assert len(result.items) == 2
-    assert result.items[0].content == "Hello world"
+    assert result.items[0].decode() == "Hello world"
     assert result.items[0].metadata["start_offset_ms"] == 1000
-    assert result.items[1].content == "this is audio"
+    assert result.items[1].decode() == "this is audio"
     assert result.items[1].metadata["start_offset_ms"] == 40000
 
 
@@ -55,4 +55,4 @@ async def test_audio_parser_with_mp3():
     resources = [resource async for resource in read_resources(str(audio_file))]
 
     assert len(resources) == 1
-    assert "interview training company" in resources[0].content
+    assert resources[0].content_type.startswith("audio/")

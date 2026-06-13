@@ -39,6 +39,7 @@ store:
   table: knowledge_base
   path: ./lancedb_data
 steps:
+  - agent: text
   - agent: markdown_cleaning
   - agent: enrichment
     config:

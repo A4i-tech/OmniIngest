@@ -14,9 +14,9 @@ async def test_parallel_pipeline_execution(metadata_store, tenant):
     async def run_pipeline(idx):
         ctx = IngestionContext(
             tenant_id=tenant.id,
-            items=[KnowledgeItem(content=f"Parallel content {idx}", source_uri=f"file://{idx}.txt")],
+            items=[KnowledgeItem(content=f"Parallel content {idx}".encode(), source_uri=f"file://{idx}.txt")],
             store=metadata_store,
-            resource=ResolvedResource(uri="", content=f"Parallel content {idx}"),
+            resource=ResolvedResource(uri="", content=f"Parallel content {idx}".encode()),
         )
         runner = PipelineRunner(steps=[SentenceChunkingAgent(chunk_size=10, overlap=0)])
         results = await runner.run(ctx)

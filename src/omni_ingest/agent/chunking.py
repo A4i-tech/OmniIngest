@@ -25,7 +25,8 @@ class SentenceChunkingAgent(BaseModel, Step):
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         if not ctx.resource.content:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
-        text, chunks, pos = " ".join(ctx.resource.content.split()), [], 0
+        encoding = ctx.resource.content_encoding
+        text, chunks, pos = " ".join(ctx.resource.decode().split()), [], 0
         while pos < len(text):
             end = min(pos + self.chunk_size, len(text))
             if end < len(text):
@@ -35,7 +36,7 @@ class SentenceChunkingAgent(BaseModel, Step):
                     end = pos + max(breaks) + 1
             chunks.append((text[pos:end].strip(), pos))
             pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
-        ctx.items = [KnowledgeItem(content=c, tenant_id=ctx.tenant_id, metadata={"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
+        ctx.items = [KnowledgeItem(content=c.encode(encoding), tenant_id=ctx.tenant_id, content_encoding=encoding, metadata={"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
         return StepResult(
             status=StepStatus.SUCCESS,
             items=ctx.items,
@@ -62,7 +63,8 @@ class PageChunkingAgent(BaseModel, Step):
             reader = PdfReader(io.BytesIO(raw))
         else:
             return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
-        ctx.items = [KnowledgeItem(content=p.extract_text(), metadata={"page": i + 1}) for i, p in enumerate(reader.pages) if p.extract_text().strip()]
+        encoding = ctx.resource.content_encoding
+        ctx.items = [KnowledgeItem(content=p.extract_text().encode(encoding), content_encoding=encoding, metadata={"page": i + 1}) for i, p in enumerate(reader.pages) if p.extract_text().strip()]
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items)})
 
 
@@ -126,7 +128,7 @@ class TimedChunkingAgent(BaseModel, Step):
             if (offset + duration - start_tick) > self.segment_duration_ticks and current_chunk_words:
                 text = " ".join([cw["Word"] for cw in current_chunk_words])
                 metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
-                chunks.append(KnowledgeItem(content=text, metadata=metadata))
+                chunks.append(KnowledgeItem(content=text.encode(ctx.resource.content_encoding), content_encoding=ctx.resource.content_encoding, metadata=metadata))
                 current_chunk_words = [w]
                 start_tick = offset
             else:
@@ -135,7 +137,7 @@ class TimedChunkingAgent(BaseModel, Step):
         if current_chunk_words:
             text = " ".join([cw["Word"] for cw in current_chunk_words])
             metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
-            chunks.append(KnowledgeItem(content=text, metadata=metadata))
+            chunks.append(KnowledgeItem(content=text.encode(ctx.resource.content_encoding), content_encoding=ctx.resource.content_encoding, metadata=metadata))
 
         ctx.items = chunks
         return StepResult(status=StepStatus.SUCCESS, items=chunks, metadata={"chunk_count": len(chunks)})

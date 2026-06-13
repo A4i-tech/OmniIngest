@@ -79,7 +79,7 @@ Return a JSON object with:
 Samples:
 """
         for i, item in enumerate(samples):
-            prompt += f"\n--- Sample {i + 1} ---\n{item.content[:500]}\n"
+            prompt += f"\n--- Sample {i + 1} ---\n{item.decode()[:500]}\n"
 
         agent = self._agent(ctx)
         res = await agent.run(prompt, output_type=QualityReport)
