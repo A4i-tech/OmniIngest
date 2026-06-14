@@ -58,7 +58,9 @@ class StructureAgent(BaseModel, Step, AgentMixin):
         for item_doc in selected_docs:
             item_doc = cast(dict[str, Any], item_doc)
             prompt_input: Any = jq.compile(self.input).input_value(item_doc).first()
-            item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
+            input_ids = prompt_input.get("ids") if isinstance(prompt_input, dict) else prompt_input
+            item_ids: list[str] = input_ids if isinstance(input_ids, list) and all(item_id in item_by_id for item_id in input_ids) else []
+            user_prompt: Any
             if self.mode == "buffered":
                 buffered_ids = tuple(item_ids)
                 cursor = 0
@@ -77,16 +79,21 @@ class StructureAgent(BaseModel, Step, AgentMixin):
 
                 user_prompt = self.prompt
             elif item_ids:
-                user_prompt = [self.prompt, *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids)]
+                user_prompt = [
+                    self.prompt,
+                    *([prompt_input["context"]] if isinstance(prompt_input, dict) and "context" in prompt_input else []),
+                    *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids),
+                ]
             else:
                 user_prompt = [self.prompt, prompt_input]
 
             res = await agent.run(user_prompt, output_type=self._output_type)
             data = res.output.model_dump(mode="json") if isinstance(res.output, BaseModel) else res.output
             output = data[self._output_key]
-            updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output}).input_value(item_doc).first())
+            updates_root = self.foreach is None or "id" not in item_doc
+            updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output, "item": item_doc}).input_value(doc if updates_root else item_doc).first())
 
-            if self.foreach is None:
+            if updates_root:
                 doc.update(updated)
                 ctx.metadata.clear()
                 ctx.metadata.update(doc["metadata"])

@@ -3,8 +3,8 @@ import io
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from omni_ingest.agent.chunking import PageChunkingAgent, SentenceChunkingAgent
-from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.agent.chunking import PageChunkingAgent, PageStitchingAgent, SentenceChunkingAgent
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 
 
@@ -115,3 +115,27 @@ async def test_page_chunking_pdf_mode_emits_single_page_pdfs():
     assert [item.metadata["page"] for item in result.items] == [1, 2]
     assert all(item.metadata["content_type"] == "application/pdf" for item in result.items)
     assert all(len(PdfReader(io.BytesIO(item.content)).pages) == 1 for item in result.items)
+
+
+@pytest.mark.asyncio
+async def test_page_stitching_agent_combines_selected_page_items():
+    items = []
+    for page in range(1, 4):
+        with PdfWriter() as writer, io.BytesIO() as pdf:
+            writer.add_blank_page(width=72, height=72)
+            writer.write(pdf)
+            items.append(KnowledgeItem(content=pdf.getvalue(), metadata={"page": page}))
+    ids = [str(item.id) for item in items]
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=b""), items=items)
+    agent = PageStitchingAgent(
+        foreach=f'{{"record": {{"name": "chapter"}}, "ids": ["{ids[0]}", "{ids[2]}"]}}',
+        input=".ids",
+        metadata='{record: .record, page_count: (.ids | length)}',
+    )
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata == {"count": 1, "replace": True}
+    assert ctx.items[0].metadata == {"record": {"name": "chapter"}, "page_count": 2}
+    assert len(PdfReader(io.BytesIO(ctx.items[0].content)).pages) == 2

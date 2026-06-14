@@ -237,6 +237,31 @@ async def test_structure_agent_serializes_pydantic_output_for_jq_args():
 
 
 @pytest.mark.asyncio
+async def test_structure_agent_foreach_document_updates_root_metadata():
+    agent = StructureAgent(
+        foreach='.metadata.toc.records[] | {record: ., context: .name, ids: $ids}',
+        input=".",
+        target='.metadata.chapters = ((.metadata.chapters // []) + [{"record": $item.record, "chapter": $output}])',
+        prompt="Build chapter.",
+        json_schema={"type": "object", "properties": {"topics": {"type": "array", "items": {"type": "string"}}}, "required": ["topics"]},
+    )
+    ctx = create_ctx(None, "")
+    ctx.items = [KnowledgeItem(content=b"%PDF-1.4\npage")]
+    ctx.metadata["toc"] = {"records": [{"no": 1, "name": "Matter", "page_begin": 1, "page_end": 2}]}
+    item_id = str(ctx.items[0].id)
+    agent.foreach = agent.foreach.replace("$ids", f'["{item_id}"]')
+    mock_agent = AsyncMock()
+    mock_agent.run.return_value.output = {"output": {"topics": ["Matter"]}}
+
+    with patch.object(agent, "_agent", return_value=mock_agent):
+        result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert ctx.metadata["chapters"] == [{"record": ctx.metadata["toc"]["records"][0], "chapter": {"topics": ["Matter"]}}]
+    assert mock_agent.run.await_args.args[0][1] == "Matter"
+
+
+@pytest.mark.asyncio
 async def test_data_lineage_agent(vector_store):
     agent = DataLineageAgent()
     ctx = create_ctx(vector_store, "")

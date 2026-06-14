@@ -6,6 +6,7 @@ import io
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
+import jq
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
 from pypdf import PdfReader, PdfWriter
 
@@ -80,6 +81,44 @@ class PageChunkingAgent(BaseModel, Step):
                 )
         ctx.items = items
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items), "mode": self.mode})
+
+
+class PageStitchingAgent(BaseModel, Step):
+    """
+    Combines selected PDF page items into larger PDF items.
+
+    jq expressions define the stitch specs and selected page item ids, making
+    this reusable for chapters, sections, ranges, or any metadata-driven slices.
+    """
+
+    foreach: str = Field(default=".", description="jq expression producing stitch specs")
+    input: str = Field(..., description="jq expression selecting page item ids for each stitch spec")
+    metadata: str = Field(default=".", description="jq expression producing metadata for each stitched item")
+    replace: bool = Field(default=True, description="Replace ctx.items with stitched PDFs")
+
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
+        item_by_id = {item_doc["id"]: item for item_doc, item in zip(item_docs, ctx.items, strict=True)}
+        doc = {"metadata": ctx.metadata, "items": item_docs}
+        stitched = []
+
+        for spec in jq.compile(self.foreach).input_value(doc).all():
+            ids = jq.compile(self.input).input_value(spec).first()
+            if not isinstance(ids, list) or not ids or any(item_id not in item_by_id for item_id in ids):
+                raise ValueError("PageStitchingAgent input must resolve to known item ids")
+
+            with io.BytesIO() as s, PdfWriter() as writer:
+                for item_id in ids:
+                    with io.BytesIO(item_by_id[item_id].content) as page_pdf, PdfReader(page_pdf) as reader:
+                        writer.append(reader)
+                writer.write(s)
+                stitched.append(KnowledgeItem(content=s.getvalue(), content_encoding="binary", metadata=jq.compile(self.metadata).input_value(spec).first()))
+
+        if self.replace:
+            ctx.items = stitched
+        else:
+            ctx.items.extend(stitched)
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(stitched), "replace": self.replace})
 
 
 class TimedChunkingAgent(BaseModel, Step):
