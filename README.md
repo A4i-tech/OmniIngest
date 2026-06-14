@@ -50,15 +50,13 @@ from pathlib import Path
 from omni_ingest.core.pipeline import create_pipeline_from_config
 from omni_ingest.core.model import IngestionContext
 from omni_ingest.core.output import VectorStoreOutput
-from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
 from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
 async def main():
     pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
-    mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///./knowledge.db")
     output = VectorStoreOutput(store=LanceDBVectorStore(table_name="knowledge_base", db_path="./lancedb_data"))
-    ctx = IngestionContext(resource=Path("research_paper.pdf"), store=mstore)
+    ctx = IngestionContext(resource=Path("research_paper.pdf"))
     results = await pipeline.run(ctx, output=output)
     print(f"Processed {sum(len(e.items) for e in results)} items.")
 
