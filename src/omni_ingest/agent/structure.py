@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, model_validator
 from pydantic_ai import BinaryContent, ModelRetry
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import AgentMixin, JqExpression, Step, StepResult, StepStatus
+from ..core.model import AgentMixin, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
 
 
 class JqAssertion(BaseModel):
@@ -38,6 +39,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
     input: JqExpression = Field(default=".text", description="jq expression selecting prompt input from each selected document")
     context: JqExpression | None = Field(default=None, description="jq expression selecting extra prompt context from each selected document")
     assertions: list[JqAssertion] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
+    concurrency: PositiveInt = Field(default=1, description="Maximum number of selected documents to structure concurrently")
 
     _output_key: str = PrivateAttr("output")
     _output_type: type[BaseModel] = PrivateAttr()
@@ -52,18 +54,48 @@ class StructureAgent(BaseModel, Step, AgentMixin):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for structure extraction")
 
-        agent = self._agent(ctx)
         item_docs = [
             {"id": str(item.id), "source_uri": item.source_uri, "text": item.decode() if item.content_type.startswith("text/") else None, "metadata": item.metadata}
             for item in ctx.items
         ]
         doc: dict[str, Any] = {"metadata": ctx.metadata, "items": item_docs}
-        item_by_id = {item_doc["id"]: item for item_doc, item in zip(item_docs, ctx.items, strict=True)}
+        item_by_id: dict[str, KnowledgeItem] = {str(item_doc["id"]): item for item_doc, item in zip(item_docs, ctx.items, strict=True)}
         selected_docs = [doc] if self.foreach is None else jq.compile(self.foreach).input_value(doc).all()
 
         ctx.progress(0, len(selected_docs), "structuring")
+        sem = asyncio.Semaphore(self.concurrency)
         processed = 0
-        for item_doc in selected_docs:
+
+        results = []
+        for task in asyncio.as_completed([self._structure(ctx, i, item_doc, item_by_id, sem) for i, item_doc in enumerate(selected_docs)]):
+            results.append(await task)
+            processed += 1
+            if self.mode != "buffered" or len(selected_docs) > 1:
+                ctx.progress(processed, len(selected_docs), f"structured {processed}/{len(selected_docs)}")
+
+        for _, item_doc, output in sorted(results, key=lambda r: r[0]):
+            item_doc = cast(dict[str, Any], item_doc)
+            updates_root = self.foreach is None or self.target_scope == "root"
+            updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output, "item": item_doc}).input_value(doc if updates_root else item_doc).first())
+
+            if updates_root:
+                doc.update(updated)
+                ctx.metadata.clear()
+                ctx.metadata.update(doc["metadata"])
+            else:
+                item_by_id[updated["id"]].metadata.clear()
+                item_by_id[updated["id"]].metadata.update(updated["metadata"])
+
+            for assertion in self.assertions:
+                if not jq.compile(assertion.expr, args={self._output_key: output}).input_value(updated).first():
+                    metadata = {self._output_key: output} if self.foreach is None else {"items_processed": processed, self._output_key: output}
+                    return StepResult(status=StepStatus.FAILURE, error=assertion.message, items=ctx.items, metadata=metadata)
+
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target} if self.foreach is None else {"items_processed": processed})
+
+    async def _structure(self, ctx: IngestionContext, i: int, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore) -> tuple[int, dict[str, Any], Any]:
+        async with sem:
+            agent = self._agent(ctx)
             item_doc = cast(dict[str, Any], item_doc)
             prompt_input: Any = jq.compile(self.input).input_value(item_doc).first()
             item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
@@ -100,27 +132,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
 
             res = await agent.run(user_prompt, output_type=self._output_type)
             data = res.output.model_dump(mode="json") if isinstance(res.output, BaseModel) else res.output
-            output = data[self._output_key]
-            updates_root = self.foreach is None or self.target_scope == "root"
-            updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output, "item": item_doc}).input_value(doc if updates_root else item_doc).first())
-
-            if updates_root:
-                doc.update(updated)
-                ctx.metadata.clear()
-                ctx.metadata.update(doc["metadata"])
-            else:
-                item_by_id[updated["id"]].metadata.clear()
-                item_by_id[updated["id"]].metadata.update(updated["metadata"])
-
-            for assertion in self.assertions:
-                if not jq.compile(assertion.expr, args={self._output_key: output}).input_value(updated).first():
-                    metadata = {self._output_key: output} if self.foreach is None else {"items_processed": processed, self._output_key: output}
-                    return StepResult(status=StepStatus.FAILURE, error=assertion.message, items=ctx.items, metadata=metadata)
-            processed += 1
-            if self.mode != "buffered" or len(selected_docs) > 1:
-                ctx.progress(processed, len(selected_docs), f"structured {processed}/{len(selected_docs)}")
-
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target} if self.foreach is None else {"items_processed": processed})
+            return i, item_doc, data[self._output_key]
 
 
 class TransformAgent(BaseModel, Step):
