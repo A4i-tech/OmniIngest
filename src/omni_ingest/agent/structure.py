@@ -28,8 +28,10 @@ class StructureAgent(BaseModel, Step, AgentMixin):
     json_schema: dict[str, Any] = Field(..., description="JSON schema for the structured model output")
     target: str = Field(..., description="jq assignment expression where $output is the structured result")
     mode: Literal["direct", "buffered"] = Field(default="direct", description="How selected input is supplied to the model")
+    target_scope: Literal["selected", "root"] = Field(default="selected", description="Whether target is applied to the selected document or root document")
     foreach: str | None = Field(default=".items[]", description="jq expression selecting documents to process; null runs once over the whole context")
     input: str = Field(default=".text", description="jq expression selecting prompt input from each selected document")
+    context: str | None = Field(default=None, description="jq expression selecting extra prompt context from each selected document")
     assertions: list[dict[str, str]] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
 
     _output_key: str = PrivateAttr("output")
@@ -58,8 +60,8 @@ class StructureAgent(BaseModel, Step, AgentMixin):
         for item_doc in selected_docs:
             item_doc = cast(dict[str, Any], item_doc)
             prompt_input: Any = jq.compile(self.input).input_value(item_doc).first()
-            input_ids = prompt_input.get("ids") if isinstance(prompt_input, dict) else prompt_input
-            item_ids: list[str] = input_ids if isinstance(input_ids, list) and all(item_id in item_by_id for item_id in input_ids) else []
+            item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
+            prompt_context = jq.compile(self.context).input_value(item_doc).first() if self.context else None
             user_prompt: Any
             if self.mode == "buffered":
                 buffered_ids = tuple(item_ids)
@@ -81,16 +83,16 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             elif item_ids:
                 user_prompt = [
                     self.prompt,
-                    *([prompt_input["context"]] if isinstance(prompt_input, dict) and "context" in prompt_input else []),
+                    *([prompt_context] if prompt_context is not None else []),
                     *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids),
                 ]
             else:
-                user_prompt = [self.prompt, prompt_input]
+                user_prompt = [self.prompt, *([prompt_context] if prompt_context is not None else []), prompt_input]
 
             res = await agent.run(user_prompt, output_type=self._output_type)
             data = res.output.model_dump(mode="json") if isinstance(res.output, BaseModel) else res.output
             output = data[self._output_key]
-            updates_root = self.foreach is None or "id" not in item_doc
+            updates_root = self.foreach is None or self.target_scope == "root"
             updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output, "item": item_doc}).input_value(doc if updates_root else item_doc).first())
 
             if updates_root:

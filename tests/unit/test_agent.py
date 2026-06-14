@@ -240,7 +240,9 @@ async def test_structure_agent_serializes_pydantic_output_for_jq_args():
 async def test_structure_agent_foreach_document_updates_root_metadata():
     agent = StructureAgent(
         foreach='.metadata.toc.records[] | {record: ., context: .name, ids: $ids}',
-        input=".",
+        input=".ids",
+        context=".context",
+        target_scope="root",
         target='.metadata.chapters = ((.metadata.chapters // []) + [{"record": $item.record, "chapter": $output}])',
         prompt="Build chapter.",
         json_schema={"type": "object", "properties": {"topics": {"type": "array", "items": {"type": "string"}}}, "required": ["topics"]},
