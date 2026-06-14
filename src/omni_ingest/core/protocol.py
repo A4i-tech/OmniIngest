@@ -32,6 +32,12 @@ class VectorStore(Protocol):
         """Returns the total number of items in the store."""
         ...
 
+    async def __aenter__(self) -> VectorStore:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        ...
+
     async def close(self) -> None:
         """Closes the connection to the store."""
         ...

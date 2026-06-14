@@ -1,6 +1,5 @@
 """Implementations for storing and querying high-dimensional vector embeddings."""
 
-import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -33,6 +32,13 @@ class LanceDBVectorStore(VectorStore):
         self.table_name, self.vector_size = table_name, vector_size
         self.db_path = str(Path(db_path or "./lancedb_data").resolve())
         self._db, self._table = None, None
+
+    async def __aenter__(self):
+        await self._get_table()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def _get_table(self) -> Any:
         if self._table is None:
@@ -133,6 +139,13 @@ class QdrantVectorStore(VectorStore):
         )
         self._init = False
 
+    async def __aenter__(self):
+        await self._ensure()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
     async def _ensure(self):
         if not self._init:
             if self.col not in [c.name for c in (await self._client.get_collections()).collections]:
@@ -201,7 +214,7 @@ class MongoVectorStore(VectorStore):
 
     def __init__(self, uri: str, database_name: str, collection_name: str, index_name: str, num_candidates: PositiveInt = 100):
         try:
-            from pymongo import MongoClient
+            from pymongo import AsyncMongoClient
         except ModuleNotFoundError as exc:
             raise ImportError("MongoVectorStore requires pymongo. Install omni-ingest[storage] or add pymongo to the environment.") from exc
 
@@ -209,8 +222,11 @@ class MongoVectorStore(VectorStore):
         self.collection_name = collection_name
         self.index_name = index_name
         self.num_candidates = num_candidates
-        self._client: Any = MongoClient(uri)
+        self._client: Any = AsyncMongoClient(uri)
         self._collection = self._client[self.database_name][self.collection_name]
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:
         try:
@@ -239,7 +255,7 @@ class MongoVectorStore(VectorStore):
             )
 
         if operations:
-            await asyncio.to_thread(self._collection.bulk_write, operations, ordered=False)
+            await self._collection.bulk_write(operations, ordered=False)
 
     async def search(self, query: list[float], k: PositiveInt = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         vector_stage: dict[str, Any] = {
@@ -252,44 +268,39 @@ class MongoVectorStore(VectorStore):
         if tenant_id is not None:
             vector_stage["filter"] = {DOCUMENT_TENANT_ID_FIELD: str(tenant_id)}
 
-        def _search_documents() -> list[KnowledgeItem]:
-            cursor = self._collection.aggregate(
-                [
-                    {"$vectorSearch": vector_stage},
-                    {
-                        "$project": {
-                            DOCUMENT_ID_FIELD: 1,
-                            DOCUMENT_CONTENT_FIELD: 1,
-                            DOCUMENT_TENANT_ID_FIELD: 1,
-                            DOCUMENT_SOURCE_URI_FIELD: 1,
-                            DOCUMENT_METADATA_FIELD: 1,
-                        }
-                    },
-                ]
-            )
-            results: list[KnowledgeItem] = []
-            for document in cursor:
-                tenant_value = document.get(DOCUMENT_TENANT_ID_FIELD)
-                source_uri = document.get(DOCUMENT_SOURCE_URI_FIELD)
-                metadata = document.get(DOCUMENT_METADATA_FIELD, "{}")
-                results.append(
-                    KnowledgeItem(
-                        id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
-                        tenant_id=None if not tenant_value else UUID(str(tenant_value)),
-                        source_uri=None if not source_uri else str(source_uri),
-                        metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
-                    )
+        cursor = await self._collection.aggregate([
+            {"$vectorSearch": vector_stage},
+            {
+                "$project": {
+                    DOCUMENT_ID_FIELD: 1,
+                    DOCUMENT_CONTENT_FIELD: 1,
+                    DOCUMENT_TENANT_ID_FIELD: 1,
+                    DOCUMENT_SOURCE_URI_FIELD: 1,
+                    DOCUMENT_METADATA_FIELD: 1,
+                }
+            },
+        ])
+        results: list[KnowledgeItem] = []
+        async for document in cursor:
+            tenant_value = document.get(DOCUMENT_TENANT_ID_FIELD)
+            source_uri = document.get(DOCUMENT_SOURCE_URI_FIELD)
+            metadata = document.get(DOCUMENT_METADATA_FIELD, "{}")
+            results.append(
+                KnowledgeItem(
+                    id=UUID(str(document[DOCUMENT_ID_FIELD])),
+                    content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    tenant_id=None if not tenant_value else UUID(str(tenant_value)),
+                    source_uri=None if not source_uri else str(source_uri),
+                    metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
                 )
-            return results
-
-        return await asyncio.to_thread(_search_documents)
+            )
+        return results
 
     async def count(self) -> int:
-        return await asyncio.to_thread(self._collection.count_documents, {})
+        return await self._collection.count_documents({})
 
     async def close(self):
-        self._client.close()
+        await self._client.close()
 
     @property
     def kind(self) -> str:
@@ -305,15 +316,10 @@ class AzureVectorSearchStore(VectorStore):
     Azure AI Search vector retrieval backed by a pre-created index.
     """
 
-    def __init__(
-        self,
-        endpoint: str,
-        api_key: str,
-        index_name: str,
-    ):
+    def __init__(self, endpoint: str, api_key: str, index_name: str,):
         try:
             from azure.core.credentials import AzureKeyCredential
-            from azure.search.documents import SearchClient
+            from azure.search.documents.aio import SearchClient
         except ModuleNotFoundError as exc:
             raise ImportError(
                 "AzureVectorSearchStore requires azure-search-documents. Install omni-ingest[storage] or add azure-search-documents to the environment."
@@ -321,6 +327,9 @@ class AzureVectorSearchStore(VectorStore):
 
         self.index_name = index_name
         self._client = SearchClient(endpoint=endpoint, index_name=index_name, credential=AzureKeyCredential(api_key))
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:
         documents = []
@@ -340,7 +349,7 @@ class AzureVectorSearchStore(VectorStore):
             )
 
         if documents:
-            await asyncio.to_thread(self._client.merge_or_upload_documents, documents)
+            await self._client.merge_or_upload_documents(documents)
 
     async def search(self, query: list[float], k: PositiveInt = 5, tenant_id: UUID | None = None) -> list[KnowledgeItem]:
         try:
@@ -350,48 +359,45 @@ class AzureVectorSearchStore(VectorStore):
                 "AzureVectorSearchStore requires azure-search-documents. Install omni-ingest[storage] or add azure-search-documents to the environment."
             ) from exc
 
-        def _search_documents() -> list[KnowledgeItem]:
-            vector_query = VectorizedQuery(vector=query, k_nearest_neighbors=int(k), fields=DOCUMENT_VECTOR_FIELD)
-            filter_expression = None
-            if tenant_id is not None:
-                filter_expression = f"{DOCUMENT_TENANT_ID_FIELD} eq '{tenant_id}'"
+        vector_query = VectorizedQuery(vector=query, k_nearest_neighbors=int(k), fields=DOCUMENT_VECTOR_FIELD)
+        filter_expression = None
+        if tenant_id is not None:
+            filter_expression = f"{DOCUMENT_TENANT_ID_FIELD} eq '{tenant_id}'"
 
-            results = self._client.search(
-                search_text=None,
-                vector_queries=[vector_query],
-                filter=filter_expression,
-                select=[
-                    DOCUMENT_ID_FIELD,
-                    DOCUMENT_CONTENT_FIELD,
-                    DOCUMENT_TENANT_ID_FIELD,
-                    DOCUMENT_SOURCE_URI_FIELD,
-                    DOCUMENT_METADATA_FIELD,
-                ],
-                top=int(k),
-            )
-            items: list[KnowledgeItem] = []
-            for document in results:
-                tenant_value = document.get(DOCUMENT_TENANT_ID_FIELD)
-                source_uri = document.get(DOCUMENT_SOURCE_URI_FIELD)
-                metadata = document.get(DOCUMENT_METADATA_FIELD, "{}")
-                items.append(
-                    KnowledgeItem(
-                        id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                        content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
-                        tenant_id=None if not tenant_value else UUID(str(tenant_value)),
-                        source_uri=None if not source_uri else str(source_uri),
-                        metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
-                    )
+        results = await self._client.search(
+            search_text=None,
+            vector_queries=[vector_query],
+            filter=filter_expression,
+            select=[
+                DOCUMENT_ID_FIELD,
+                DOCUMENT_CONTENT_FIELD,
+                DOCUMENT_TENANT_ID_FIELD,
+                DOCUMENT_SOURCE_URI_FIELD,
+                DOCUMENT_METADATA_FIELD,
+            ],
+            top=int(k),
+        )
+        items: list[KnowledgeItem] = []
+        async for document in results:
+            tenant_value = document.get(DOCUMENT_TENANT_ID_FIELD)
+            source_uri = document.get(DOCUMENT_SOURCE_URI_FIELD)
+            metadata = document.get(DOCUMENT_METADATA_FIELD, "{}")
+            items.append(
+                KnowledgeItem(
+                    id=UUID(str(document[DOCUMENT_ID_FIELD])),
+                    content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    tenant_id=None if not tenant_value else UUID(str(tenant_value)),
+                    source_uri=None if not source_uri else str(source_uri),
+                    metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
                 )
-            return items
-
-        return await asyncio.to_thread(_search_documents)
+            )
+        return items
 
     async def count(self) -> int:
-        return await asyncio.to_thread(self._client.get_document_count)
+        return await self._client.get_document_count()
 
     async def close(self):
-        await asyncio.to_thread(self._client.close)
+        await self._client.close()
 
     @property
     def kind(self) -> str:
@@ -417,6 +423,9 @@ class ChromaVectorStore(VectorStore):
         self.path = str(Path(path).resolve())
         self._client = chromadb.PersistentClient(path=self.path)
         self._collection: Any = self._client.get_or_create_collection(name=self.collection_name, metadata={"hnsw:space": "cosine"})
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:
         ids: list[str] = []

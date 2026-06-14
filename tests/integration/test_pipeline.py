@@ -9,7 +9,6 @@ from omni_ingest.agent.indexing import EmbeddingAgent
 from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, create_pipeline_from_config
-from omni_ingest.port.vector_store import InMemoryVectorStore
 
 
 class EchoStep(Step):
@@ -46,13 +45,12 @@ async def test_embedding_agent_standalone(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_full_ingestion_flow(metadata_store):
-    store = InMemoryVectorStore()
+async def test_full_ingestion_flow(metadata_store, vector_store):
     steps = [SentenceChunkingAgent(), EmbeddingAgent()]
 
     runner = PipelineRunner(steps=steps)
-    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=store))
-    assert all(r.status == StepStatus.SUCCESS for r in results) and await store.count() >= 1
+    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=vector_store))
+    assert all(r.status == StepStatus.SUCCESS for r in results) and await vector_store.count() >= 1
     assert runner.output_result is not None and runner.output_result.status == StepStatus.SUCCESS
 
 

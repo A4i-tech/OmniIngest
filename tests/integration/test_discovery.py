@@ -4,18 +4,14 @@ import pytest
 
 from omni_ingest.core.model import KnowledgeItem
 from omni_ingest.core.pipeline import KnowledgeBaseAdapter
-from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
-from omni_ingest.port.vector_store import InMemoryVectorStore
 
 
 @pytest.mark.asyncio
-async def test_discovery_adapter_unified_search():
-    mstore = SQLAlchemyMetadataStore.in_memory()
-    vstore = InMemoryVectorStore()
-    adapter = KnowledgeBaseAdapter(mstore, vstore)
+async def test_discovery_adapter_unified_search(metadata_store, vector_store):
+    adapter = KnowledgeBaseAdapter(metadata_store, vector_store)
 
     tenant_id = uuid4()
-    item_id = await mstore.create_knowledge_item(
+    item_id = await metadata_store.create_knowledge_item(
         tenant_id=tenant_id,
         domain_profile="discovery_test",
         modality="text",
@@ -29,7 +25,7 @@ async def test_discovery_adapter_unified_search():
     assert items[0].id == item_id
 
     ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, content=b"Content", metadata={"embedding": [0.1] * 1536})
-    await vstore.upsert([ki])
+    await vector_store.upsert([ki])
 
     results = await adapter.query(tenant_id=tenant_id, query=[0.1] * 1536)
     assert len(results) >= 1
@@ -37,13 +33,12 @@ async def test_discovery_adapter_unified_search():
 
 
 @pytest.mark.asyncio
-async def test_discovery_adapter_isolation_and_filters():
-    mstore = SQLAlchemyMetadataStore.in_memory()
-    adapter = KnowledgeBaseAdapter(mstore, InMemoryVectorStore())
+async def test_discovery_adapter_isolation_and_filters(metadata_store, vector_store):
+    adapter = KnowledgeBaseAdapter(metadata_store, vector_store)
 
     t1, t2 = uuid4(), uuid4()
-    await mstore.create_knowledge_item(tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content="c1")
-    await mstore.create_knowledge_item(tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content="c2")
+    await metadata_store.create_knowledge_item(tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content="c1")
+    await metadata_store.create_knowledge_item(tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content="c2")
 
     items_t1 = await adapter.list_items(tenant_id=t1)
     assert len(items_t1) == 1

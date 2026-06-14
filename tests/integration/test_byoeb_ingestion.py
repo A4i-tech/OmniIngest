@@ -7,13 +7,12 @@ import yaml
 from omni_ingest.core.model import StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter, create_pipeline_from_config
-from omni_ingest.port.vector_store import InMemoryVectorStore
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
 
 @pytest.mark.asyncio
-async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
+async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store):
     config = {
         "steps": [
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
@@ -25,7 +24,6 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store):
         yaml.dump(config, f)
 
     pipeline = create_pipeline_from_config(config_path)
-    vector_store = InMemoryVectorStore()
     output = VectorStoreOutput(store=vector_store)
 
     tid = uuid4()

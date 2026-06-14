@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
@@ -7,14 +5,12 @@ from omni_ingest.port.vector_store import InMemoryVectorStore
 
 
 @pytest.fixture
-def store():
-    store = InMemoryVectorStore()
-    yield store
-    asyncio.run(store.close())
+async def vector_store():
+    async with InMemoryVectorStore() as store:
+        yield store
 
 
 @pytest.fixture
-def metadata_store():
-    s = SQLAlchemyMetadataStore.in_memory()
-    yield s
-    asyncio.run(s.close())
+async def metadata_store():
+    async with SQLAlchemyMetadataStore.in_memory() as store:
+        yield store

@@ -28,11 +28,11 @@ def create_ctx(store, content):
 
 
 @pytest.mark.asyncio
-async def test_markdown_cleaning_agent(store):
+async def test_markdown_cleaning_agent(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = MarkdownCleaningAgent()
 
-    ctx = create_ctx(store, "## Raw")
+    ctx = create_ctx(vector_store, "## Raw")
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
@@ -40,11 +40,11 @@ async def test_markdown_cleaning_agent(store):
 
 
 @pytest.mark.asyncio
-async def test_transcription_post_processor_agent(store):
+async def test_transcription_post_processor_agent(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = TranscriptionPostProcessorAgent()
 
-    ctx = create_ctx(store, "hello")
+    ctx = create_ctx(vector_store, "hello")
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["Hello"])):
         result = await agent.run(ctx)
 
@@ -53,11 +53,11 @@ async def test_transcription_post_processor_agent(store):
 
 
 @pytest.mark.asyncio
-async def test_quality_verifier_agent_success(store):
+async def test_quality_verifier_agent_success(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
 
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"test content")]
 
     from omni_ingest.agent.governance import QualityReport
@@ -75,11 +75,11 @@ async def test_quality_verifier_agent_success(store):
 
 
 @pytest.mark.asyncio
-async def test_quality_verifier_agent_failure(store):
+async def test_quality_verifier_agent_failure(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = QualityVerifierAgent(min_quality_score=0.7)
 
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"bad content")]
 
     from omni_ingest.agent.governance import QualityReport
@@ -97,7 +97,7 @@ async def test_quality_verifier_agent_failure(store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_item_set(store):
+async def test_structure_agent_item_set(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = StructureAgent(
         metadata_key="learning_outcomes",
@@ -108,7 +108,7 @@ async def test_structure_agent_item_set(store):
         },
     )
 
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"educational content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
@@ -121,7 +121,7 @@ async def test_structure_agent_item_set(store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_update(store):
+async def test_structure_agent_update(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = StructureAgent(
         method="update",
@@ -133,7 +133,7 @@ async def test_structure_agent_update(store):
         },
     )
 
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
@@ -147,9 +147,9 @@ async def test_structure_agent_update(store):
 
 
 @pytest.mark.asyncio
-async def test_data_lineage_agent(store):
+async def test_data_lineage_agent(vector_store):
     agent = DataLineageAgent()
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"test")]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -157,13 +157,13 @@ async def test_data_lineage_agent(store):
 
 
 @pytest.mark.asyncio
-async def test_page_chunking_agent(store):
+async def test_page_chunking_agent(vector_store):
     agent = PageChunkingAgent()
     with patch("omni_ingest.agent.chunking.PdfReader") as mock_reader:
         mock_page = MagicMock()
         mock_page.extract_text.return_value = "Page content"
         mock_reader.return_value.pages = [mock_page]
-        ctx = create_ctx(store, "")
+        ctx = create_ctx(vector_store, "")
         ctx.metadata["file_path"] = "fake.pdf"
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
@@ -171,9 +171,9 @@ async def test_page_chunking_agent(store):
 
 
 @pytest.mark.asyncio
-async def test_json_file_output(store, tmp_path):
+async def test_json_file_output(vector_store, tmp_path):
     output = JsonFileOutput(path=tmp_path / "items.json")
-    ctx = create_ctx(store, "resource")
+    ctx = create_ctx(vector_store, "resource")
     ctx.metadata["source"] = "unit"
     ctx.items = [KnowledgeItem(content=b"test", metadata={"tag": "x"})]
 
@@ -189,20 +189,20 @@ async def test_json_file_output(store, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_vector_store_output(store):
-    output = VectorStoreOutput(store=store)
-    ctx = create_ctx(store, "")
+async def test_vector_store_output(vector_store):
+    output = VectorStoreOutput(store=vector_store)
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"embedding": [0.1] * 1536})]
     result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
-    assert await store.count() == 1
+    assert await vector_store.count() == 1
 
 
 @pytest.mark.asyncio
-async def test_graph_store_output(store):
+async def test_graph_store_output(vector_store):
     mock_store = AsyncMock()
     output = GraphStoreOutput(store=mock_store)
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
     result = await output.write(ctx)
@@ -211,10 +211,10 @@ async def test_graph_store_output(store):
 
 
 @pytest.mark.asyncio
-async def test_graph_store_output_with_edges(store):
+async def test_graph_store_output_with_edges(vector_store):
     mock_store = AsyncMock()
     output = GraphStoreOutput(store=mock_store)
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
@@ -225,23 +225,23 @@ async def test_graph_store_output_with_edges(store):
 
 
 @pytest.mark.asyncio
-async def test_timed_chunking_agent(store):
+async def test_timed_chunking_agent(vector_store):
     from omni_ingest.agent.chunking import TimedChunkingAgent
 
     agent = TimedChunkingAgent(segment_duration="00:00:00.100000")
 
-    ctx = create_ctx(store, "test")
+    ctx = create_ctx(vector_store, "test")
     ctx.metadata["word_timestamps"] = [{"Word": "test", "Offset": 0, "Duration": 2000000}]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio
-async def test_ingestion_logger_agent(store):
+async def test_ingestion_logger_agent(vector_store):
     from omni_ingest.agent.governance import IngestionLoggerAgent
 
     agent = IngestionLoggerAgent()
-    ctx = create_ctx(store, "")
+    ctx = create_ctx(vector_store, "")
     ctx.run_id = uuid4()
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -261,10 +261,10 @@ def test_pipeline_agent_rejects_missing_config_path(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_agent_returns_last_nested_step_result(store):
+async def test_pipeline_agent_returns_last_nested_step_result(vector_store):
     final_result = StepResult(status=StepStatus.SUCCESS, metadata={"nested": "done"})
     runner = PipelineRunner(steps=[])
-    ctx = create_ctx(store, "nested content")
+    ctx = create_ctx(vector_store, "nested content")
 
     with patch.object(runner, "run", new=AsyncMock(return_value=[StepResult(status=StepStatus.SUCCESS), final_result])) as mock_run:
         agent = PipelineAgent(pipeline=runner)

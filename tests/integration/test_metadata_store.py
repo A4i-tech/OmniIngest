@@ -7,7 +7,6 @@ from omni_ingest.agent.governance import IngestionLoggerAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
-from omni_ingest.port.vector_store import InMemoryVectorStore
 
 
 @pytest.mark.asyncio
@@ -139,10 +138,9 @@ async def test_pipeline_registration(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_vector_store_output_registers_chunks(metadata_store, tenant):
+async def test_vector_store_output_registers_chunks(metadata_store, vector_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
-    vstore = InMemoryVectorStore()
-    output = VectorStoreOutput(store=vstore)
+    output = VectorStoreOutput(store=vector_store)
     item = KnowledgeItem(content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=b""))
     res = await output.write(ctx)

@@ -48,6 +48,13 @@ class SQLAlchemyMetadataStore(MetadataStore):
         await self._init_db()
         await self.engine.dispose()
 
+    async def __aenter__(self):
+        await self._init_db()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
     async def get_tenant(self, slug: str) -> Tenant | None:
         await self._init_db()
         async with self.session_factory() as s:
