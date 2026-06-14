@@ -2720,9 +2720,11 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pypdf" },
     { name = "python-docx" },
+    { name = "python-dotenv" },
     { name = "python-magic" },
     { name = "pyyaml" },
     { name = "qdrant-client" },
+    { name = "rich" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "types-jsonschema" },
 ]
@@ -2773,9 +2775,11 @@ requires-dist = [
     { name = "pymongo", marker = "extra == 'storage'", specifier = ">=4.17.0" },
     { name = "pypdf", specifier = ">=6.13.2" },
     { name = "python-docx", specifier = ">=1.2.0" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-magic", specifier = ">=0.4.27" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "qdrant-client", specifier = ">=1.18.0" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
     { name = "types-jsonschema", specifier = ">=4.26.0.20260518" },
 ]

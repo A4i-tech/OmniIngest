@@ -92,18 +92,6 @@ class StdoutOutput(Output):
         return OutputResult(status=StepStatus.SUCCESS)
 
 
-def parse(value: str) -> Output:
-    if value == "-":
-        return StdoutOutput()
-    if value == "vector:":
-        return VectorStoreOutput(settings.vector_store.build())
-    if value == "graph:":
-        return GraphStoreOutput(settings.graph_store.build())
-    if Path(value).suffix == ".json":
-        return JsonFileOutput(Path(value))
-    raise ValueError(f"Unsupported output: {value}")
-
-
 class VectorStoreOutput(Output):
     """Writes finalized knowledge items to a vector store.
 
@@ -171,3 +159,15 @@ class GraphStoreOutput(Output):
         if edges := kg_data.get("edges"):
             await self.store.upsert_edges(edges)
         return OutputResult(status=StepStatus.SUCCESS, metadata={"graph_nodes": len(kg_data.get("nodes", []))})
+
+
+def parse(value: str) -> Output:
+    if value == "-":
+        return StdoutOutput()
+    if value == "vector:default":
+        return VectorStoreOutput(settings.vector_store.build())
+    if value == "graph:default":
+        return GraphStoreOutput(settings.graph_store.build())
+    if Path(value).suffix == ".json":
+        return JsonFileOutput(Path(value))
+    raise ValueError(f"Unsupported output: {value}")

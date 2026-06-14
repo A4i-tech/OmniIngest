@@ -346,6 +346,7 @@ async def test_json_file_output(vector_store, tmp_path):
 async def test_parse_output_and_stdout(vector_store, tmp_path, capsys):
     assert isinstance(parse("-"), StdoutOutput)
     assert isinstance(parse(str(tmp_path / "items.json")), JsonFileOutput)
+    assert isinstance(parse("vector:default"), VectorStoreOutput)
     output = parse("-")
     ctx = create_ctx(vector_store, "resource")
 

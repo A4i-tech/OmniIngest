@@ -63,3 +63,32 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+### Usage: CLI tool
+Install Omni-Ingest as a `uv` tool:
+
+```bash
+uv tool install git+https://github.com/A4i-tech/OmniIngest.git
+```
+
+```bash
+# Run a pipeline from the repo without installing.
+uv run omni-ingest profiles/enrichment.yaml --input document.pdf --output out.json
+
+# Process multiple inputs concurrently.
+omni-ingest profiles/enrichment.yaml --input a.pdf b.pdf c.pdf --output out.json
+
+# Extract just the metadata you need for a downstream script.
+omni-ingest profiles/enrichment.yaml --input *.pdf --output - | jq '.runs[].metadata'
+
+# Add embedded chunks to the configured vector store.
+omni-ingest textbook_v1.yaml --input textbook.pdf --output vector:default
+
+# Pipeline parameters become CLI flags.
+omni-ingest profiles/quality.yaml --help
+omni-ingest profiles/quality.yaml \
+  --input document.pdf \
+  --output - \
+  --sample-size 5 \
+  --min-quality-score 0.8
+```
