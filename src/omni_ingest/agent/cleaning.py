@@ -22,7 +22,7 @@ class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
     """
 
     prompt_template: str = Field(
-        "Clean the following markdown text by fixing formatting issues, removing boilerplate, and ensuring consistency. Output ONLY the cleaned markdown.\n\n{text}",
+        default="Clean the following markdown text by fixing formatting issues, removing boilerplate, and ensuring consistency. Output ONLY the cleaned markdown.\n\n{text}",
         description="The instructions we send to the AI editor",
     )
 
