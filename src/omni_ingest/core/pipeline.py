@@ -87,6 +87,7 @@ _STEP_FACTORY: StepFactory = {
     "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
 
     "structure": agent.structure.StructureAgent,
+    "transform": agent.structure.TransformAgent,
     "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,

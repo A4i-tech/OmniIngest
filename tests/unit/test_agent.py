@@ -14,7 +14,7 @@ from omni_ingest.agent.cleaning import (
 from omni_ingest.agent.governance import (
     DataLineageAgent,
 )
-from omni_ingest.agent.structure import StructureAgent
+from omni_ingest.agent.structure import StructureAgent, TransformAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext
@@ -261,6 +261,41 @@ async def test_structure_agent_foreach_document_updates_root_metadata():
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["chapters"] == [{"record": ctx.metadata["toc"]["records"][0], "chapter": {"topics": ["Matter"]}}]
     assert mock_agent.run.await_args.args[0][1] == "Matter"
+
+
+@pytest.mark.asyncio
+async def test_transform_agent_writes_jq_output_to_metadata():
+    agent = TransformAgent(value=".metadata.items | map(.name)", target=".metadata.names = $output")
+    ctx = create_ctx(None, "")
+    ctx.metadata["items"] = [{"name": "a"}, {"name": "b"}]
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert ctx.metadata["names"] == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_transform_agent_maps_nested_metadata():
+    agent = TransformAgent(target=".metadata.records = $output", value=r"""
+        .metadata.book as $book
+        | .metadata.chapters
+        | map({
+            id: "\($book.board)-\(.no)",
+            title: .name,
+            topics: (.topics | map(.numbering + ". " + .title))
+            })
+    """)
+    ctx = create_ctx(None, "")
+    ctx.metadata = {
+        "book": {"board": "BSE-TG"},
+        "chapters": [{"no": 1, "name": "Our Environment", "topics": [{"numbering": "1.1", "title": "Introduction"}]}],
+    }
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert ctx.metadata["records"] == [{"id": "BSE-TG-1", "title": "Our Environment", "topics": ["1.1. Introduction"]}]
 
 
 @pytest.mark.asyncio

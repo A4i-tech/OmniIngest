@@ -110,3 +110,21 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             processed += 1
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target} if self.foreach is None else {"items_processed": processed})
+
+
+class TransformAgent(BaseModel, Step):
+    """Applies jq transforms to the pipeline document."""
+
+    value: str = Field(..., description="jq expression producing transformed output")
+    target: str = Field(..., description="jq assignment expression where $output is the transformed value")
+
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        doc: dict[str, Any] = {
+            "metadata": ctx.metadata,
+            "items": [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items],
+        }
+        output = jq.compile(self.value).input_value(doc).first()
+        doc.update(cast(dict[str, Any], jq.compile(self.target, args={"output": output}).input_value(doc).first()))
+        ctx.metadata.clear()
+        ctx.metadata.update(doc["metadata"])
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target})
