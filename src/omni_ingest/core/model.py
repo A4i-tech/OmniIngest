@@ -1,9 +1,11 @@
 """Pydantic data models for knowledge items, contexts, and results."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Any, final
 from uuid import UUID, uuid4
 
 import magic
@@ -13,6 +15,9 @@ from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 
 from .config import settings
+
+if TYPE_CHECKING:
+    from .pipeline import IngestionContext
 
 
 class StepStatus(StrEnum):
@@ -69,26 +74,6 @@ class StepResult(BaseModel):
     error: str | None = Field(default=None, description="Error message if the step failed")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Step-specific execution metadata")
     items: list[KnowledgeItem] = Field(default_factory=list, description="Knowledge items produced or modified by the step")
-
-
-ResourceT = TypeVar("ResourceT", bound=Resource)
-class IngestionContext(BaseModel, Generic[ResourceT]):  # noqa: UP046
-    """
-    Maintains state and shared metadata across a single ingestion pipeline execution.
-
-    The IngestionContext object facilitates communication between sequential
-    processing steps by carrying operational state, configuration parameters,
-    and the current set of KnowledgeItems.
-    """
-
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-    run_id: UUID = Field(default_factory=uuid4, description="Unique identifier for the current pipeline run")
-    tenant_id: UUID = Field(default_factory=uuid4, description="Identifier for the active tenant")
-    resource: ResourceT = Field(..., description="...")
-    domain_profile: str = Field(default="default", description="The configuration profile being executed")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Shared state or context across steps")
-    items: list[KnowledgeItem] = Field(default_factory=list, description="The working set of knowledge items")
-    store: Any = Field(default=None, description="Reference to a storage engine or backend")
 
 
 class Step(ABC):

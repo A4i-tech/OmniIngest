@@ -1,13 +1,18 @@
 """Agents for segmenting large documents and transcripts into manageable chunks."""
 
+from __future__ import annotations
+
 import io
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
 from pypdf import PdfReader
 
-from ..core.model import IngestionContext, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
 class SentenceChunkingAgent(BaseModel, Step):

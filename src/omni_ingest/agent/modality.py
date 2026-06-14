@@ -1,13 +1,18 @@
 """Agents for modality transformation."""
 
+from __future__ import annotations
+
 import io
 import mimetypes
-from typing import Any, BinaryIO
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from pydantic import BaseModel, Field
 from pydantic_ai import BinaryContent
 
-from ..core.model import AgentMixin, ByteContent, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import AgentMixin, ByteContent, ResolvedResource, Step, StepResult, StepStatus
 from ..parser import parse_audio, parse_document, parse_text
 
 

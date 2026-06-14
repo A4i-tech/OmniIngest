@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from omni_ingest.port.metadata_store import SQLAlchemyMetadataStore
@@ -14,7 +15,6 @@ def store():
 
 @pytest.fixture
 def metadata_store():
-    s = SQLAlchemyMetadataStore(database_url="sqlite+aiosqlite:///:memory:")
-    asyncio.run(s.init_db())
+    s = SQLAlchemyMetadataStore.in_memory()
     yield s
     asyncio.run(s.close())

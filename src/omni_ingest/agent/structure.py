@@ -1,12 +1,17 @@
 """Generic structured-output metadata extraction."""
 
-from typing import Any, Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Literal
 
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from ..core.model import AgentMixin, IngestionContext, Step, StepResult, StepStatus
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import AgentMixin, Step, StepResult, StepStatus
 
 
 class StructureAgent(BaseModel, Step, AgentMixin):

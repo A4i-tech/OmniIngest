@@ -10,8 +10,7 @@ from omni_ingest.port.vector_store import InMemoryVectorStore
 
 @pytest.mark.asyncio
 async def test_discovery_adapter_unified_search():
-    mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///:memory:")
-    await mstore.init_db()
+    mstore = SQLAlchemyMetadataStore.in_memory()
     vstore = InMemoryVectorStore()
     adapter = KnowledgeBaseAdapter(mstore, vstore)
 
@@ -39,8 +38,7 @@ async def test_discovery_adapter_unified_search():
 
 @pytest.mark.asyncio
 async def test_discovery_adapter_isolation_and_filters():
-    mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///:memory:")
-    await mstore.init_db()
+    mstore = SQLAlchemyMetadataStore.in_memory()
     adapter = KnowledgeBaseAdapter(mstore, InMemoryVectorStore())
 
     t1, t2 = uuid4(), uuid4()

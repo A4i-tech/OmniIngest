@@ -9,8 +9,8 @@ import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.config import LanceDBVectorStoreConfig
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.pipeline import _resolve_step_kwargs, create_pipeline_from_config
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext, _resolve_step_kwargs, create_pipeline_from_config
 from omni_ingest.port.vector_store import LanceDBVectorStore
 
 

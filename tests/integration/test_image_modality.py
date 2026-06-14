@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
-from omni_ingest.core.pipeline import PipelineRunner
+from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 

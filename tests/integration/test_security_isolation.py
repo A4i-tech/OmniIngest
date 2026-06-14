@@ -10,9 +10,7 @@ from omni_ingest.port.vector_store import InMemoryVectorStore
 
 @pytest.mark.asyncio
 async def test_tenant_isolation_registry():
-    store = SQLAlchemyMetadataStore("sqlite+aiosqlite:///:memory:")
-    await store.init_db()
-
+    store = SQLAlchemyMetadataStore.in_memory()
     t1 = await store.create_tenant("t1", "Tenant 1")
     t2 = await store.create_tenant("t2", "Tenant 2")
 
@@ -27,10 +25,8 @@ async def test_tenant_isolation_registry():
 
 @pytest.mark.asyncio
 async def test_tenant_isolation_vector_search():
-    mstore = SQLAlchemyMetadataStore("sqlite+aiosqlite:///:memory:")
-    await mstore.init_db()
     vstore = InMemoryVectorStore()
-    adapter = KnowledgeBaseAdapter(mstore, vstore)
+    adapter = KnowledgeBaseAdapter(SQLAlchemyMetadataStore.in_memory(), vstore)
 
     t1_id, t2_id = uuid4(), uuid4()
 

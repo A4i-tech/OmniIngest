@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 

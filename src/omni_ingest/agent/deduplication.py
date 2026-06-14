@@ -6,12 +6,15 @@ import hashlib
 import re
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
-from ..core.model import IngestionContext, KnowledgeItem, ResolvedResource
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import KnowledgeItem, ResolvedResource
 from ..core.protocol import MetadataStore
 
 type DeduplicationScope = Literal["source", "tenant"]

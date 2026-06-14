@@ -1,52 +1,79 @@
+from __future__ import annotations
+
 import asyncio
 import collections
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from .model import Step, StepResult
 
 
-class Event(BaseModel):
+@dataclass(kw_only=True)
+class Event:
     """Base class for all events."""
 
-    identifier: str = Field(..., description="Unique identifier for the event")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Event creation timestamp")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional event metadata")
+    identifier: str
+    """Unique identifier for the event"""
+
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    """Event creation timestamp"""
+
+    metadata: dict[str, Any] = field(default_factory=dict)
+    """Additional event metadata"""
 
 
+@dataclass(kw_only=True)
 class _PipelineMixin:
-    run_id: uuid.UUID = Field(..., description="ID of the pipeline run")
-    tenant_id: uuid.UUID = Field(..., description="ID of the tenant owning the pipeline")
+    run_id: uuid.UUID
+    """ID of the pipeline run"""
+
+    tenant_id: uuid.UUID
+    """ID of the tenant owning the pipeline"""
 
 
+@dataclass(kw_only=True)
 class _StepMixin:
-    step_name: str = Field(..., description="Name of the pipeline step")
-    step: Any = Field(..., description="Reference to the step instance")
+    step_name: str
+    """Name of the pipeline step"""
+
+    step: Step
+    """Reference to the step instance"""
 
 
+@dataclass(kw_only=True)
 class PipelineBeginEvent(Event, _PipelineMixin):
     """Event emitted at the start of a pipeline."""
-    identifier: str = "pipeline_begin"
+    identifier: str = field(default="pipeline_begin", init=False)
 
 
+@dataclass(kw_only=True)
 class PipelineEndEvent(Event, _PipelineMixin):
     """Event emitted at the end of a pipeline."""
-    identifier: str = "pipeline_end"
-    status: Literal["succeeded", "failed"] = Field(..., description="Outcome of the pipeline")
-    error: str | None = Field(..., description="Human-readable error message if the pipeline failed")
+    identifier: str = field(default="pipeline_end", init=False)
+
+    status: Literal["succeeded", "failed"]
+    """Outcome of the pipeline"""
+
+    error: str | None
+    """Human-readable error message if the pipeline failed"""
 
 
+@dataclass(kw_only=True)
 class PipelineStepBeginEvent(Event, _PipelineMixin, _StepMixin):
     """Event emitted at the start of a pipeline step."""
-    identifier: str = "pipeline_step_begin"
+    identifier: str = field(default="pipeline_step_begin", init=False)
 
 
+@dataclass(kw_only=True)
 class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
     """Event emitted at the end of a pipeline step."""
-    identifier: str = "pipeline_step_end"
-    step_result: Any = Field(..., description="Result of the step execution")
+    identifier: str = field(default="pipeline_step_end", init=False)
+
+    step_result: StepResult
+    """Result of the step execution"""
 
 
 _buffer = collections.deque[Event](maxlen=32)

@@ -1,14 +1,20 @@
 """Output abstractions for finalized ingestion contexts."""
 
+from __future__ import annotations
+
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
-from .model import IngestionContext, ResolvedResource, StepStatus
+from .model import ResolvedResource, StepStatus
+from .protocol import GraphStore, VectorStore
+
+if TYPE_CHECKING:
+    from .pipeline import IngestionContext
 
 
 class OutputResult(BaseModel):
@@ -24,8 +30,11 @@ class Output(ABC):
         ...
 
 
-class JsonFileOutput(BaseModel, Output):
-    path: Path
+class JsonFileOutput(Output):
+    """Writes finalized ingestion output to a JSON file."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         self.path.write_text(json.dumps({
@@ -36,9 +45,18 @@ class JsonFileOutput(BaseModel, Output):
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
 
 
-class VectorStoreOutput(BaseModel, Output):
-    store: Any = Field(..., description="The physical database where data will be saved")
-    deduplication_strategy: DeduplicationStrategyConfig = Field(default_factory=NormalizedTextHashDeduplicationStrategy, description="Strategy used to skip duplicate chunks before indexing")
+class VectorStoreOutput(Output):
+    """Writes finalized knowledge items to a vector store.
+
+    Attributes:
+        store: The physical database where data will be saved
+        deduplication_strategy: Strategy used to skip duplicate chunks before indexing
+    """
+
+    def __init__(self, store: VectorStore, deduplication_strategy: DeduplicationStrategyConfig | None = None) -> None:
+        self.store = store
+        self.deduplication_strategy = deduplication_strategy or NormalizedTextHashDeduplicationStrategy()
+
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         if not ctx.items:
@@ -73,8 +91,16 @@ class VectorStoreOutput(BaseModel, Output):
         )
 
 
-class GraphStoreOutput(BaseModel, Output):
-    store: Any = Field(..., description="The GraphStore implementation to use")
+class GraphStoreOutput(Output):
+    """Writes finalized graph data to a graph store.
+
+    Attributes:
+        store: The GraphStore implementation to use
+    """
+
+    def __init__(self, store: GraphStore) -> None:
+        self.store = store
+
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         kg_data = ctx.metadata.get("kg_data")

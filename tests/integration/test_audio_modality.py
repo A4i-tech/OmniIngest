@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from omni_ingest.agent.chunking import TimedChunkingAgent
-from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
+from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.parser import read_resources
 
 

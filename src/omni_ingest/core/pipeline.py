@@ -1,14 +1,17 @@
 """Orchestration logic for defining and executing ingestion pipelines."""
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 import logging
 import traceback
 from collections.abc import AsyncIterator, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from uuid import UUID
+from typing import Any, Generic, Literal, TypeVar
+from uuid import UUID, uuid4
 
 import yaml
 from fastmcp import Client
@@ -22,11 +25,50 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from .model import IngestionContext, KnowledgeItem, PipelineConfig, ResolvedResource, Step, StepConfig, StepResult, StepStatus
+from .model import KnowledgeItem, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus
 from .output import Output, OutputResult
-from .protocol import VectorStore
+from .protocol import MetadataStore, VectorStore
 
-PIPELINE_RUNNERS: dict[UUID, "PipelineRunner"] = {}
+PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
+
+ResourceT = TypeVar("ResourceT", bound=Resource)
+
+
+def _in_memory_ms():
+    from ..port.metadata_store import SQLAlchemyMetadataStore
+    return SQLAlchemyMetadataStore.in_memory()
+
+
+@dataclass(kw_only=True)
+class IngestionContext(Generic[ResourceT]):  # noqa: UP046
+    """
+    Maintains state and shared metadata across a single ingestion pipeline execution.
+
+    The IngestionContext object facilitates communication between sequential
+    processing steps by carrying operational state, configuration parameters,
+    and the current set of KnowledgeItems.
+    """
+
+    resource: ResourceT
+
+    store: MetadataStore = field(default_factory=_in_memory_ms)
+    """Reference to a storage engine or backend"""
+
+    run_id: UUID = field(default_factory=uuid4)
+    """Unique identifier for the current pipeline run"""
+
+    tenant_id: UUID = field(default_factory=uuid4)
+    """Identifier for the active tenant"""
+
+    domain_profile: str = "default"
+    """The configuration profile being executed"""
+
+    metadata: dict[str, Any] = field(default_factory=dict)
+    """Shared state or context across steps"""
+
+    items: list[KnowledgeItem] = field(default_factory=list)
+    """The working set of knowledge items"""
+
 
 type StepFactory = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
@@ -110,7 +152,7 @@ class PipelineRunner:
             return
 
         async for resource in read_resources(str(ctx.resource)):
-            yield ctx.model_copy(update={"run_id": None, "resource": resource})
+            yield replace(ctx, run_id=uuid4(), resource=resource)
 
     async def run_flattened(self, ctx: IngestionContext[Any]) -> AsyncIterator[tuple[IngestionContext[ResolvedResource], list[StepResult]]]:
         queue = asyncio.Queue[tuple[IngestionContext[ResolvedResource], list[StepResult]] | BaseException | None]()
@@ -139,7 +181,7 @@ class PipelineRunner:
             await task
 
     async def _run(self, ctx: IngestionContext[ResolvedResource]) -> AsyncIterator[event.Event]:
-        final_status = "succeeded"
+        final_status: Literal["succeeded", "failed"] = "succeeded"
         error_msg = None
 
         yield event.PipelineBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id)
@@ -301,7 +343,7 @@ class KnowledgeBaseAdapter:
 
     from .protocol import MetadataStore
 
-    def __init__(self, metadata_store: "MetadataStore", vector_store: VectorStore, embedder: Embedder | None = None):
+    def __init__(self, metadata_store: MetadataStore, vector_store: VectorStore, embedder: Embedder | None = None):
         self.metadata_store = metadata_store
         self.vector_store = vector_store
         self.embedder = embedder or Embedder(settings.default_embedding_model)

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from omni_ingest.agent.structure import StructureAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput
-from omni_ingest.core.pipeline import PipelineRunner
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
 
 @pytest.mark.asyncio

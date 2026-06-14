@@ -1,11 +1,16 @@
 """Other miscellaneous agents."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from ..core.model import IngestionContext, Step, StepResult
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import Step, StepResult
 
 
 class PipelineAgent(BaseModel, Step):

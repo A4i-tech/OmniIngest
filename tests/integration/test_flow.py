@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
-from omni_ingest.core.pipeline import create_pipeline_from_config
+from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config
 
 
 @pytest.fixture

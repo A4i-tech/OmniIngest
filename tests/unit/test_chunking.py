@@ -1,7 +1,8 @@
 import pytest
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.core.model import IngestionContext, ResolvedResource, StepStatus
+from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext
 
 
 @pytest.mark.asyncio

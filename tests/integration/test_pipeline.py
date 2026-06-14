@@ -6,9 +6,9 @@ import yaml
 
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.indexing import EmbeddingAgent
-from omni_ingest.core.model import IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
-from omni_ingest.core.pipeline import PipelineRunner, create_pipeline_from_config
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, create_pipeline_from_config
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
 

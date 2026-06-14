@@ -4,9 +4,9 @@ from uuid import uuid4
 import pytest
 
 from omni_ingest.agent.governance import IngestionLoggerAgent
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
-from omni_ingest.core.pipeline import PipelineRunner
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
 

@@ -1,5 +1,7 @@
 """Protocol definitions (Abstract Base Classes) for framework extensibility."""
 
+from __future__ import annotations
+
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
@@ -8,6 +10,7 @@ from pydantic import PositiveInt
 from .model import KnowledgeItem
 
 
+@runtime_checkable
 class VectorStore(Protocol):
     """
     Interface for vector-based search and retrieval systems.
@@ -44,6 +47,7 @@ class VectorStore(Protocol):
         ...
 
 
+@runtime_checkable
 class GraphStore(Protocol):
     async def upsert_nodes(self, nodes: list[dict]) -> None: ...
     async def upsert_edges(self, edges: list[dict]) -> None: ...
@@ -68,7 +72,7 @@ class MetadataStore(Protocol):
         """Creates a new tenant."""
         ...
 
-    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str, id: UUID | None = None) -> Any:
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str, id: UUID | None = None) -> UUID:
         """Records the start of a pipeline run."""
         ...
 

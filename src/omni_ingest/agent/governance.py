@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, Field, PositiveInt, confloat
 
-from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import AgentMixin, ResolvedResource, Step, StepResult, StepStatus
 
 
 class IngestionLoggerAgent(BaseModel, Step):

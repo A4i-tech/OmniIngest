@@ -4,9 +4,9 @@ from uuid import uuid4
 import pytest
 import yaml
 
-from omni_ingest.core.model import IngestionContext, StepStatus
+from omni_ingest.core.model import StepStatus
 from omni_ingest.core.output import VectorStoreOutput
-from omni_ingest.core.pipeline import KnowledgeBaseAdapter, create_pipeline_from_config
+from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter, create_pipeline_from_config
 from omni_ingest.port.vector_store import InMemoryVectorStore
 
 RESOURCES_DIR = Path(__file__).parent.parent / "resources"

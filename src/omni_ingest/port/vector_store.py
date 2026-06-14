@@ -199,14 +199,7 @@ class MongoVectorStore(VectorStore):
     MongoDB Atlas vector search backed by a pre-provisioned search index.
     """
 
-    def __init__(
-        self,
-        uri: str,
-        database_name: str,
-        collection_name: str,
-        index_name: str,
-        num_candidates: PositiveInt = 100,
-    ):
+    def __init__(self, uri: str, database_name: str, collection_name: str, index_name: str, num_candidates: PositiveInt = 100):
         try:
             from pymongo import MongoClient
         except ModuleNotFoundError as exc:
@@ -217,7 +210,7 @@ class MongoVectorStore(VectorStore):
         self.index_name = index_name
         self.num_candidates = num_candidates
         self._client: Any = MongoClient(uri)
-        self._collection: Any = self._client[self.database_name][self.collection_name]
+        self._collection = self._client[self.database_name][self.collection_name]
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:
         try:
@@ -422,7 +415,7 @@ class ChromaVectorStore(VectorStore):
 
         self.collection_name = collection_name
         self.path = str(Path(path).resolve())
-        self._client: Any = chromadb.PersistentClient(path=self.path)
+        self._client = chromadb.PersistentClient(path=self.path)
         self._collection: Any = self._client.get_or_create_collection(name=self.collection_name, metadata={"hnsw:space": "cosine"})
 
     async def upsert(self, items: list[KnowledgeItem]) -> None:

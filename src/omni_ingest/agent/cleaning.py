@@ -1,8 +1,15 @@
 """Agents for refining and standardizing text content using LLMs and heuristics."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field
 
-from ..core.model import AgentMixin, IngestionContext, ResolvedResource, Step, StepResult, StepStatus
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import AgentMixin, ResolvedResource, Step, StepResult, StepStatus
 
 
 class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):

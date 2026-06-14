@@ -8,8 +8,9 @@ from omni_ingest.agent.deduplication import (
     NoDeduplicationStrategy,
     ShingleJaccardDeduplicationStrategy,
 )
-from omni_ingest.core.model import IngestionContext, KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
+from omni_ingest.core.pipeline import IngestionContext
 
 
 class RecordingVectorStore:

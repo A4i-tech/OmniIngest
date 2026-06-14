@@ -1,10 +1,18 @@
 """Agents for generating embeddings."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field
 from pydantic_ai.embeddings import Embedder, KnownEmbeddingModelName
 
 from ..core.config import settings
-from ..core.model import IngestionContext, Step, StepResult, StepStatus
+
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
+
+from ..core.model import Step, StepResult, StepStatus
 
 
 class EmbeddingAgent(BaseModel, Step):
