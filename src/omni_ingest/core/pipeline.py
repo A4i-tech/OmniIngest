@@ -34,9 +34,9 @@ PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 ResourceT = TypeVar("ResourceT", bound=Resource)
 
 
-def _in_memory_ms():
+def _default_ms():
     from ..port.metadata_store import SQLAlchemyMetadataStore
-    return SQLAlchemyMetadataStore.in_memory()
+    return SQLAlchemyMetadataStore()
 
 
 @dataclass(kw_only=True)
@@ -51,7 +51,7 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
 
     resource: ResourceT
 
-    store: MetadataStore = field(default_factory=_in_memory_ms)
+    store: MetadataStore = field(default_factory=_default_ms)
     """Reference to a storage engine or backend"""
 
     run_id: UUID = field(default_factory=uuid4)

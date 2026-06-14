@@ -12,5 +12,5 @@ async def vector_store():
 
 @pytest.fixture
 async def metadata_store():
-    async with SQLAlchemyMetadataStore.in_memory() as store:
+    async with SQLAlchemyMetadataStore() as store:
         yield store

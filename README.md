@@ -55,7 +55,7 @@ from omni_ingest.port.vector_store import LanceDBVectorStore
 
 async def main():
     pipeline = create_pipeline_from_config(Path("pipeline.yaml"))
-    output = VectorStoreOutput(store=LanceDBVectorStore(table_name="knowledge_base", db_path="./lancedb_data"))
+    output = VectorStoreOutput(store=LanceDBVectorStore(table_name="knowledge_base"))
     ctx = IngestionContext(resource=Path("research_paper.pdf"))
     results = await pipeline.run(ctx, output=output)
     print(f"Processed {sum(len(e.items) for e in results)} items.")

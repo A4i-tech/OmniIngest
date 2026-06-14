@@ -22,10 +22,6 @@ class SQLAlchemyMetadataStore(MetadataStore):
     using an asynchronous SQL backend.
     """
 
-    @classmethod
-    def in_memory(cls):
-        return cls("sqlite+aiosqlite:///:memory:")
-
     def __init__(self, database_url: str | None = None):
         url = database_url or settings.database_url
         self.engine = create_async_engine(url)
