@@ -121,7 +121,7 @@ parameters:
 steps:
   - agent: structure
     config:
-      method: update
+      target: ".metadata += $output"
       prompt: "${.config.prompt}"
       json_schema:
         type: object
@@ -232,7 +232,7 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
                 "agent": "structure",
                 "config": {
                     "toolsets": ["converter"],
-                    "method": "update",
+                    "target": ".metadata += $output",
                     "prompt": "Analyze text. Content: {text}",
                     "json_schema": {
                         "type": "object",

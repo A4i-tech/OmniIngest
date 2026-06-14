@@ -28,6 +28,7 @@ dependencies = [
     "datamodel-code-generator>=0.63.0",
     "jq>=1.11.0",
     "jsonschema>=4.26.0",
+    "types-jsonschema>=4.26.0.20260518",
 ]
 
 [project.optional-dependencies]
@@ -86,6 +87,7 @@ check_untyped_defs = true
 module = [
     "azure.*",
     "docx.*",
+    "jq.*",
     "pypdf.*",
     "lancedb.*",
     "pyarrow.*",

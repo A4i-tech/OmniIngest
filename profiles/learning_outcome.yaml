@@ -2,7 +2,7 @@ pipeline_id: learning_outcome
 steps:
   - agent: structure
     config:
-      metadata_key: learning_outcomes
+      target: ".metadata.learning_outcomes = $output"
       prompt: "Extract a list of learning outcomes from the following educational content. Content: {text}"
       json_schema:
         type: array

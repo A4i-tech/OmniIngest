@@ -99,7 +99,7 @@ async def test_quality_verifier_agent_failure(vector_store):
 async def test_structure_agent_item_set(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = StructureAgent(
-        metadata_key="learning_outcomes",
+        target=".metadata.learning_outcomes = $output",
         prompt="Extract learning outcomes. Content: {text}",
         json_schema={
             "type": "array",
@@ -123,7 +123,7 @@ async def test_structure_agent_item_set(vector_store):
 async def test_structure_agent_update(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = StructureAgent(
-        method="update",
+        target=".metadata += $output",
         prompt="Enrich. Content: {text}",
         json_schema={
             "type": "object",
@@ -137,12 +137,69 @@ async def test_structure_agent_update(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"summary": "s", "tags": ["t"]}
+            mock_run.return_value.output = {"output": {"summary": "s", "tags": ["t"]}}
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
             assert ctx.items[0].metadata["summary"] == "s"
             assert ctx.items[0].metadata["tags"] == ["t"]
+
+
+@pytest.mark.asyncio
+async def test_structure_agent_jq_foreach_input_and_append_target(vector_store):
+    from pydantic_ai import Agent as PydanticAgent
+    agent = StructureAgent(
+        foreach=".items[:1][]",
+        input=".text[:4]",
+        target=".metadata.keywords = ((.metadata.keywords // []) + $output)",
+        prompt="Keywords. Content: {text}",
+        json_schema={"type": "array", "items": {"type": "string"}},
+    )
+    ctx = create_ctx(vector_store, "")
+    ctx.items = [KnowledgeItem(content=b"alpha", metadata={"keywords": ["old"]}), KnowledgeItem(content=b"bravo")]
+
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = {"output": ["new"]}
+            result = await agent.run(ctx)
+
+    mock_run.assert_awaited_once()
+    assert mock_run.await_args.args[0] == "Keywords. Content: alph"
+    assert result.metadata["items_processed"] == 1
+    assert ctx.items[0].metadata["keywords"] == ["old", "new"]
+    assert ctx.items[1].metadata == {}
+
+
+@pytest.mark.asyncio
+async def test_structure_agent_context_target(vector_store):
+    from pydantic_ai import Agent as PydanticAgent
+    agent = StructureAgent(
+        foreach=None,
+        input='[.items[:2][] | .text[:4]] | join("|")',
+        target=".metadata.faqs = $output",
+        prompt="Generate FAQs. Content: {text}",
+        json_schema={
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"q": {"type": "string"}, "a": {"type": "string"}},
+                "required": ["q", "a"],
+            },
+        },
+    )
+
+    ctx = create_ctx(vector_store, "")
+    ctx.items = [KnowledgeItem(content=b"alpha"), KnowledgeItem(content=b"bravo"), KnowledgeItem(content=b"charlie")]
+
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = {"output": [{"q": "What?", "a": "This."}]}
+            result = await agent.run(ctx)
+
+    mock_run.assert_awaited_once()
+    assert mock_run.await_args.args[0] == "Generate FAQs. Content: alph|brav"
+    assert result.status == StepStatus.SUCCESS
+    assert ctx.metadata["faqs"] == [{"q": "What?", "a": "This."}]
 
 
 @pytest.mark.asyncio
@@ -245,4 +302,3 @@ async def test_ingestion_logger_agent(vector_store):
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "timestamp" in result.metadata
-

@@ -7,7 +7,7 @@ steps:
   - agent: chunking
   - agent: structure
     config:
-      method: update
+      target: ".metadata += $output"
       prompt: "As a medical expert, summarize this clinical text for a patient. Identify medical terms as tags. Return JSON with 'patient_summary' and 'medical_tags'.\n\n{text}"
       json_schema:
         type: object

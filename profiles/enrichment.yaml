@@ -7,7 +7,7 @@ parameters:
 steps:
   - agent: structure
     config:
-      method: update
+      target: ".metadata += $output"
       prompt: "${.config.prompt}"
       json_schema:
         type: object

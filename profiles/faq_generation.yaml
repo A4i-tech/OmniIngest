@@ -1,0 +1,23 @@
+pipeline_id: faq_generation
+parameters:
+  properties:
+    prompt:
+      type: string
+      default: "Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {text}"
+steps:
+  - agent: structure
+    config:
+      foreach: null
+      input: '[.items[:5][] | .text[:1000]] | join("\n")'
+      target: ".metadata.faqs = $output"
+      prompt: "${.config.prompt}"
+      json_schema:
+        type: array
+        items:
+          type: object
+          properties:
+            q:
+              type: string
+            a:
+              type: string
+          required: [q, a]

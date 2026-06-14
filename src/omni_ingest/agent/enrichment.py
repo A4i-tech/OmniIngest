@@ -44,22 +44,3 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step, AgentMixin):
         ctx.metadata["kg_data"] = {"nodes": all_nodes, "edges": all_edges}
         return StepResult(status=StepStatus.SUCCESS, metadata={"nodes": len(all_nodes), "edges": len(all_edges)})
 
-
-class FAQItem(BaseModel):
-    q: str = Field(..., description="The question")
-    a: str = Field(..., description="The answer")
-
-
-class FAQGenerationAgent(BaseModel, Step, AgentMixin):
-    async def run(self, ctx: IngestionContext) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No items for FAQ generation")
-
-        text = "\n".join(i.decode()[:1000] for i in ctx.items[:5])
-        res = await self._agent(ctx).run(
-            f"Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {text}",
-            output_type=list[FAQItem],
-            instructions="You are a helpful assistant that generates FAQs in JSON format.",
-        )
-        ctx.metadata["faqs"] = [f.model_dump() for f in res.output]
-        return StepResult(status=StepStatus.SUCCESS, metadata={"faq_count": len(ctx.metadata["faqs"]), "faqs": ctx.metadata["faqs"]})

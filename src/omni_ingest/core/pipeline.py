@@ -87,7 +87,6 @@ _STEP_FACTORY: StepFactory = {
 
     "structure": agent.structure.StructureAgent,
     "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
-    "faq_generation": agent.enrichment.FAQGenerationAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
     "lineage": agent.governance.DataLineageAgent,
