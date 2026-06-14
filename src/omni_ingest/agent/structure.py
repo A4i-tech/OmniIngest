@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
-from pydantic_ai import BinaryContent
+from pydantic_ai import BinaryContent, ModelRetry
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
@@ -27,6 +27,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
     prompt: str = Field(..., description="Instruction prompt")
     json_schema: dict[str, Any] = Field(..., description="JSON schema for the structured model output")
     target: str = Field(..., description="jq assignment expression where $output is the structured result")
+    mode: Literal["direct", "buffered"] = Field(default="direct", description="How selected input is supplied to the model")
     foreach: str | None = Field(default=".items[]", description="jq expression selecting documents to process; null runs once over the whole context")
     input: str = Field(default=".text", description="jq expression selecting prompt input from each selected document")
     assertions: list[dict[str, str]] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
@@ -58,11 +59,29 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             item_doc = cast(dict[str, Any], item_doc)
             prompt_input: Any = jq.compile(self.input).input_value(item_doc).first()
             item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
-            res = await agent.run(
-                [self.prompt, *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids)]
-                if item_ids else [self.prompt, prompt_input],
-                output_type=self._output_type,
-            )
+            if self.mode == "buffered":
+                buffered_ids = tuple(item_ids)
+                cursor = 0
+
+                @agent.tool_plain
+                def see_next() -> list[Any]:
+                    nonlocal cursor
+                    if cursor >= len(buffered_ids):  # noqa: B023
+                        raise ModelRetry("No more items.")
+                    item = item_by_id[buffered_ids[cursor]]  # noqa: B023
+                    cursor += 1
+                    return [
+                        f"Page {item.metadata['page']} / {len(ctx.items)}",
+                        BinaryContent(data=item.content, media_type=item.content_type) if not item.content_type.startswith("text/") else item.decode(),
+                    ]
+
+                res = await agent.run(self.prompt, output_type=self._output_type)
+            else:
+                res = await agent.run(
+                    [self.prompt, *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids)]
+                    if item_ids else [self.prompt, prompt_input],
+                    output_type=self._output_type,
+                )
             data = res.output.model_dump(mode="json") if isinstance(res.output, BaseModel) else res.output
             output = data[self._output_key]
             updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output}).input_value(item_doc).first())
