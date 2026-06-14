@@ -20,8 +20,8 @@ class StructureAgent(BaseModel, Step, AgentMixin):
 
     prompt: str = Field(..., description="Prompt template. Use {text} for item text")
     json_schema: dict[str, Any] = Field(..., description="JSON schema for the structured model output")
-    metadata_key: str | None = Field(None, description="Metadata field used by set and append methods")
-    method: Literal["set", "append", "update"] = Field("set", description="How extracted data is applied to item metadata")
+    metadata_key: str | None = Field(default=None, description="Metadata field used by set and append methods")
+    method: Literal["set", "append", "update"] = Field(default="set", description="How extracted data is applied to item metadata")
 
     _output_key: str = PrivateAttr("output")
     _output_type: type[BaseModel] = PrivateAttr()

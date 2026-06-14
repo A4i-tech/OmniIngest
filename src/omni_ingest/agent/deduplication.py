@@ -46,7 +46,7 @@ class DeduplicationStrategy(BaseModel, ABC):
 class ScopedDeduplicationStrategy(DeduplicationStrategy, ABC):
     """Deduplication strategy that can operate within a tenant or a source."""
 
-    scope: DeduplicationScope = Field("source", description="Scope used to compare a chunk against previously indexed chunks")
+    scope: DeduplicationScope = Field(default="source", description="Scope used to compare a chunk against previously indexed chunks")
 
     async def _existing_chunks(self, ctx: IngestionContext[ResolvedResource]) -> list[Any]:
         store = ctx.store
@@ -140,8 +140,8 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
     """Deduplicates chunks using Jaccard similarity over token shingles."""
 
     kind: Literal["shingle_jaccard"] = "shingle_jaccard"
-    threshold: float = Field(0.9, ge=0.0, le=1.0, description="Minimum Jaccard similarity that counts as a duplicate")
-    shingle_size: PositiveInt = Field(3, description="Token shingle size used for near-duplicate detection")
+    threshold: float = Field(default=0.9, ge=0.0, le=1.0, description="Minimum Jaccard similarity that counts as a duplicate")
+    shingle_size: PositiveInt = Field(default=3, description="Token shingle size used for near-duplicate detection")
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
         seen_shingles = [_shingles(chunk.text, self.shingle_size) for chunk in await self._existing_chunks(ctx)]

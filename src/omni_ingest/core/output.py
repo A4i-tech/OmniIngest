@@ -14,7 +14,7 @@ from .model import IngestionContext, ResolvedResource, StepStatus
 class OutputResult(BaseModel):
     status: StepStatus = Field(...)
     output_paths: dict[str, str] = Field(default_factory=dict)
-    error: str | None = Field(None)
+    error: str | None = Field(default=None)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

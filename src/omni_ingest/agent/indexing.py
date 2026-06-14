@@ -16,7 +16,7 @@ class EmbeddingAgent(BaseModel, Step):
     within a vector database.
     """
 
-    model: KnownEmbeddingModelName | str = Field(settings.default_embedding_model, description="Model to use for embedding")
+    model: KnownEmbeddingModelName | str = Field(default=settings.default_embedding_model, description="Model to use for embedding")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:

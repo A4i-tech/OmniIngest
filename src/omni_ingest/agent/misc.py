@@ -13,7 +13,7 @@ class PipelineAgent(BaseModel, Step):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     pipeline: Any = Field(description="The pipeline to run as a step. This can also be path to a pipeline file.")
-    config: dict[str, str] = Field({}, description="Substitution parameters for the pipeline")
+    config: dict[str, str] = Field(default_factory=dict, description="Substitution parameters for the pipeline")
 
     @model_validator(mode="before")
     @classmethod

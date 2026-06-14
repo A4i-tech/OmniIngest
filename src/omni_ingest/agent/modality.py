@@ -24,9 +24,9 @@ class TextAgent(BaseModel, Step, AgentMixin):
     `text/plain`.
     """
 
-    encoding: str = Field("utf-8", description="Encoding used for decoded text bytes")
+    encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
-    image_conversion_prompt: str = Field((
+    image_conversion_prompt: str = Field(default=(
         "Convert the image into a complete, accessibility-focused text description for someone who cannot see it. "
         "Capture all visible text exactly, describe the layout, objects, people, actions, relationships, colors, symbols, charts, tables, UI elements, and any important visual context. "
         "Preserve reading order where possible. "

@@ -62,8 +62,8 @@ class QualityVerifierAgent(BaseModel, Step, AgentMixin):
     threshold.
     """
 
-    sample_size: PositiveInt = Field(3, description="Number of items to sample for quality verification")
-    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(0.7, description="Minimum acceptable quality score")
+    sample_size: PositiveInt = Field(default=3, description="Number of items to sample for quality verification")
+    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(default=0.7, description="Minimum acceptable quality score")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
