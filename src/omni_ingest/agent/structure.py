@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import jq
 from datamodel_code_generator import GenerateConfig
@@ -28,6 +28,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
     target: str = Field(..., description="jq assignment expression where $output is the structured result")
     foreach: str | None = Field(default=".items[]", description="jq expression selecting documents to process; null runs once over the whole context")
     input: str = Field(default=".text", description="jq expression selecting text from each selected document")
+    assertions: list[dict[str, str]] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
 
     _output_key: str = PrivateAttr("output")
     _output_type: type[BaseModel] = PrivateAttr()
@@ -43,7 +44,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             return StepResult(status=StepStatus.SKIPPED, error="No items for structure extraction")
 
         agent = self._agent(ctx)
-        doc = {
+        doc: dict[str, Any] = {
             "metadata": ctx.metadata,
             "items": [
                 {"id": str(item.id), "source_uri": item.source_uri, "text": item.decode(), "metadata": item.metadata}
@@ -55,20 +56,34 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             text = jq.compile(self.input).input_value(doc).first()
             res = await agent.run(self.prompt.format(text=text), output_type=self._output_type)
             data = res.output.model_dump() if isinstance(res.output, BaseModel) else res.output
-            doc.update(jq.compile(self.target, args={self._output_key: data[self._output_key]}).input_value(doc).first())
+            output = data[self._output_key]
+            doc.update(cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output}).input_value(doc).first()))
             ctx.metadata.clear()
             ctx.metadata.update(doc["metadata"])
+            if error := _assertion_error(self.assertions, doc, output):
+                return StepResult(status=StepStatus.FAILURE, error=error, items=ctx.items, metadata={self._output_key: output})
             return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target})
 
-        item_by_id = {item_doc["id"]: item for item_doc, item in zip(doc["items"], ctx.items, strict=True)}
+        item_by_id = {item_doc["id"]: item for item_doc, item in zip(cast(list[dict[str, Any]], doc["items"]), ctx.items, strict=True)}
         processed = 0
         for item_doc in jq.compile(self.foreach).input_value(doc).all():
+            item_doc = cast(dict[str, Any], item_doc)
             text = jq.compile(self.input).input_value(item_doc).first()
             res = await agent.run(self.prompt.format(text=text), output_type=self._output_type)
             data = res.output.model_dump() if isinstance(res.output, BaseModel) else res.output
-            updated = jq.compile(self.target, args={self._output_key: data[self._output_key]}).input_value(item_doc).first()
+            output = data[self._output_key]
+            updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output}).input_value(item_doc).first())
             item_by_id[updated["id"]].metadata.clear()
             item_by_id[updated["id"]].metadata.update(updated["metadata"])
+            if error := _assertion_error(self.assertions, updated, output):
+                return StepResult(status=StepStatus.FAILURE, error=error, items=ctx.items, metadata={"items_processed": processed, self._output_key: output})
             processed += 1
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": processed})
+
+
+def _assertion_error(assertions: list[dict[str, str]], doc: dict[str, Any], output: Any) -> str | None:
+    for assertion in assertions:
+        if not jq.compile(assertion["expr"], args={"output": output}).input_value(doc).first():
+            return assertion.get("message", f"Assertion failed: {assertion['expr']}")
+    return None

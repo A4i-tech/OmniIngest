@@ -6,5 +6,6 @@ steps:
       prompt: "Extract a list of learning outcomes from the following educational content. Content: {text}"
       json_schema:
         type: array
+        description: Extracted learning outcomes
         items:
           type: string

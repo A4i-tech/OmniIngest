@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, PositiveInt, confloat
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import AgentMixin, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import ResolvedResource, Step, StepResult, StepStatus
 
 
 class IngestionLoggerAgent(BaseModel, Step):
@@ -51,58 +51,3 @@ class DataLineageAgent(BaseModel, Step):
         }
         return StepResult(status=StepStatus.SUCCESS, metadata=lineage)
 
-
-class QualityReport(BaseModel):
-    overall_score: Annotated[float, confloat(ge=0, le=1)] = Field(..., description="Quality score")
-    issues: list[str] = Field(..., description="List of quality issues found")
-
-
-class QualityVerifierAgent(BaseModel, Step, AgentMixin):
-    """
-    Evaluates the quality of extracted text based on predefined criteria.
-
-    This agent samples generated knowledge items and utilizes an LLM to
-    provide a quality score. It identifies potential issues and can be
-    configured to halt the pipeline if the score falls below a specified
-    threshold.
-    """
-
-    sample_size: PositiveInt = Field(default=3, description="Number of items to sample for quality verification")
-    min_quality_score: Annotated[float, confloat(ge=0, le=1)] = Field(default=0.7, description="Minimum acceptable quality score")
-
-    async def run(self, ctx: IngestionContext) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No items to verify")
-
-        samples = ctx.items[: self.sample_size]
-
-        prompt = """Evaluate the quality of the following extracted text samples.
-Return a JSON object with:
-- "overall_score": float between 0 and 1
-- "issues": list of strings describing any problems found
-
-Samples:
-"""
-        for i, item in enumerate(samples):
-            prompt += f"\n--- Sample {i + 1} ---\n{item.decode()[:500]}\n"
-
-        agent = self._agent(ctx)
-        res = await agent.run(prompt, output_type=QualityReport)
-        data = res.output
-        score = data.overall_score
-        passed = score >= self.min_quality_score
-
-        if not passed:
-            error_msg = f"Quality check failed: score {score:.2f} < {self.min_quality_score}"
-            return StepResult(
-                status=StepStatus.FAILURE,
-                error=error_msg,
-                metadata={"quality_score": score, "issues": data.issues},
-            )
-
-        ctx.metadata["quality_report"] = data.model_dump()
-        return StepResult(
-            status=StepStatus.SUCCESS,
-            items=ctx.items,
-            metadata={"quality_score": score, "samples_checked": len(samples), "issues": data.issues},
-        )

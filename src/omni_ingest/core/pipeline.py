@@ -90,7 +90,6 @@ _STEP_FACTORY: StepFactory = {
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
     "lineage": agent.governance.DataLineageAgent,
-    "quality": agent.governance.QualityVerifierAgent,
 
     "embedding": agent.indexing.EmbeddingAgent,
 }

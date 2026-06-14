@@ -1,0 +1,46 @@
+pipeline_id: quality
+parameters:
+  properties:
+    sample_size:
+      type: integer
+      minimum: 1
+      default: 3
+    min_quality_score:
+      type: number
+      minimum: 0
+      maximum: 1
+      default: 0.7
+    prompt_template:
+      type: string
+      default: |
+        Evaluate the quality of the following extracted text samples.
+        Return a JSON object with:
+        - "overall_score": float between 0 and 1
+        - "issues": list of strings describing any problems found
+
+        Samples:
+        {text}
+steps:
+  - agent: structure
+    config:
+      foreach: null
+      input: '.items[:${.config.sample_size}] | to_entries | map("--- Sample \(.key + 1) ---\n\(.value.text[:500])") | join("\n")'
+      target: ".metadata.quality_report = $output"
+      prompt: "${.config.prompt_template}"
+      assertions:
+        - expr: "$output.overall_score >= ${.config.min_quality_score}"
+          message: "Quality check failed"
+      json_schema:
+        type: object
+        properties:
+          overall_score:
+            type: number
+            description: Quality score
+            minimum: 0
+            maximum: 1
+          issues:
+            type: array
+            description: List of quality issues found
+            items:
+              type: string
+        required: [overall_score, issues]

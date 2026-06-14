@@ -18,6 +18,8 @@ steps:
           properties:
             q:
               type: string
+              description: The question
             a:
               type: string
+              description: The answer
           required: [q, a]

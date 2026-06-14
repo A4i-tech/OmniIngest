@@ -6,5 +6,6 @@ steps:
       prompt: "Extract 5-10 descriptive keywords from the text. Content: {text}"
       json_schema:
         type: array
+        description: Extracted keywords from content
         items:
           type: string

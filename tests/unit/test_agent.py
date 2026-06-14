@@ -12,7 +12,6 @@ from omni_ingest.agent.cleaning import (
 )
 from omni_ingest.agent.governance import (
     DataLineageAgent,
-    QualityVerifierAgent,
 )
 from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
@@ -49,50 +48,6 @@ async def test_transcription_post_processor_agent(vector_store):
 
         assert result.status == StepStatus.SUCCESS
         assert ctx.resource.content == b"Hello"
-
-
-@pytest.mark.asyncio
-async def test_quality_verifier_agent_success(vector_store):
-    from pydantic_ai import Agent as PydanticAgent
-    agent = QualityVerifierAgent(min_quality_score=0.7)
-
-    ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"test content")]
-
-    from omni_ingest.agent.governance import QualityReport
-
-    mock_output = QualityReport(overall_score=0.9, issues=[])
-
-    with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=QualityReport)):
-        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = mock_output
-            result = await agent.run(ctx)
-
-            assert result.status == StepStatus.SUCCESS
-            assert "quality_report" in ctx.metadata
-            assert ctx.metadata["quality_report"]["overall_score"] == 0.9
-
-
-@pytest.mark.asyncio
-async def test_quality_verifier_agent_failure(vector_store):
-    from pydantic_ai import Agent as PydanticAgent
-    agent = QualityVerifierAgent(min_quality_score=0.7)
-
-    ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"bad content")]
-
-    from omni_ingest.agent.governance import QualityReport
-
-    mock_output = QualityReport(overall_score=0.4, issues=["too short"])
-
-    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
-        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = mock_output
-            result = await agent.run(ctx)
-
-            assert result.status == StepStatus.FAILURE
-            assert result.error is not None and "Quality check failed" in result.error
-            assert result.metadata["quality_score"] == 0.4
 
 
 @pytest.mark.asyncio
@@ -168,6 +123,33 @@ async def test_structure_agent_jq_foreach_input_and_append_target(vector_store):
     assert result.metadata["items_processed"] == 1
     assert ctx.items[0].metadata["keywords"] == ["old", "new"]
     assert ctx.items[1].metadata == {}
+
+
+@pytest.mark.asyncio
+async def test_structure_agent_assertions_fail_step(vector_store):
+    from pydantic_ai import Agent as PydanticAgent
+    agent = StructureAgent(
+        foreach=None,
+        target=".metadata.quality_report = $output",
+        prompt="Quality. Content: {text}",
+        assertions=[{"expr": "$output.overall_score >= 0.7", "message": "Quality check failed"}],
+        json_schema={
+            "type": "object",
+            "properties": {"overall_score": {"type": "number"}, "issues": {"type": "array", "items": {"type": "string"}}},
+            "required": ["overall_score", "issues"],
+        },
+    )
+    ctx = create_ctx(vector_store, "bad content")
+    ctx.items = [KnowledgeItem(content=b"bad content")]
+
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = {"output": {"overall_score": 0.4, "issues": ["too short"]}}
+            result = await agent.run(ctx)
+
+    assert result.status == StepStatus.FAILURE
+    assert result.error == "Quality check failed"
+    assert ctx.metadata["quality_report"]["overall_score"] == 0.4
 
 
 @pytest.mark.asyncio
