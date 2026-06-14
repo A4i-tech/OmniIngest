@@ -3,7 +3,7 @@ parameters:
   properties:
     prompt:
       type: string
-      default: "Generate 3-5 frequently asked questions and answers based on the following text.\n\nContent: {text}"
+      default: "Generate 3-5 frequently asked questions and answers based on the following text."
 steps:
   - agent: structure
     config:

@@ -3,7 +3,7 @@ steps:
   - agent: structure
     config:
       target: ".metadata.keywords = ((.metadata.keywords // []) + $output)"
-      prompt: "Extract 5-10 descriptive keywords from the text. Content: {text}"
+      prompt: "Extract 5-10 descriptive keywords from the text."
       json_schema:
         type: array
         description: Extracted keywords from content

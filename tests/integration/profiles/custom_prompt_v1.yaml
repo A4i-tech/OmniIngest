@@ -8,7 +8,7 @@ steps:
   - agent: structure
     config:
       target: ".metadata += $output"
-      prompt: "As a medical expert, summarize this clinical text for a patient. Identify medical terms as tags. Return JSON with 'patient_summary' and 'medical_tags'.\n\n{text}"
+      prompt: "As a medical expert, summarize this clinical text for a patient. Identify medical terms as tags. Return JSON with 'patient_summary' and 'medical_tags'."
       json_schema:
         type: object
         properties:

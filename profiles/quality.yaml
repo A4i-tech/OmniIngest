@@ -17,9 +17,6 @@ parameters:
         Return a JSON object with:
         - "overall_score": float between 0 and 1
         - "issues": list of strings describing any problems found
-
-        Samples:
-        {text}
 steps:
   - agent: structure
     config:

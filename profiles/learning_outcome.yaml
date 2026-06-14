@@ -3,7 +3,7 @@ steps:
   - agent: structure
     config:
       target: ".metadata.learning_outcomes = $output"
-      prompt: "Extract a list of learning outcomes from the following educational content. Content: {text}"
+      prompt: "Extract a list of learning outcomes from the following educational content."
       json_schema:
         type: array
         description: Extracted learning outcomes

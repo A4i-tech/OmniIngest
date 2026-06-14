@@ -12,7 +12,7 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 async def test_domain_enrichment_flow(metadata_store):
     agent = StructureAgent(
         target=".metadata += $output",
-        prompt="Analyze text and provide JSON summary/tags. Content: {text}",
+        prompt="Analyze text and provide JSON summary/tags.",
         json_schema={
             "type": "object",
             "properties": {"summary": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}},
@@ -32,7 +32,7 @@ async def test_domain_enrichment_flow(metadata_store):
 async def test_learning_outcome_extraction(metadata_store):
     ed_agent = StructureAgent(
         target=".metadata.learning_outcomes = $output",
-        prompt="Extract a list of learning outcomes from the following educational content. Content: {text}",
+        prompt="Extract a list of learning outcomes from the following educational content.",
         json_schema={
             "type": "array",
             "items": {"type": "string"},
@@ -50,7 +50,7 @@ async def test_learning_outcome_extraction(metadata_store):
 async def test_structure_agent_does_not_branch_on_domain(metadata_store):
     ed_agent = StructureAgent(
         target=".metadata.learning_outcomes = $output",
-        prompt="Extract a list of learning outcomes from the following educational content. Content: {text}",
+        prompt="Extract a list of learning outcomes from the following educational content.",
         json_schema={
             "type": "array",
             "items": {"type": "string"},

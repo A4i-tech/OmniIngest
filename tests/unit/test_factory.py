@@ -117,7 +117,7 @@ parameters:
   properties:
     prompt:
       type: string
-      default: "Default prompt. Content: {text}"
+      default: "Default prompt."
 steps:
   - agent: structure
     config:
@@ -133,14 +133,14 @@ steps:
     default_root = tmp_path / "default.yaml"
     default_root.write_text(yaml.dump({"steps": [{"agent": "component"}]}))
     override_root = tmp_path / "override.yaml"
-    override_root.write_text(yaml.dump({"steps": [{"agent": "component", "config": {"prompt": "Custom prompt. Content: {text}"}}]}))
+    override_root.write_text(yaml.dump({"steps": [{"agent": "component", "config": {"prompt": "Custom prompt."}}]}))
 
     default_runner = create_pipeline_from_config(default_root)
     override_runner = create_pipeline_from_config(override_root)
 
     assert isinstance(default_runner.steps[0], StructureAgent)
-    assert default_runner.steps[0].prompt == "Default prompt. Content: {text}"  # type: ignore[attr-defined]
-    assert override_runner.steps[0].prompt == "Custom prompt. Content: {text}"  # type: ignore[attr-defined]
+    assert default_runner.steps[0].prompt == "Default prompt."  # type: ignore[attr-defined]
+    assert override_runner.steps[0].prompt == "Custom prompt."  # type: ignore[attr-defined]
 
 
 def test_pipeline_component_parameters_reject_undeclared_keys(tmp_path):
@@ -149,7 +149,7 @@ parameters:
   properties:
     prompt:
       type: string
-      default: "Default prompt. Content: {text}"
+      default: "Default prompt."
 steps:
   - agent: text
 """)
@@ -183,12 +183,12 @@ steps:
 
 def test_enrichment_profile_exposes_prompt_parameter(tmp_path):
     root = tmp_path / "root.yaml"
-    root.write_text(yaml.dump({"steps": [{"agent": "enrichment", "config": {"prompt": "Custom enrichment. Content: {text}"}}]}))
+    root.write_text(yaml.dump({"steps": [{"agent": "enrichment", "config": {"prompt": "Custom enrichment."}}]}))
 
     runner = create_pipeline_from_config(root)
 
     assert isinstance(runner.steps[0], StructureAgent)
-    assert runner.steps[0].prompt == "Custom enrichment. Content: {text}"  # type: ignore[attr-defined]
+    assert runner.steps[0].prompt == "Custom enrichment."  # type: ignore[attr-defined]
 
 
 def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):
@@ -233,7 +233,7 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
                 "config": {
                     "toolsets": ["converter"],
                     "target": ".metadata += $output",
-                    "prompt": "Analyze text. Content: {text}",
+                    "prompt": "Analyze text.",
                     "json_schema": {
                         "type": "object",
                         "properties": {"summary": {"type": "string"}},
