@@ -68,17 +68,20 @@ class PageChunkingAgent(BaseModel, Step):
         enc = ctx.resource.content_encoding
         items = []
         with io.BytesIO(ctx.resource.content) as s, PdfReader(stream=s) as reader:
+            total = len(reader.pages)
+            ctx.progress(0, total, "reading pages")
             if self.mode == "pdf":
                 for i, page in enumerate(reader.pages):
                     with io.BytesIO() as s, PdfWriter() as w:
                         w.add_page(page)
                         w.write(s)
                         items.append(KnowledgeItem(content=s.getvalue(), content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
+                    ctx.progress(i + 1, total, f"page {i + 1}/{total}")
             else:
-                items.extend(
-                    KnowledgeItem(content=text.encode(enc), content_encoding=enc, metadata={"page": i + 1, "content_type": "text/plain"})
-                    for i, p in enumerate(reader.pages) if (text := p.extract_text()).strip()
-                )
+                for i, p in enumerate(reader.pages):
+                    if (text := p.extract_text()).strip():
+                        items.append(KnowledgeItem(content=text.encode(enc), content_encoding=enc, metadata={"page": i + 1, "content_type": "text/plain"}))
+                    ctx.progress(i + 1, total, f"page {i + 1}/{total}")
         ctx.items = items
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items), "mode": self.mode})
 
@@ -102,7 +105,9 @@ class PageStitchingAgent(BaseModel, Step):
         doc = {"metadata": ctx.metadata, "items": item_docs}
         stitched = []
 
-        for spec in jq.compile(self.foreach).input_value(doc).all():
+        specs = jq.compile(self.foreach).input_value(doc).all()
+        ctx.progress(0, len(specs), "stitching pages")
+        for i, spec in enumerate(specs, 1):
             ids = jq.compile(self.input).input_value(spec).first()
             if not isinstance(ids, list) or not ids or any(item_id not in item_by_id for item_id in ids):
                 raise ValueError("PageStitchingAgent input must resolve to known item ids")
@@ -113,6 +118,7 @@ class PageStitchingAgent(BaseModel, Step):
                         writer.append(reader)
                 writer.write(s)
                 stitched.append(KnowledgeItem(content=s.getvalue(), content_encoding="binary", metadata=jq.compile(self.metadata).input_value(spec).first()))
+            ctx.progress(i, len(specs), f"stitched {i}/{len(specs)}")
 
         if self.replace:
             ctx.items = stitched

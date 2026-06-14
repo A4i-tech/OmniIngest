@@ -3,6 +3,14 @@ import asyncio
 import pytest
 
 from omni_ingest.core import event
+from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
+
+
+class ProgressStep(Step):
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        ctx.progress(1, 2, "half")
+        return StepResult(status=StepStatus.SUCCESS)
 
 
 @pytest.fixture(autouse=True)
@@ -178,3 +186,22 @@ async def test_subscribe_with_async_for():
     await asyncio.sleep(0)
     assert len(event._subscribers) == 0
     assert received == [f"e{i}" for i in range(7)]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_step_progress_event(metadata_store):
+    stream = event.subscribe(populate_with_buffered=False)
+    runner = PipelineRunner([ProgressStep()])
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=b""), store=metadata_store)
+    task = asyncio.create_task(runner.run(ctx))
+
+    async for e in stream:
+        if isinstance(e, event.PipelineStepProgressEvent):
+            progress = e
+            break
+
+    await task
+    await stream.aclose()
+    assert progress.completed == 1
+    assert progress.total == 2
+    assert progress.message == "half"

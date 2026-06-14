@@ -61,6 +61,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
         item_by_id = {item_doc["id"]: item for item_doc, item in zip(item_docs, ctx.items, strict=True)}
         selected_docs = [doc] if self.foreach is None else jq.compile(self.foreach).input_value(doc).all()
 
+        ctx.progress(0, len(selected_docs), "structuring")
         processed = 0
         for item_doc in selected_docs:
             item_doc = cast(dict[str, Any], item_doc)
@@ -71,14 +72,17 @@ class StructureAgent(BaseModel, Step, AgentMixin):
             if self.mode == "buffered":
                 buffered_ids = tuple(item_ids)
                 cursor = 0
+                ctx.progress(0, len(buffered_ids), "reading buffered input")
 
                 @agent.tool_plain
-                def see_next() -> list[Any]:
+                def see_next(buffered_ids: tuple[str, ...] = buffered_ids) -> list[Any]:
                     nonlocal cursor
-                    if cursor >= len(buffered_ids):  # noqa: B023
+                    total = len(buffered_ids)
+                    if cursor >= total:
                         raise ModelRetry("You have read all items, you cannot use this tool anymore.")
-                    item = item_by_id[buffered_ids[cursor]]  # noqa: B023
+                    item = item_by_id[buffered_ids[cursor]]
                     cursor += 1
+                    ctx.progress(cursor, total, f"read {cursor}/{total}")
                     return [
                         f"Page {item.metadata['page']} / {len(ctx.items)}",
                         BinaryContent(data=item.content, media_type=item.content_type) if not item.content_type.startswith("text/") else item.decode(),
@@ -113,6 +117,8 @@ class StructureAgent(BaseModel, Step, AgentMixin):
                     metadata = {self._output_key: output} if self.foreach is None else {"items_processed": processed, self._output_key: output}
                     return StepResult(status=StepStatus.FAILURE, error=assertion.message, items=ctx.items, metadata=metadata)
             processed += 1
+            if self.mode != "buffered" or len(selected_docs) > 1:
+                ctx.progress(processed, len(selected_docs), f"structured {processed}/{len(selected_docs)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target} if self.foreach is None else {"items_processed": processed})
 

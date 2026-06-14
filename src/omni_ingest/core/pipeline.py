@@ -8,6 +8,7 @@ import logging
 import re
 import traceback
 from collections.abc import AsyncIterator, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,6 +37,7 @@ PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
 ResourceT = TypeVar("ResourceT", bound=Resource)
 _INTERPOLATION_RE = re.compile(r"\$\{([^{}]+)\}")
+_CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP", default=None)
 
 
 def _default_ms():
@@ -72,6 +74,11 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
 
     items: list[KnowledgeItem] = field(default_factory=list)
     """The working set of knowledge items"""
+
+    def progress(self, completed: float, total: float, message: str | None = None) -> None:
+        if current := _CURRENT_STEP.get():
+            step_name, step = current
+            event.publish(event.PipelineStepProgressEvent(run_id=self.run_id, tenant_id=self.tenant_id, step_name=step_name, step=step, completed=completed, total=total, message=message))
 
 
 type StepFactory = dict[str, type[Step]]
@@ -191,11 +198,14 @@ class PipelineRunner:
             step_name = lookup_step_id(step) or "unknown"
             sid = await ctx.store.create_step_run(ctx.run_id, step_name)
             yield event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step)
+            token = _CURRENT_STEP.set((step_name, step))
             try:
                 res = await step.run(ctx)
             except Exception as e:
                 res = StepResult(status=StepStatus.FAILURE, error=str(e))
                 traceback.print_exception(e)
+            finally:
+                _CURRENT_STEP.reset(token)
 
             yield event.PipelineStepEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step, step_result=res)
             await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)

@@ -68,6 +68,14 @@ class PipelineStepBeginEvent(Event, _PipelineMixin, _StepMixin):
 
 
 @dataclass(kw_only=True)
+class PipelineStepProgressEvent(Event, _PipelineMixin, _StepMixin):
+    identifier: str = field(default="pipeline_step_progress", init=False)
+    completed: float
+    total: float
+    message: str | None = None
+
+
+@dataclass(kw_only=True)
 class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
     """Event emitted at the end of a pipeline step."""
     identifier: str = field(default="pipeline_step_end", init=False)
