@@ -46,7 +46,7 @@ asyncio_mode = "auto"
 addopts = "-n 2 -v --dist=loadfile --cov=src --cov-report=json"
 
 [tool.pytest_env]
-DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+METADATA_STORE = "sqlite+aiosqlite:///:memory:"
 
 [dependency-groups]
 dev = [

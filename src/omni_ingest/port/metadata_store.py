@@ -22,9 +22,8 @@ class SQLAlchemyMetadataStore(MetadataStore):
     using an asynchronous SQL backend.
     """
 
-    def __init__(self, database_url: str | None = None):
-        url = database_url or settings.database_url
-        self.engine = create_async_engine(url)
+    def __init__(self, url: str | None = None):
+        self.engine = create_async_engine(url or settings.metadata_store)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
         self._init_lock = asyncio.Lock()
         self._init = False

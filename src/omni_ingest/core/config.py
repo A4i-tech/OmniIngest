@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     default_embedding_model: KnownEmbeddingModelName | str = "openai:text-embedding-3-small"
     """Default embedding completion model to use during pipeline execution"""
 
-    database_url: str = "sqlite+aiosqlite:///./omni_ingest.db"
+    metadata_store: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)

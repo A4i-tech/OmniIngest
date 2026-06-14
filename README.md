@@ -26,8 +26,8 @@ uv sync
 Export your environment variables or use a `.env` file:
 ```env
 OPENAI_API_KEY=your_key_here
-DATABASE_URL=sqlite+aiosqlite:///./knowledge.db
 LANCEDB_PATH=./lancedb_data
+METADATA_STORE=sqlite+aiosqlite:///./knowledge.db
 ```
 
 ### Usage: Semantic ingestion pipeline
