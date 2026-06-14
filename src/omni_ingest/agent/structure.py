@@ -67,7 +67,7 @@ class StructureAgent(BaseModel, Step, AgentMixin):
                 def see_next() -> list[Any]:
                     nonlocal cursor
                     if cursor >= len(buffered_ids):  # noqa: B023
-                        raise ModelRetry("No more items.")
+                        raise ModelRetry("You have read all items, you cannot use this tool anymore.")
                     item = item_by_id[buffered_ids[cursor]]  # noqa: B023
                     cursor += 1
                     return [
@@ -75,13 +75,13 @@ class StructureAgent(BaseModel, Step, AgentMixin):
                         BinaryContent(data=item.content, media_type=item.content_type) if not item.content_type.startswith("text/") else item.decode(),
                     ]
 
-                res = await agent.run(self.prompt, output_type=self._output_type)
+                user_prompt = self.prompt
+            elif item_ids:
+                user_prompt = [self.prompt, *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids)]
             else:
-                res = await agent.run(
-                    [self.prompt, *(BinaryContent(data=item_by_id[item_id].content, media_type=item_by_id[item_id].content_type) for item_id in item_ids)]
-                    if item_ids else [self.prompt, prompt_input],
-                    output_type=self._output_type,
-                )
+                user_prompt = [self.prompt, prompt_input]
+
+            res = await agent.run(user_prompt, output_type=self._output_type)
             data = res.output.model_dump(mode="json") if isinstance(res.output, BaseModel) else res.output
             output = data[self._output_key]
             updated = cast(dict[str, Any], jq.compile(self.target, args={self._output_key: output}).input_value(item_doc).first())
