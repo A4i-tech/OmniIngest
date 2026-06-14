@@ -1,17 +1,13 @@
-from pathlib import Path
-
 import pytest
 
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.model import ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
-RESOURCES_DIR = Path(__file__).parent.parent / "resources"
-
 
 @pytest.mark.asyncio
-async def test_text_agent_converts_image_to_text(metadata_store):
-    image_path = RESOURCES_DIR / "supermarket-shelf.webp"
+async def test_text_agent_converts_image_to_text(metadata_store, resources_dir):
+    image_path = resources_dir / "supermarket-shelf.webp"
     ctx = IngestionContext(resource=ResolvedResource(uri=str(image_path), content=image_path.read_bytes()), store=metadata_store)
 
     result = (await PipelineRunner([TextAgent()]).run(ctx))[0]

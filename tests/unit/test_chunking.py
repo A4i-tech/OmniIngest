@@ -1,6 +1,9 @@
-import pytest
+import io
 
-from omni_ingest.agent.chunking import SentenceChunkingAgent
+import pytest
+from pypdf import PdfReader, PdfWriter
+
+from omni_ingest.agent.chunking import PageChunkingAgent, SentenceChunkingAgent
 from omni_ingest.core.model import ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 
@@ -95,3 +98,20 @@ async def test_chunking_whitespace_normalization():
     assert result.status == StepStatus.SUCCESS
     for item in result.items:
         assert b"  " not in item.content
+
+
+@pytest.mark.asyncio
+async def test_page_chunking_pdf_mode_emits_single_page_pdfs():
+    with PdfWriter() as writer, io.BytesIO() as pdf:
+        writer.add_blank_page(width=72, height=72)
+        writer.add_blank_page(width=72, height=72)
+        writer.write(pdf)
+        ctx = IngestionContext(resource=ResolvedResource(uri="", content=pdf.getvalue()))
+
+    result = await PageChunkingAgent(mode="pdf").run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata == {"page_count": 2, "mode": "pdf"}
+    assert [item.metadata["page"] for item in result.items] == [1, 2]
+    assert all(item.metadata["content_type"] == "application/pdf" for item in result.items)
+    assert all(len(PdfReader(io.BytesIO(item.content)).pages) == 1 for item in result.items)

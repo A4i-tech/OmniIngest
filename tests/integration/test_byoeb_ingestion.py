@@ -1,4 +1,3 @@
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -8,11 +7,9 @@ from omni_ingest.core.model import StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter, create_pipeline_from_config
 
-RESOURCES_DIR = Path(__file__).parent.parent / "resources"
-
 
 @pytest.mark.asyncio
-async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store):
+async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store, resources_dir):
     config = {
         "steps": [
             {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
@@ -28,11 +25,11 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store
 
     tid = uuid4()
 
-    blueberries_path = RESOURCES_DIR / "blueberries-are-now-green.txt"
+    blueberries_path = resources_dir / "blueberries-are-now-green.txt"
     res1 = await pipeline.run(IngestionContext(tenant_id=tid, resource=blueberries_path, store=metadata_store), output=output)
     assert res1[-1].status == StepStatus.SUCCESS
 
-    patients_path = RESOURCES_DIR / "all-patients-are-stable-except-when-they-arent.md"
+    patients_path = resources_dir / "all-patients-are-stable-except-when-they-arent.md"
     res2 = await pipeline.run(IngestionContext(tenant_id=tid, resource=patients_path, store=metadata_store), output=output)
     assert res2[-1].status == StepStatus.SUCCESS
 

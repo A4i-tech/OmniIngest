@@ -1,6 +1,6 @@
 import json
 from typing import Literal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -195,17 +195,12 @@ async def test_data_lineage_agent(vector_store):
 
 
 @pytest.mark.asyncio
-async def test_page_chunking_agent(vector_store):
-    agent = PageChunkingAgent()
-    with patch("omni_ingest.agent.chunking.PdfReader") as mock_reader:
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = "Page content"
-        mock_reader.return_value.pages = [mock_page]
-        ctx = create_ctx(vector_store, "")
-        ctx.metadata["file_path"] = "fake.pdf"
-        result = await agent.run(ctx)
-        assert result.status == StepStatus.SUCCESS
-        assert len(ctx.items) == 1
+async def test_page_chunking_agent(vector_store, resources_dir):
+    with (resources_dir / "when-tomorrow-was-yesterday.pdf").open(mode="rb") as f:
+        ctx = create_ctx(vector_store, f.read())
+    result = await PageChunkingAgent().run(ctx)
+    assert result.status == StepStatus.SUCCESS
+    assert len(ctx.items) == 12
 
 
 @pytest.mark.asyncio

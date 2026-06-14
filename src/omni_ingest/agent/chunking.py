@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import io
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
@@ -58,19 +58,28 @@ class PageChunkingAgent(BaseModel, Step):
     input document.
     """
 
+    mode: Literal["text", "pdf"] = Field(default="text", description="Whether to emit extracted page text or single-page PDFs")
+
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        path, raw = ctx.metadata.get("file_path"), ctx.metadata.get("raw_data")
-        if not path and not raw:
-            return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
-        if path:
-            reader = PdfReader(path)
-        elif raw is not None:
-            reader = PdfReader(io.BytesIO(raw))
-        else:
-            return StepResult(status=StepStatus.SKIPPED, error="No PDF data")
-        encoding = ctx.resource.content_encoding
-        ctx.items = [KnowledgeItem(content=p.extract_text().encode(encoding), content_encoding=encoding, metadata={"page": i + 1}) for i, p in enumerate(reader.pages) if p.extract_text().strip()]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items)})
+        if (ct := ctx.resource.content_type) != "application/pdf":
+            raise ValueError(f"Expected a document, got {ct}")
+
+        enc = ctx.resource.content_encoding
+        items = []
+        with io.BytesIO(ctx.resource.content) as s, PdfReader(stream=s) as reader:
+            if self.mode == "pdf":
+                for i, page in enumerate(reader.pages):
+                    with io.BytesIO() as s, PdfWriter() as w:
+                        w.add_page(page)
+                        w.write(s)
+                        items.append(KnowledgeItem(content=s.getvalue(), content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
+            else:
+                items.extend(
+                    KnowledgeItem(content=text.encode(enc), content_encoding=enc, metadata={"page": i + 1, "content_type": "text/plain"})
+                    for i, p in enumerate(reader.pages) if (text := p.extract_text()).strip()
+                )
+        ctx.items = items
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items), "mode": self.mode})
 
 
 class TimedChunkingAgent(BaseModel, Step):

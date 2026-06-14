@@ -1,5 +1,4 @@
 import io
-from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -7,8 +6,6 @@ import pytest
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
-
-RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 
 
 @pytest.mark.asyncio
@@ -25,12 +22,13 @@ async def test_text_agent_encodes_text_bytes_and_recomputes_content_type():
 
 
 @pytest.mark.parametrize("uri, parser, expected", [
-    (str(RESOURCES_DIR / "sample.mp3"), "parse_audio", "audio"),
-    (str(RESOURCES_DIR / "when-tomorrow-was-yesterday.pdf"), "parse_document", "document"),
+    ("sample.mp3", "parse_audio", "audio"),
+    ("when-tomorrow-was-yesterday.pdf", "parse_document", "document"),
     ("/tmp/sample.txt", "parse_text", "text"),
 ])
 @pytest.mark.asyncio
-async def test_text_agent_parse_routes_by_mime_type(uri, parser, expected, monkeypatch):
+async def test_text_agent_parse_routes_by_mime_type(uri, parser, expected, monkeypatch, resources_dir):
+    uri = str(resources_dir / uri)
     mock_parse = AsyncMock(return_value=("", {}))
     monkeypatch.setattr(f"omni_ingest.agent.modality.{parser}", mock_parse)
 
