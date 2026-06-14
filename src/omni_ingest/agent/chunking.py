@@ -13,7 +13,7 @@ from pypdf import PdfReader, PdfWriter
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
 class SentenceChunkingAgent(BaseModel, Step):
@@ -91,9 +91,9 @@ class PageStitchingAgent(BaseModel, Step):
     this reusable for chapters, sections, ranges, or any metadata-driven slices.
     """
 
-    foreach: str = Field(default=".", description="jq expression producing stitch specs")
-    input: str = Field(..., description="jq expression selecting page item ids for each stitch spec")
-    metadata: str = Field(default=".", description="jq expression producing metadata for each stitched item")
+    foreach: JqExpression = Field(default=".", description="jq expression producing stitch specs")
+    input: JqExpression = Field(..., description="jq expression selecting page item ids for each stitch spec")
+    metadata: JqExpression = Field(default=".", description="jq expression producing metadata for each stitched item")
     replace: bool = Field(default=True, description="Replace ctx.items with stitched PDFs")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:

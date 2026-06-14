@@ -13,7 +13,12 @@ from pydantic_ai import BinaryContent, ModelRetry
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import AgentMixin, Step, StepResult, StepStatus
+from ..core.model import AgentMixin, JqExpression, Step, StepResult, StepStatus
+
+
+class JqAssertion(BaseModel):
+    expr: JqExpression = Field(..., description="jq expression that must evaluate truthy")
+    message: str = Field(..., description="Error message when the assertion fails")
 
 
 class StructureAgent(BaseModel, Step, AgentMixin):
@@ -26,13 +31,13 @@ class StructureAgent(BaseModel, Step, AgentMixin):
 
     prompt: str = Field(..., description="Instruction prompt")
     json_schema: dict[str, Any] = Field(..., description="JSON schema for the structured model output")
-    target: str = Field(..., description="jq assignment expression where $output is the structured result")
+    target: JqExpression = Field(..., description="jq assignment expression where $output is the structured result")
     mode: Literal["direct", "buffered"] = Field(default="direct", description="How selected input is supplied to the model")
     target_scope: Literal["selected", "root"] = Field(default="selected", description="Whether target is applied to the selected document or root document")
-    foreach: str | None = Field(default=".items[]", description="jq expression selecting documents to process; null runs once over the whole context")
-    input: str = Field(default=".text", description="jq expression selecting prompt input from each selected document")
-    context: str | None = Field(default=None, description="jq expression selecting extra prompt context from each selected document")
-    assertions: list[dict[str, str]] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
+    foreach: JqExpression | None = Field(default=".items[]", description="jq expression selecting documents to process; null runs once over the whole context")
+    input: JqExpression = Field(default=".text", description="jq expression selecting prompt input from each selected document")
+    context: JqExpression | None = Field(default=None, description="jq expression selecting extra prompt context from each selected document")
+    assertions: list[JqAssertion] = Field(default_factory=list, description="jq assertions evaluated after target assignment")
 
     _output_key: str = PrivateAttr("output")
     _output_type: type[BaseModel] = PrivateAttr()
@@ -104,9 +109,9 @@ class StructureAgent(BaseModel, Step, AgentMixin):
                 item_by_id[updated["id"]].metadata.update(updated["metadata"])
 
             for assertion in self.assertions:
-                if not jq.compile(assertion["expr"], args={self._output_key: output}).input_value(updated).first():
+                if not jq.compile(assertion.expr, args={self._output_key: output}).input_value(updated).first():
                     metadata = {self._output_key: output} if self.foreach is None else {"items_processed": processed, self._output_key: output}
-                    return StepResult(status=StepStatus.FAILURE, error=assertion.get("message", f"Assertion failed: {assertion['expr']}"), items=ctx.items, metadata=metadata)
+                    return StepResult(status=StepStatus.FAILURE, error=assertion.message, items=ctx.items, metadata=metadata)
             processed += 1
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"target": self.target} if self.foreach is None else {"items_processed": processed})
@@ -115,8 +120,8 @@ class StructureAgent(BaseModel, Step, AgentMixin):
 class TransformAgent(BaseModel, Step):
     """Applies jq transforms to the pipeline document."""
 
-    value: str = Field(..., description="jq expression producing transformed output")
-    target: str = Field(..., description="jq assignment expression where $output is the transformed value")
+    value: JqExpression = Field(..., description="jq expression producing transformed output")
+    target: JqExpression = Field(..., description="jq assignment expression where $output is the transformed value")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         doc: dict[str, Any] = {

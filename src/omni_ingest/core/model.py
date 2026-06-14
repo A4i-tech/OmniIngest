@@ -5,12 +5,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Annotated, Any, final
 from uuid import UUID, uuid4
 
+import jq
 import magic
 from fastmcp.mcp_config import MCPServerTypes
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, StrictBytes
+from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, Field, StrictBytes
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 
@@ -18,6 +19,14 @@ from .config import settings
 
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
+
+
+def _validate_jq_expression(value: str) -> str:
+    jq.compile(value, args={"output": None, "item": None, "ids": None})
+    return value
+
+
+type JqExpression = Annotated[str, AfterValidator(_validate_jq_expression)]
 
 
 class StepStatus(StrEnum):

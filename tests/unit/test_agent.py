@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from omni_ingest.agent.chunking import PageChunkingAgent
 from omni_ingest.agent.cleaning import (
@@ -296,6 +296,11 @@ async def test_transform_agent_maps_nested_metadata():
 
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["records"] == [{"id": "BSE-TG-1", "title": "Our Environment", "topics": ["1.1. Introduction"]}]
+
+
+def test_transform_agent_rejects_invalid_jq():
+    with pytest.raises(ValidationError):
+        TransformAgent(value=".metadata |", target=".metadata.records = $output")
 
 
 @pytest.mark.asyncio
