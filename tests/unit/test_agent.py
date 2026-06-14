@@ -16,7 +16,7 @@ from omni_ingest.agent.governance import (
 )
 from omni_ingest.agent.structure import StructureAgent, TransformAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, VectorStoreOutput
+from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 
 
@@ -340,6 +340,20 @@ async def test_json_file_output(vector_store, tmp_path):
     assert data["items"][0]["metadata"] == {"tag": "x"}
     assert data["items"][1]["content"] == "/w=="
     assert data["items"][1]["content_encoding"] == "base64"
+
+
+@pytest.mark.asyncio
+async def test_parse_output_and_stdout(vector_store, tmp_path, capsys):
+    assert isinstance(parse("-"), StdoutOutput)
+    assert isinstance(parse(str(tmp_path / "items.json")), JsonFileOutput)
+    output = parse("-")
+    ctx = create_ctx(vector_store, "resource")
+
+    result = await output.write(ctx)
+    data = json.loads(capsys.readouterr().out)
+
+    assert result.status == StepStatus.SUCCESS
+    assert data["resource"]["content"] == "resource"
 
 
 @pytest.mark.asyncio

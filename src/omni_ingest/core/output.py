@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from pathlib import Path
@@ -11,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
+from .config import settings
 from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
 
@@ -28,6 +31,14 @@ def _json_dump_content(obj: ByteContent) -> dict[str, Any]:
     return data
 
 
+def json_dump_context(ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
+    return {
+        "resource": _json_dump_content(ctx.resource),
+        "metadata": ctx.metadata,
+        "items": [_json_dump_content(item) for item in ctx.items],
+    }
+
+
 class OutputResult(BaseModel):
     status: StepStatus = Field(...)
     output_paths: dict[str, str] = Field(default_factory=dict)
@@ -40,6 +51,12 @@ class Output(ABC):
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         ...
 
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        result = OutputResult(status=StepStatus.SUCCESS)
+        for ctx in ctxs:
+            result = await self.write(ctx)
+        return result
+
 
 class JsonFileOutput(Output):
     """Writes finalized ingestion output to a JSON file."""
@@ -47,13 +64,44 @@ class JsonFileOutput(Output):
     def __init__(self, path: Path) -> None:
         self.path = path
 
+    def dump(self, ctxs: list[IngestionContext[ResolvedResource]]) -> str:
+        data = json_dump_context(ctxs[0]) if len(ctxs) == 1 else {"runs": [json_dump_context(ctx) for ctx in ctxs]}
+        return json.dumps(data, indent=2)
+
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
-        self.path.write_text(json.dumps({
-            "resource": _json_dump_content(ctx.resource),
-            "metadata": ctx.metadata,
-            "items": [_json_dump_content(item) for item in ctx.items],
-        }, indent=2))
+        self.path.write_text(self.dump([ctx]))
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        self.path.write_text(self.dump(ctxs))
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
+
+
+class StdoutOutput(Output):
+    """Writes finalized ingestion output to stdout as JSON."""
+
+    def __init__(self) -> None:
+        self._inner = JsonFileOutput(Path(os.devnull))
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        print(self._inner.dump([ctx]), file=sys.stdout)
+        return OutputResult(status=StepStatus.SUCCESS)
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        print(self._inner.dump(ctxs), file=sys.stdout)
+        return OutputResult(status=StepStatus.SUCCESS)
+
+
+def parse(value: str) -> Output:
+    if value == "-":
+        return StdoutOutput()
+    if value == "vector:":
+        return VectorStoreOutput(settings.vector_store.build())
+    if value == "graph:":
+        return GraphStoreOutput(settings.graph_store.build())
+    if Path(value).suffix == ".json":
+        return JsonFileOutput(Path(value))
+    raise ValueError(f"Unsupported output: {value}")
 
 
 class VectorStoreOutput(Output):
