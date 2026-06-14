@@ -90,8 +90,6 @@ _STEP_FACTORY: StepFactory = {
     "quality": agent.governance.QualityVerifierAgent,
 
     "embedding": agent.indexing.EmbeddingAgent,
-
-    "pipeline": agent.misc.PipelineAgent
 }
 
 class PipelineRunner:
