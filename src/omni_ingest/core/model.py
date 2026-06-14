@@ -109,6 +109,7 @@ class AgentMixin:
 
 class StepConfig(BaseModel):
     agent: str = Field(..., description="The registry name of the agent to execute")
+    description: str | None = Field(default=None, description="Human-readable step label")
     config: dict[str, Any] = Field(default_factory=dict, description="Step-specific configuration parameters")
 
 

@@ -112,11 +112,12 @@ class PipelineRunner:
     lifecycle of the ingestion process, including error handling and status reporting.
     """
 
-    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None):
+    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None):
         self.steps = steps
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.toolsets = toolsets
         self.output_result: OutputResult | None = None
+        self.step_descriptions = dict(step_descriptions or {})
 
         if logger is None:
             logger = logging.getLogger(__name__)
@@ -283,12 +284,16 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
     config = _load_pipeline_config(config_path)
 
     steps = []
+    descriptions = {}
     for s in _flatten_steps(_resolve_pipeline_steps(config, config_args or {}, config_path), config_path.parent, factory):
         cls = get_step_class(s.agent, factory)
         kwargs = _resolve_step_kwargs(cls, s.config, {})
-        steps.append(cls(**kwargs))
+        step = cls(**kwargs)
+        if s.description:
+            descriptions[id(step)] = s.description
+        steps.append(step)
     toolsets = {k: MCPToolset(Client(MCPConfig(mcpServers={k: v}).to_dict())) for k, v in config.tool_vendors.items()}
-    return PipelineRunner(steps=steps, toolsets=toolsets)
+    return PipelineRunner(steps=steps, toolsets=toolsets, step_descriptions=descriptions)
 
 
 def _load_pipeline_config(path: Path) -> PipelineConfig:
@@ -335,7 +340,7 @@ def _resolve_pipeline_steps(config: PipelineConfig, overrides: dict[str, Any], c
         validate(instance=values, schema=schema)
     except ValidationError as e:
         raise ValueError(f"Invalid parameters for pipeline {config_path}: {e.message}") from e
-    return [StepConfig(agent=step.agent, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
+    return [StepConfig(agent=step.agent, description=step.description, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
 
 
 def _interpolate_value(value: Any, context: dict[str, Any]) -> Any:
