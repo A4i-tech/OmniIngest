@@ -327,7 +327,7 @@ async def test_json_file_output(vector_store, tmp_path):
     output = JsonFileOutput(path=tmp_path / "items.json")
     ctx = create_ctx(vector_store, "resource")
     ctx.metadata["source"] = "unit"
-    ctx.items = [KnowledgeItem(content=b"test", metadata={"tag": "x"})]
+    ctx.items = [KnowledgeItem(content=b"test", metadata={"tag": "x"}), KnowledgeItem(content=b"\xff", content_encoding="binary")]
 
     result = await output.write(ctx)
     data = json.loads(output.path.read_text())
@@ -338,6 +338,8 @@ async def test_json_file_output(vector_store, tmp_path):
     assert data["metadata"] == {"source": "unit"}
     assert data["items"][0]["content"] == "test"
     assert data["items"][0]["metadata"] == {"tag": "x"}
+    assert data["items"][1]["content"] == "/w=="
+    assert data["items"][1]["content_encoding"] == "base64"
 
 
 @pytest.mark.asyncio

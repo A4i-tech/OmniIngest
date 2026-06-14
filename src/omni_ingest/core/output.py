@@ -4,17 +4,28 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
+from base64 import b64encode
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
-from .model import ResolvedResource, StepStatus
+from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
 
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
+
+
+def _json_dump_content(obj: ByteContent) -> dict[str, Any]:
+    data = obj.model_dump(mode="json", exclude={"content"})
+    try:
+        data["content"] = obj.content.decode(obj.content_encoding)
+    except (LookupError, UnicodeDecodeError):
+        data["content"] = b64encode(obj.content).decode("ascii")
+        data["content_encoding"] = "base64"
+    return data
 
 
 class OutputResult(BaseModel):
@@ -38,9 +49,9 @@ class JsonFileOutput(Output):
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         self.path.write_text(json.dumps({
-            "resource": ctx.resource.model_dump(mode="json"),
+            "resource": _json_dump_content(ctx.resource),
             "metadata": ctx.metadata,
-            "items": [item.model_dump(mode="json") for item in ctx.items],
+            "items": [_json_dump_content(item) for item in ctx.items],
         }, indent=2))
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
 
