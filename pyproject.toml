@@ -26,6 +26,8 @@ dependencies = [
     "pydantic-ai>=1.107.0",
     "python-magic>=0.4.27",
     "datamodel-code-generator>=0.63.0",
+    "jq>=1.11.0",
+    "jsonschema>=4.26.0",
 ]
 
 [project.optional-dependencies]

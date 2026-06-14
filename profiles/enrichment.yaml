@@ -1,9 +1,14 @@
 pipeline_id: enrichment
+parameters:
+  properties:
+    prompt:
+      type: string
+      default: "Analyze text and provide JSON summary/tags. Content: {text}"
 steps:
   - agent: structure
     config:
       method: update
-      prompt: "Analyze text and provide JSON summary/tags. Content: {text}"
+      prompt: "${.config.prompt}"
       json_schema:
         type: object
         properties:

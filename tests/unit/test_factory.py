@@ -8,6 +8,7 @@ import yaml
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.modality import TextAgent
+from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.config import LanceDBVectorStoreConfig
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, _resolve_step_kwargs, create_pipeline_from_config
@@ -108,6 +109,86 @@ def test_pipeline_detects_component_cycles(tmp_path):
 
     with pytest.raises(ValueError, match="Pipeline component cycle detected"):
         create_pipeline_from_config(tmp_path / "a.yaml")
+
+
+def test_pipeline_component_parameters_apply_defaults_and_overrides(tmp_path):
+    (tmp_path / "component.yaml").write_text("""
+parameters:
+  properties:
+    prompt:
+      type: string
+      default: "Default prompt. Content: {text}"
+steps:
+  - agent: structure
+    config:
+      method: update
+      prompt: "${.config.prompt}"
+      json_schema:
+        type: object
+        properties:
+          summary:
+            type: string
+        required: [summary]
+""")
+    default_root = tmp_path / "default.yaml"
+    default_root.write_text(yaml.dump({"steps": [{"agent": "component"}]}))
+    override_root = tmp_path / "override.yaml"
+    override_root.write_text(yaml.dump({"steps": [{"agent": "component", "config": {"prompt": "Custom prompt. Content: {text}"}}]}))
+
+    default_runner = create_pipeline_from_config(default_root)
+    override_runner = create_pipeline_from_config(override_root)
+
+    assert isinstance(default_runner.steps[0], StructureAgent)
+    assert default_runner.steps[0].prompt == "Default prompt. Content: {text}"  # type: ignore[attr-defined]
+    assert override_runner.steps[0].prompt == "Custom prompt. Content: {text}"  # type: ignore[attr-defined]
+
+
+def test_pipeline_component_parameters_reject_undeclared_keys(tmp_path):
+    (tmp_path / "component.yaml").write_text("""
+parameters:
+  properties:
+    prompt:
+      type: string
+      default: "Default prompt. Content: {text}"
+steps:
+  - agent: text
+""")
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "component", "config": {"unknown": "value"}}]}))
+
+    with pytest.raises(ValueError, match="Invalid parameters"):
+        create_pipeline_from_config(root)
+
+
+def test_pipeline_parameters_support_jq_and_preserve_full_value_type(tmp_path):
+    (tmp_path / "component.yaml").write_text("""
+parameters:
+  properties:
+    chunk_size:
+      type: integer
+      default: 64
+steps:
+  - agent: chunking
+    config:
+      chunk_size: "${.config.chunk_size * 2}"
+""")
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "component", "config": {"chunk_size": 128}}]}))
+
+    runner = create_pipeline_from_config(root)
+
+    assert isinstance(runner.steps[0], SentenceChunkingAgent)
+    assert runner.steps[0].chunk_size == 256  # type: ignore[attr-defined]
+
+
+def test_enrichment_profile_exposes_prompt_parameter(tmp_path):
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "enrichment", "config": {"prompt": "Custom enrichment. Content: {text}"}}]}))
+
+    runner = create_pipeline_from_config(root)
+
+    assert isinstance(runner.steps[0], StructureAgent)
+    assert runner.steps[0].prompt == "Custom enrichment. Content: {text}"  # type: ignore[attr-defined]
 
 
 def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):

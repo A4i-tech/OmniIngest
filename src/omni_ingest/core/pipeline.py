@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import re
 import traceback
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field, replace
@@ -13,9 +14,11 @@ from pathlib import Path
 from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID, uuid4
 
+import jq
 import yaml
 from fastmcp import Client
 from fastmcp.mcp_config import MCPConfig
+from jsonschema import ValidationError, validate
 from pydantic import PositiveInt, validate_call
 from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
@@ -32,6 +35,7 @@ from .protocol import MetadataStore, VectorStore
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
 ResourceT = TypeVar("ResourceT", bound=Resource)
+_INTERPOLATION_RE = re.compile(r"\$\{([^{}]+)\}")
 
 
 def _default_ms():
@@ -258,7 +262,7 @@ def lookup_step_id(step: Step, factory: StepFactory | None = None) -> str | None
     return None
 
 
-def create_pipeline_from_config(config_path: Path, factory: StepFactory | None = None, config_args: dict[str, str] | None = None) -> PipelineRunner:
+def create_pipeline_from_config(config_path: Path, factory: StepFactory | None = None, config_args: dict[str, Any] | None = None) -> PipelineRunner:
     """
     Factory function to create a PipelineRunner from a YAML configuration file.
 
@@ -269,9 +273,8 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
     config = _load_pipeline_config(config_path)
 
     steps = []
-    for s in _flatten_steps(config.steps, config_path.parent, factory):
+    for s in _flatten_steps(_resolve_pipeline_steps(config, config_args or {}, config_path), config_path.parent, factory):
         cls = get_step_class(s.agent, factory)
-        #resolved_config = json.loads(json.dumps(s.config).format_map(config_args or {}))
         kwargs = _resolve_step_kwargs(cls, s.config, {})
         steps.append(cls(**kwargs))
     toolsets = {k: MCPToolset(Client(MCPConfig(mcpServers={k: v}).to_dict())) for k, v in config.tool_vendors.items()}
@@ -291,7 +294,8 @@ def _flatten_steps(steps: list[StepConfig], base_dir: Path, factory: StepFactory
             if path in stack:
                 cycle = " -> ".join(str(p) for p in (*stack, path))
                 raise ValueError(f"Pipeline component cycle detected: {cycle}")
-            flat.extend(_flatten_steps(_load_pipeline_config(path).steps, path.parent, factory, (*stack, path)))
+            config = _load_pipeline_config(path)
+            flat.extend(_flatten_steps(_resolve_pipeline_steps(config, step.config, path), path.parent, factory, (*stack, path)))
         else:
             flat.append(step)
     return flat
@@ -312,6 +316,34 @@ def _resolve_step_pipeline_path(agent_id: str, base_dir: Path, factory: StepFact
 
     get_step_class(agent_id, factory)
     return None
+
+
+def _resolve_pipeline_steps(config: PipelineConfig, overrides: dict[str, Any], config_path: Path) -> list[StepConfig]:
+    schema = {"type": "object", "additionalProperties": False, **config.parameters}
+    values = {k: v["default"] for k, v in schema.get("properties", {}).items() if "default" in v} | overrides
+    try:
+        validate(instance=values, schema=schema)
+    except ValidationError as e:
+        raise ValueError(f"Invalid parameters for pipeline {config_path}: {e.message}") from e
+    return [StepConfig(agent=step.agent, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
+
+
+def _interpolate_value(value: Any, context: dict[str, Any]) -> Any:
+    if isinstance(value, dict):
+        return {k: _interpolate_value(v, context) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_interpolate_value(v, context) for v in value]
+    if not isinstance(value, str):
+        return value
+
+    full_match = _INTERPOLATION_RE.fullmatch(value)
+    if full_match:
+        return jq.compile(full_match.group(1).strip()).input_value(context).first()
+
+    def replace(match: re.Match[str]) -> str:
+        return str(jq.compile(match.group(1).strip()).input_value(context).first())
+
+    return _INTERPOLATION_RE.sub(replace, value)
 
 
 def _resolve_step_kwargs(cls: type, conf: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
