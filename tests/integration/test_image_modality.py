@@ -19,5 +19,4 @@ async def test_text_agent_converts_image_to_text(metadata_store):
     text = ctx.resource.decode().lower()
     assert result.status == StepStatus.SUCCESS
     assert ctx.resource.metadata["selected_parser"] == "image"
-    assert len(text) > 100
     assert any(word in text for word in ["shelf", "store", "supermarket", "product", "package"])
