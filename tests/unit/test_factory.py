@@ -7,8 +7,8 @@ import yaml
 
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
+from omni_ingest.agent.enrichment import ExtractAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.agent.structure import StructureAgent
 from omni_ingest.core.config import LanceDBVectorStoreConfig
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, _resolve_step_kwargs, create_pipeline_from_config
@@ -119,11 +119,11 @@ parameters:
       type: string
       default: "Default prompt."
 steps:
-  - agent: structure
+  - agent: extract
     config:
-      target: ".metadata += $output"
+      into: .metadata
       prompt: "${.config.prompt}"
-      json_schema:
+      schema:
         type: object
         properties:
           summary:
@@ -138,7 +138,7 @@ steps:
     default_runner = create_pipeline_from_config(default_root)
     override_runner = create_pipeline_from_config(override_root)
 
-    assert isinstance(default_runner.steps[0], StructureAgent)
+    assert isinstance(default_runner.steps[0], ExtractAgent)
     assert default_runner.steps[0].prompt == "Default prompt."  # type: ignore[attr-defined]
     assert override_runner.steps[0].prompt == "Custom prompt."  # type: ignore[attr-defined]
 
@@ -187,7 +187,7 @@ def test_enrichment_profile_exposes_prompt_parameter(tmp_path):
 
     runner = create_pipeline_from_config(root)
 
-    assert isinstance(runner.steps[0], StructureAgent)
+    assert isinstance(runner.steps[0], ExtractAgent)
     assert runner.steps[0].prompt == "Custom enrichment."  # type: ignore[attr-defined]
 
 
@@ -229,12 +229,12 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
     config = {
         "steps": [
             {
-                "agent": "structure",
+                "agent": "extract",
                 "config": {
                     "toolsets": ["converter"],
-                    "target": ".metadata += $output",
+                    "into": ".metadata",
                     "prompt": "Analyze text.",
-                    "json_schema": {
+                    "schema": {
                         "type": "object",
                         "properties": {"summary": {"type": "string"}},
                         "required": ["summary"],

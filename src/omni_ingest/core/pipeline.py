@@ -93,8 +93,9 @@ _STEP_FACTORY: StepFactory = {
     "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
     "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
 
-    "structure": agent.structure.StructureAgent,
-    "transform": agent.structure.TransformAgent,
+    "extract": agent.enrichment.ExtractAgent,
+    "validate": agent.governance.ValidateAgent,
+    "transform": agent.enrichment.TransformAgent,
     "kg_builder": agent.enrichment.KnowledgeGraphBuilderAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,

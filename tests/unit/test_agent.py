@@ -5,16 +5,18 @@ from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel, ValidationError
+from pydantic_ai.capabilities import Hooks
 
 from omni_ingest.agent.chunking import PageChunkingAgent
 from omni_ingest.agent.cleaning import (
     MarkdownCleaningAgent,
     TranscriptionPostProcessorAgent,
 )
+from omni_ingest.agent.enrichment import ExtractAgent, TransformAgent
 from omni_ingest.agent.governance import (
     DataLineageAgent,
+    ValidateAgent,
 )
-from omni_ingest.agent.structure import StructureAgent, TransformAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
@@ -52,12 +54,12 @@ async def test_transcription_post_processor_agent(vector_store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_item_set(vector_store):
+async def test_extract_agent_item_set(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = StructureAgent(
-        target=".metadata.learning_outcomes = $output",
+    agent = ExtractAgent(
+        into=".metadata.learning_outcomes",
         prompt="Extract learning outcomes.",
-        json_schema={
+        schema={
             "type": "array",
             "items": {"type": "string"},
         },
@@ -68,7 +70,7 @@ async def test_structure_agent_item_set(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"output": ["Understand testing"]}
+            mock_run.return_value.output = agent.output_type(output=["Understand testing"])
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
@@ -76,12 +78,12 @@ async def test_structure_agent_item_set(vector_store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_update(vector_store):
+async def test_extract_agent_updates_item_metadata(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = StructureAgent(
-        target=".metadata += $output",
+    agent = ExtractAgent(
+        into=".metadata",
         prompt="Enrich.",
-        json_schema={
+        schema={
             "type": "object",
             "properties": {"summary": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}},
             "required": ["summary", "tags"],
@@ -93,7 +95,7 @@ async def test_structure_agent_update(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"output": {"summary": "s", "tags": ["t"]}}
+            mock_run.return_value.output = agent.output_type(output={"summary": "s", "tags": ["t"]})
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
@@ -102,39 +104,39 @@ async def test_structure_agent_update(vector_store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_jq_foreach_input_and_append_target(vector_store):
+async def test_extract_agent_jq_foreach_input(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = StructureAgent(
+    agent = ExtractAgent(
         foreach=".items[:1][]",
         input=".text[:4]",
-        target=".metadata.keywords = ((.metadata.keywords // []) + $output)",
+        into=".metadata.keywords",
         prompt="Keywords.",
-        json_schema={"type": "array", "items": {"type": "string"}},
+        schema={"type": "array", "items": {"type": "string"}},
     )
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"alpha", metadata={"keywords": ["old"]}), KnowledgeItem(content=b"bravo")]
+    ctx.items = [KnowledgeItem(content=b"alpha"), KnowledgeItem(content=b"bravo")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"output": ["new"]}
+            mock_run.return_value.output = agent.output_type(output=["new"])
             result = await agent.run(ctx)
 
     mock_run.assert_awaited_once()
     assert mock_run.await_args.args[0] == ["Keywords.", "alph"]
     assert result.metadata["items_processed"] == 1
-    assert ctx.items[0].metadata["keywords"] == ["old", "new"]
+    assert ctx.items[0].metadata["keywords"] == ["new"]
     assert ctx.items[1].metadata == {}
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_assertions_fail_step(vector_store):
+async def test_extract_agent_assertions_register_model_retry_validator(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = StructureAgent(
-        foreach=None,
-        target=".metadata.quality_report = $output",
+    agent = ExtractAgent(
+        foreach=".",
+        into=".metadata.quality_report",
         prompt="Quality.",
-        assertions=[{"expr": "$output.overall_score >= 0.7", "message": "Quality check failed"}],
-        json_schema={
+        assertions=[{"expr": ".overall_score >= 0.7", "feedback": "Quality is too low"}],
+        schema={
             "type": "object",
             "properties": {"overall_score": {"type": "number"}, "issues": {"type": "array", "items": {"type": "string"}}},
             "required": ["overall_score", "issues"],
@@ -142,26 +144,28 @@ async def test_structure_agent_assertions_fail_step(vector_store):
     )
     ctx = create_ctx(vector_store, "bad content")
     ctx.items = [KnowledgeItem(content=b"bad content")]
+    pydantic_agent = PydanticAgent("test")
 
-    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+    with patch.object(agent, "_agent", return_value=pydantic_agent):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"output": {"overall_score": 0.4, "issues": ["too short"]}}
+            mock_run.return_value.output = agent.output_type(output={"overall_score": 0.4, "issues": ["too short"]})
             result = await agent.run(ctx)
 
-    assert result.status == StepStatus.FAILURE
-    assert result.error == "Quality check failed"
+    assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["quality_report"]["overall_score"] == 0.4
+    assert mock_run.await_args.kwargs["output_type"] == agent.output_type
+    assert isinstance(mock_run.await_args.kwargs["capabilities"][0], Hooks)
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_context_target(vector_store):
+async def test_extract_agent_document_scope(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = StructureAgent(
-        foreach=None,
+    agent = ExtractAgent(
+        foreach=".",
         input='[.items[:2][] | .text[:4]] | join("|")',
-        target=".metadata.faqs = $output",
+        into=".metadata.faqs",
         prompt="Generate FAQs.",
-        json_schema={
+        schema={
             "type": "array",
             "items": {
                 "type": "object",
@@ -176,7 +180,7 @@ async def test_structure_agent_context_target(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = {"output": [{"q": "What?", "a": "This."}]}
+            mock_run.return_value.output = agent.output_type(output=[{"q": "What?", "a": "This."}])
             result = await agent.run(ctx)
 
     mock_run.assert_awaited_once()
@@ -186,13 +190,14 @@ async def test_structure_agent_context_target(vector_store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_binary_input_uses_selected_items():
-    agent = StructureAgent(
-        foreach=None,
+async def test_extract_agent_binary_input_uses_selected_items():
+    from pydantic_ai import Agent as PydanticAgent
+    agent = ExtractAgent(
+        foreach=".",
         input='[.items[] | select(.metadata.page == 2) | .id]',
-        target=".metadata.metadata = $output",
+        into=".metadata.metadata",
         prompt="Extract metadata.",
-        json_schema={"type": "object", "properties": {"subject": {"type": "string"}}, "required": ["subject"]},
+        schema={"type": "object", "properties": {"subject": {"type": "string"}}, "required": ["subject"]},
     )
 
     ctx = create_ctx(None, "")
@@ -200,72 +205,71 @@ async def test_structure_agent_binary_input_uses_selected_items():
         KnowledgeItem(content=b"%PDF-1.4\npage 1", metadata={"page": 1}),
         KnowledgeItem(content=b"%PDF-1.4\npage 2", metadata={"page": 2}),
     ]
-    mock_agent = AsyncMock()
-    mock_agent.run.return_value.output = {"output": {"subject": "Mathematics"}}
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = agent.output_type(output={"subject": "Mathematics"})
+            result = await agent.run(ctx)
 
-    with patch.object(agent, "_agent", return_value=mock_agent):
-        result = await agent.run(ctx)
-
-    content = mock_agent.run.await_args.args[0][1]
-    assert mock_agent.run.await_args.args[0][0] == "Extract metadata."
+    content = mock_run.await_args.args[0][1]
+    assert mock_run.await_args.args[0][0] == "Extract metadata."
     assert content.data == b"%PDF-1.4\npage 2"
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["metadata"] == {"subject": "Mathematics"}
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_serializes_pydantic_output_for_jq_args():
+async def test_extract_agent_serializes_pydantic_output():
+    from pydantic_ai import Agent as PydanticAgent
+
     class Output(BaseModel):
         output: dict[str, str]
 
-    agent = StructureAgent(
-        foreach=None,
-        target=".metadata.metadata = $output",
+    agent = ExtractAgent(
+        foreach=".",
+        into=".metadata.metadata",
         prompt="Extract metadata.",
-        json_schema={"type": "object", "properties": {"board": {"type": "string", "enum": ["CBSE"]}}, "required": ["board"]},
+        schema={"type": "object", "properties": {"board": {"type": "string", "enum": ["CBSE"]}}, "required": ["board"]},
     )
     ctx = create_ctx(None, "content")
     ctx.items = [KnowledgeItem(content=b"content")]
-    mock_agent = AsyncMock()
-    mock_agent.run.return_value.output = Output(output={"board": "CBSE"})
 
-    with patch.object(agent, "_agent", return_value=mock_agent):
-        result = await agent.run(ctx)
+    with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = Output(output={"board": "CBSE"})
+            result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["metadata"] == {"board": "CBSE"}
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_foreach_document_updates_root_metadata():
-    agent = StructureAgent(
-        foreach='.metadata.toc.records[] | {record: ., context: .name, ids: $ids}',
-        input=".ids",
-        context=".context",
-        target_scope="root",
-        target='.metadata.chapters = ((.metadata.chapters // []) + [{"record": $item.record, "chapter": $output}])',
-        prompt="Build chapter.",
-        json_schema={"type": "object", "properties": {"topics": {"type": "array", "items": {"type": "string"}}}, "required": ["topics"]},
+async def test_extract_agent_buffered_mode_registers_page_reader():
+    from pydantic_ai import Agent as PydanticAgent
+    agent = ExtractAgent(
+        foreach=".",
+        mode="buffered",
+        input='[.items[] | .id]',
+        into=".metadata.toc",
+        prompt="Find TOC.",
+        schema={"type": "object", "properties": {"found": {"type": "boolean"}}, "required": ["found"]},
     )
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(content=b"%PDF-1.4\npage")]
-    ctx.metadata["toc"] = {"records": [{"no": 1, "name": "Matter", "page_begin": 1, "page_end": 2}]}
-    item_id = str(ctx.items[0].id)
-    agent.foreach = agent.foreach.replace("$ids", f'["{item_id}"]')
-    mock_agent = AsyncMock()
-    mock_agent.run.return_value.output = {"output": {"topics": ["Matter"]}}
+    ctx.items = [KnowledgeItem(content=b"%PDF-1.4\npage", metadata={"page": 1})]
+    pydantic_agent = PydanticAgent("test")
 
-    with patch.object(agent, "_agent", return_value=mock_agent):
-        result = await agent.run(ctx)
+    with patch.object(agent, "_agent", return_value=pydantic_agent):
+        with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value.output = agent.output_type(output={"found": True})
+            result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    assert ctx.metadata["chapters"] == [{"record": ctx.metadata["toc"]["records"][0], "chapter": {"topics": ["Matter"]}}]
-    assert mock_agent.run.await_args.args[0][1] == "Matter"
+    assert mock_run.await_args.args[0] == "Find TOC."
+    assert pydantic_agent._function_toolset.tools
 
 
 @pytest.mark.asyncio
 async def test_transform_agent_writes_jq_output_to_metadata():
-    agent = TransformAgent(value=".metadata.items | map(.name)", target=".metadata.names = $output")
+    agent = TransformAgent(value=".metadata.items | map(.name)", into=".metadata.names")
     ctx = create_ctx(None, "")
     ctx.metadata["items"] = [{"name": "a"}, {"name": "b"}]
 
@@ -277,7 +281,7 @@ async def test_transform_agent_writes_jq_output_to_metadata():
 
 @pytest.mark.asyncio
 async def test_transform_agent_maps_nested_metadata():
-    agent = TransformAgent(target=".metadata.records = $output", value=r"""
+    agent = TransformAgent(into=".metadata.records", value=r"""
         .metadata.book as $book
         | .metadata.chapters
         | map({
@@ -300,7 +304,30 @@ async def test_transform_agent_maps_nested_metadata():
 
 def test_transform_agent_rejects_invalid_jq():
     with pytest.raises(ValidationError):
-        TransformAgent(value=".metadata |", target=".metadata.records = $output")
+        TransformAgent(value=".metadata |", into=".metadata.records")
+
+
+@pytest.mark.asyncio
+async def test_validate_agent_checks_root_metadata():
+    agent = ValidateAgent(checks=[{"expr": ".metadata.score >= 0.7", "message": "too low"}])
+    ctx = create_ctx(None, "")
+    ctx.metadata["score"] = 0.4
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.FAILURE
+    assert result.error == "too low"
+
+
+@pytest.mark.asyncio
+async def test_validate_agent_checks_each_selected_item():
+    agent = ValidateAgent(foreach=".items[]", checks=[{"expr": ".metadata.ok == true", "message": "bad item"}])
+    ctx = create_ctx(None, "")
+    ctx.items = [KnowledgeItem(content=b"a", metadata={"ok": True}), KnowledgeItem(content=b"b", metadata={"ok": True})]
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio

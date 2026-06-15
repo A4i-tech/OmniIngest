@@ -5,13 +5,13 @@ parameters:
       type: string
       default: "Generate 3-5 frequently asked questions and answers based on the following text."
 steps:
-  - agent: structure
+  - agent: extract
     config:
-      foreach: null
+      foreach: "."
       input: '[.items[:5][] | .text[:1000]] | join("\n")'
-      target: ".metadata.faqs = $output"
+      into: .metadata.faqs
       prompt: "${.config.prompt}"
-      json_schema:
+      schema:
         type: array
         items:
           type: object

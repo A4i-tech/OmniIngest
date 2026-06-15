@@ -5,11 +5,11 @@ parameters:
       type: string
       default: "Analyze text and provide JSON summary/tags."
 steps:
-  - agent: structure
+  - agent: extract
     config:
-      target: ".metadata += $output"
+      into: .metadata
       prompt: "${.config.prompt}"
-      json_schema:
+      schema:
         type: object
         properties:
           summary:

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from omni_ingest.agent.structure import StructureAgent
+from omni_ingest.agent.enrichment import ExtractAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
@@ -10,10 +10,10 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
 @pytest.mark.asyncio
 async def test_domain_enrichment_flow(metadata_store):
-    agent = StructureAgent(
-        target=".metadata += $output",
+    agent = ExtractAgent(
+        into=".metadata",
         prompt="Analyze text and provide JSON summary/tags.",
-        json_schema={
+        schema={
             "type": "object",
             "properties": {"summary": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}},
             "required": ["summary", "tags"],
@@ -30,10 +30,10 @@ async def test_domain_enrichment_flow(metadata_store):
 
 @pytest.mark.asyncio
 async def test_learning_outcome_extraction(metadata_store):
-    ed_agent = StructureAgent(
-        target=".metadata.learning_outcomes = $output",
+    ed_agent = ExtractAgent(
+        into=".metadata.learning_outcomes",
         prompt="Extract a list of learning outcomes from the following educational content.",
-        json_schema={
+        schema={
             "type": "array",
             "items": {"type": "string"},
         },
@@ -47,11 +47,11 @@ async def test_learning_outcome_extraction(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_structure_agent_does_not_branch_on_domain(metadata_store):
-    ed_agent = StructureAgent(
-        target=".metadata.learning_outcomes = $output",
+async def test_extract_agent_does_not_branch_on_domain(metadata_store):
+    ed_agent = ExtractAgent(
+        into=".metadata.learning_outcomes",
         prompt="Extract a list of learning outcomes from the following educational content.",
-        json_schema={
+        schema={
             "type": "array",
             "items": {"type": "string"},
         },

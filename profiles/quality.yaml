@@ -18,16 +18,13 @@ parameters:
         - "overall_score": float between 0 and 1
         - "issues": list of strings describing any problems found
 steps:
-  - agent: structure
+  - agent: extract
     config:
-      foreach: null
+      foreach: "."
       input: '.items[:${.config.sample_size}] | to_entries | map("--- Sample \(.key + 1) ---\n\(.value.text[:500])") | join("\n")'
-      target: ".metadata.quality_report = $output"
+      into: .metadata.quality_report
       prompt: "${.config.prompt_template}"
-      assertions:
-        - expr: "$output.overall_score >= ${.config.min_quality_score}"
-          message: "Quality check failed"
-      json_schema:
+      schema:
         type: object
         properties:
           overall_score:
@@ -41,3 +38,8 @@ steps:
             items:
               type: string
         required: [overall_score, issues]
+  - agent: validate
+    config:
+      checks:
+        - expr: ".metadata.quality_report.overall_score >= ${.config.min_quality_score}"
+          message: "Quality check failed"
