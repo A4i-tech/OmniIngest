@@ -7,7 +7,7 @@ parameters:
 steps:
   - agent: extract
     config:
-      into: .metadata
+      path: ".metadata"
       prompt: "${.config.prompt}"
       schema:
         type: object

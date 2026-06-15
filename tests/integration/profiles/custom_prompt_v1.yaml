@@ -7,7 +7,7 @@ steps:
   - agent: chunking
   - agent: extract
     config:
-      into: .metadata
+      path: ".metadata"
       prompt: "As a medical expert, summarize this clinical text for a patient. Identify medical terms as tags. Return JSON with 'patient_summary' and 'medical_tags'."
       schema:
         type: object

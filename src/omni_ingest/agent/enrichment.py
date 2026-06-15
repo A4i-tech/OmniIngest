@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 from ..core.model import AgentMixin, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
 
 
-def _assign(doc: dict[str, Any], into: str, output: Any) -> dict[str, Any]:
-    return cast(dict[str, Any], jq.compile(f"{into} = $output", args={"output": output}).input_value(doc).first())
+def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
+    return cast(dict[str, Any], jq.compile(f"{path} |= if type == \"object\" and ($output | type) == \"object\" then . + $output else $output end", args={"output": output}).input_value(doc).first())
 
 
 def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
@@ -48,7 +48,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
 
     prompt: str = Field(..., description="Instruction prompt")
     json_schema: dict[str, Any] = Field(..., alias="schema", description="JSON schema for the structured model output")
-    into: JqExpression = Field(..., description="jq lvalue where extracted output is written")
+    path: JqExpression = Field(..., description="jq path where extracted output is written")
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting documents to extract from")
     input: JqExpression = Field(default=".text", description="jq expression selecting prompt input")
     context: JqExpression | None = Field(default=None, description="jq expression selecting extra prompt context")
@@ -73,14 +73,14 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
         sem = asyncio.Semaphore(self.concurrency)
         for done, task in enumerate(asyncio.as_completed([self._extract(ctx, item_doc, item_by_id, sem) for item_doc in selected_docs]), 1):
             item_doc, output = await task
-            item_doc = _assign(item_doc, self.into, output)
+            item_doc = _assign(item_doc, self.path, output)
             if "id" in item_doc:
                 item_by_id[item_doc["id"]].metadata = item_doc["metadata"]
             else:
                 ctx.metadata = item_doc["metadata"]
             ctx.progress(done, len(selected_docs), f"extracted {done}/{len(selected_docs)}")
 
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": len(selected_docs), "into": self.into})
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": len(selected_docs), "path": self.path})
 
     async def _extract(self, ctx: IngestionContext, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore) -> tuple[dict[str, Any], Any]:
         async with sem:
@@ -135,12 +135,12 @@ class TransformAgent(BaseModel, Step):
     """Applies jq transforms to root metadata."""
 
     value: JqExpression = Field(..., description="jq expression producing transformed output")
-    into: JqExpression = Field(..., description="jq lvalue where transformed output is written")
+    path: JqExpression = Field(..., description="jq path where transformed output is written")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         doc = _doc(ctx)
-        ctx.metadata = _assign(doc, self.into, jq.compile(self.value).input_value(doc).first())["metadata"]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"into": self.into})
+        ctx.metadata = _assign(doc, self.path, jq.compile(self.value).input_value(doc).first())["metadata"]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
 
 
 class KGNode(BaseModel):

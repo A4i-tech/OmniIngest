@@ -1,3 +1,5 @@
+"""Resource readers for turning local or remote inputs into resolved content."""
+
 import asyncio
 import io
 import json

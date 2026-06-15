@@ -11,7 +11,7 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 @pytest.mark.asyncio
 async def test_domain_enrichment_flow(metadata_store):
     agent = ExtractAgent(
-        into=".metadata",
+        path=".metadata",
         prompt="Analyze text and provide JSON summary/tags.",
         schema={
             "type": "object",
@@ -31,7 +31,7 @@ async def test_domain_enrichment_flow(metadata_store):
 @pytest.mark.asyncio
 async def test_learning_outcome_extraction(metadata_store):
     ed_agent = ExtractAgent(
-        into=".metadata.learning_outcomes",
+        path=".metadata.learning_outcomes",
         prompt="Extract a list of learning outcomes from the following educational content.",
         schema={
             "type": "array",
@@ -49,7 +49,7 @@ async def test_learning_outcome_extraction(metadata_store):
 @pytest.mark.asyncio
 async def test_extract_agent_does_not_branch_on_domain(metadata_store):
     ed_agent = ExtractAgent(
-        into=".metadata.learning_outcomes",
+        path=".metadata.learning_outcomes",
         prompt="Extract a list of learning outcomes from the following educational content.",
         schema={
             "type": "array",

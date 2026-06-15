@@ -57,7 +57,7 @@ async def test_transcription_post_processor_agent(vector_store):
 async def test_extract_agent_item_set(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = ExtractAgent(
-        into=".metadata.learning_outcomes",
+        path=".metadata.learning_outcomes",
         prompt="Extract learning outcomes.",
         schema={
             "type": "array",
@@ -81,7 +81,7 @@ async def test_extract_agent_item_set(vector_store):
 async def test_extract_agent_updates_item_metadata(vector_store):
     from pydantic_ai import Agent as PydanticAgent
     agent = ExtractAgent(
-        into=".metadata",
+        path=".metadata",
         prompt="Enrich.",
         schema={
             "type": "object",
@@ -91,7 +91,7 @@ async def test_extract_agent_updates_item_metadata(vector_store):
     )
 
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"content")]
+    ctx.items = [KnowledgeItem(content=b"content", metadata={"learning_outcomes": ["old"]})]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -99,6 +99,7 @@ async def test_extract_agent_updates_item_metadata(vector_store):
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
+            assert ctx.items[0].metadata["learning_outcomes"] == ["old"]
             assert ctx.items[0].metadata["summary"] == "s"
             assert ctx.items[0].metadata["tags"] == ["t"]
 
@@ -109,7 +110,7 @@ async def test_extract_agent_jq_foreach_input(vector_store):
     agent = ExtractAgent(
         foreach=".items[:1][]",
         input=".text[:4]",
-        into=".metadata.keywords",
+        path=".metadata.keywords",
         prompt="Keywords.",
         schema={"type": "array", "items": {"type": "string"}},
     )
@@ -133,7 +134,7 @@ async def test_extract_agent_assertions_register_model_retry_validator(vector_st
     from pydantic_ai import Agent as PydanticAgent
     agent = ExtractAgent(
         foreach=".",
-        into=".metadata.quality_report",
+        path=".metadata.quality_report",
         prompt="Quality.",
         assertions=[{"expr": ".overall_score >= 0.7", "feedback": "Quality is too low"}],
         schema={
@@ -163,7 +164,7 @@ async def test_extract_agent_document_scope(vector_store):
     agent = ExtractAgent(
         foreach=".",
         input='[.items[:2][] | .text[:4]] | join("|")',
-        into=".metadata.faqs",
+        path=".metadata.faqs",
         prompt="Generate FAQs.",
         schema={
             "type": "array",
@@ -195,7 +196,7 @@ async def test_extract_agent_binary_input_uses_selected_items():
     agent = ExtractAgent(
         foreach=".",
         input='[.items[] | select(.metadata.page == 2) | .id]',
-        into=".metadata.metadata",
+        path=".metadata.metadata",
         prompt="Extract metadata.",
         schema={"type": "object", "properties": {"subject": {"type": "string"}}, "required": ["subject"]},
     )
@@ -226,7 +227,7 @@ async def test_extract_agent_serializes_pydantic_output():
 
     agent = ExtractAgent(
         foreach=".",
-        into=".metadata.metadata",
+        path=".metadata.metadata",
         prompt="Extract metadata.",
         schema={"type": "object", "properties": {"board": {"type": "string", "enum": ["CBSE"]}}, "required": ["board"]},
     )
@@ -249,7 +250,7 @@ async def test_extract_agent_buffered_mode_registers_page_reader():
         foreach=".",
         mode="buffered",
         input='[.items[] | .id]',
-        into=".metadata.toc",
+        path=".metadata.toc",
         prompt="Find TOC.",
         schema={"type": "object", "properties": {"found": {"type": "boolean"}}, "required": ["found"]},
     )
@@ -269,7 +270,7 @@ async def test_extract_agent_buffered_mode_registers_page_reader():
 
 @pytest.mark.asyncio
 async def test_transform_agent_writes_jq_output_to_metadata():
-    agent = TransformAgent(value=".metadata.items | map(.name)", into=".metadata.names")
+    agent = TransformAgent(value=".metadata.items | map(.name)", path=".metadata.names")
     ctx = create_ctx(None, "")
     ctx.metadata["items"] = [{"name": "a"}, {"name": "b"}]
 
@@ -281,7 +282,7 @@ async def test_transform_agent_writes_jq_output_to_metadata():
 
 @pytest.mark.asyncio
 async def test_transform_agent_maps_nested_metadata():
-    agent = TransformAgent(into=".metadata.records", value=r"""
+    agent = TransformAgent(path=".metadata.records", value=r"""
         .metadata.book as $book
         | .metadata.chapters
         | map({
@@ -304,7 +305,7 @@ async def test_transform_agent_maps_nested_metadata():
 
 def test_transform_agent_rejects_invalid_jq():
     with pytest.raises(ValidationError):
-        TransformAgent(value=".metadata |", into=".metadata.records")
+        TransformAgent(value=".metadata |", path=".metadata.records")
 
 
 @pytest.mark.asyncio

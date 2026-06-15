@@ -22,7 +22,7 @@ steps:
     config:
       foreach: "."
       input: '.items[:${.config.sample_size}] | to_entries | map("--- Sample \(.key + 1) ---\n\(.value.text[:500])") | join("\n")'
-      into: .metadata.quality_report
+      path: ".metadata.quality_report"
       prompt: "${.config.prompt_template}"
       schema:
         type: object

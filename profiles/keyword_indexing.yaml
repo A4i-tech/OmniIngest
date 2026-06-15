@@ -2,7 +2,7 @@ pipeline_id: keyword_indexing
 steps:
   - agent: extract
     config:
-      into: .metadata.keywords
+      path: ".metadata.keywords"
       prompt: "Extract 5-10 descriptive keywords from the text."
       schema:
         type: array

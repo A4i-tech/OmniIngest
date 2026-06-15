@@ -1,3 +1,5 @@
+"""Command-line entrypoint for running Omni Ingest pipeline YAML files."""
+
 import argparse
 import asyncio
 import json

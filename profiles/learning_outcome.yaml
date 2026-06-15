@@ -2,7 +2,7 @@ pipeline_id: learning_outcome
 steps:
   - agent: extract
     config:
-      into: .metadata.learning_outcomes
+      path: ".metadata.learning_outcomes"
       prompt: "Extract a list of learning outcomes from the following educational content."
       schema:
         type: array

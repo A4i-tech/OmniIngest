@@ -121,7 +121,7 @@ parameters:
 steps:
   - agent: extract
     config:
-      into: .metadata
+      path: ".metadata"
       prompt: "${.config.prompt}"
       schema:
         type: object
@@ -232,7 +232,7 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
                 "agent": "extract",
                 "config": {
                     "toolsets": ["converter"],
-                    "into": ".metadata",
+                    "path": ".metadata",
                     "prompt": "Analyze text.",
                     "schema": {
                         "type": "object",

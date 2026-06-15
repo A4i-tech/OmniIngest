@@ -9,7 +9,7 @@ steps:
     config:
       foreach: "."
       input: '[.items[:5][] | .text[:1000]] | join("\n")'
-      into: .metadata.faqs
+      path: ".metadata.faqs"
       prompt: "${.config.prompt}"
       schema:
         type: array
