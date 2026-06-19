@@ -111,12 +111,14 @@ class PipelineRunner:
     Orchestrates the execution of data processing steps within an ingestion pipeline.
 
     The PipelineRunner is responsible for initializing the IngestionContext,
-    executing a sequence of configured steps (agents), and managing the overall
+    executing ordered stages of configured steps (agents), and managing the overall
     lifecycle of the ingestion process, including error handling and status reporting.
+    Steps in a stage run concurrently against the same ingestion context.
     """
 
-    def __init__(self, steps: list[Step], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None):
-        self.steps = steps
+    def __init__(self, steps: list[Step] | Mapping[str, list[Step]], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None):
+        self.stages = dict(steps) if isinstance(steps, Mapping) else {f"stage-{i}-{uuid4().hex[:8]}": [step] for i, step in enumerate(steps, 1)}
+        self.steps = [step for stage in self.stages.values() for step in stage]
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.toolsets = toolsets
         self.output_result: OutputResult | None = None
@@ -131,8 +133,8 @@ class PipelineRunner:
         """
         Executes the ingestion pipeline.
 
-        Runs each step sequentially, updating the context and reporting progress
-        to the metadata store if available.
+        Runs stages sequentially and their steps concurrently, updating the shared
+        context and reporting progress to the metadata store.
 
         Args:
             ctx: The shared ingestion context containing items and state.
@@ -198,28 +200,33 @@ class PipelineRunner:
         error_msg = None
 
         yield event.PipelineBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id)
-        for step in self.steps:
-            step_name = lookup_step_id(step) or "unknown"
-            sid = await ctx.store.create_step_run(ctx.run_id, step_name)
-            yield event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step)
-            token = _CURRENT_STEP.set((step_name, step))
-            try:
-                res = await step.run(ctx)
-            except Exception as e:
-                res = StepResult(status=StepStatus.FAILURE, error=str(e))
-                traceback.print_exception(e)
-            finally:
-                _CURRENT_STEP.reset(token)
-
-            yield event.PipelineStepEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step, step_result=res)
-            await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
-            if res.status == StepStatus.FAILURE:
+        for stage in self.stages.values():
+            step_runs = []
+            for step in stage:
+                step_name = lookup_step_id(step) or "unknown"
+                step_runs.append((await ctx.store.create_step_run(ctx.run_id, step_name), step_name, step))
+                yield event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step)
+            results = await asyncio.gather(*(self._run_step(ctx, step_name, step) for _, step_name, step in step_runs))
+            for (sid, step_name, step), res in zip(step_runs, results, strict=True):
+                yield event.PipelineStepEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step, step_result=res)
+                await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
+            if failed := next((res for res in results if res.status == StepStatus.FAILURE), None):
                 final_status = "failed"
-                error_msg = res.error
+                error_msg = failed.error
                 break
 
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
         yield event.PipelineEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, status=final_status, error=error_msg)
+
+    async def _run_step(self, ctx: IngestionContext[ResolvedResource], step_name: str, step: Step) -> StepResult:
+        token = _CURRENT_STEP.set((step_name, step))
+        try:
+            return await step.run(ctx)
+        except Exception as e:
+            traceback.print_exception(e)
+            return StepResult(status=StepStatus.FAILURE, error=str(e))
+        finally:
+            _CURRENT_STEP.reset(token)
 
     async def _resolve_resource_single(self, ctx: IngestionContext[Any], **kwargs) -> IngestionContext[ResolvedResource]:
         if isinstance(ctx.resource, ResolvedResource):
@@ -286,17 +293,20 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
     """
     config = _load_pipeline_config(config_path)
 
-    steps = []
+    stages: dict[str, list[Step]] = {}
     descriptions = {}
     for s in _flatten_steps(_resolve_pipeline_steps(config, config_args or {}, config_path), config_path.parent, factory):
+        stage = s.stage if s.stage is not None else f"stage-{len(stages) + 1}-{uuid4().hex[:8]}"
+        if stage in stages and stage != next(reversed(stages)):
+            raise ValueError(f"Stage {stage} must be contiguous")
         cls = get_step_class(s.agent, factory)
         kwargs = _resolve_step_kwargs(cls, s.config, {})
         step = cls(**kwargs)
         if s.description:
             descriptions[id(step)] = s.description
-        steps.append(step)
+        stages.setdefault(stage, []).append(step)
     toolsets = {k: MCPToolset(Client(MCPConfig(mcpServers={k: v}).to_dict())) for k, v in config.tool_vendors.items()}
-    return PipelineRunner(steps=steps, toolsets=toolsets, step_descriptions=descriptions)
+    return PipelineRunner(steps=stages, toolsets=toolsets, step_descriptions=descriptions)
 
 
 def _load_pipeline_config(path: Path) -> PipelineConfig:
@@ -308,6 +318,8 @@ def _flatten_steps(steps: list[StepConfig], base_dir: Path, factory: StepFactory
     flat = []
     for step in steps:
         if path := _resolve_step_pipeline_path(step.agent, base_dir, factory):
+            if step.stage is not None:
+                raise ValueError(f"Stage cannot be assigned to pipeline component {step.agent}")
             path = path.resolve()
             if path in stack:
                 cycle = " -> ".join(str(p) for p in (*stack, path))
@@ -343,7 +355,7 @@ def _resolve_pipeline_steps(config: PipelineConfig, overrides: dict[str, Any], c
         validate(instance=values, schema=schema)
     except ValidationError as e:
         raise ValueError(f"Invalid parameters for pipeline {config_path}: {e.message}") from e
-    return [StepConfig(agent=step.agent, description=step.description, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
+    return [StepConfig(agent=step.agent, description=step.description, stage=step.stage, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
 
 
 def _interpolate_value(value: Any, context: dict[str, Any]) -> Any:

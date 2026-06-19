@@ -110,6 +110,7 @@ class AgentMixin:
 class StepConfig(BaseModel):
     agent: str = Field(..., description="The registry name of the agent to execute")
     description: str | None = Field(default=None, description="Human-readable step label")
+    stage: str | None = Field(default=None, description="Execution stage shared by concurrently running steps")
     config: dict[str, Any] = Field(default_factory=dict, description="Step-specific configuration parameters")
 
 
@@ -121,5 +122,5 @@ class PipelineConfig(BaseModel):
     input_modality: str | None = Field(default=None, description="Expected input modality", examples=["text", "document", "audio"])
     description: str | None = Field(default=None, description="Purpose of this pipeline")
     parameters: dict[str, Any] = Field(default_factory=dict, description="JSON schema for configurable pipeline parameters")
-    steps: list[StepConfig] = Field(..., description="Ordered list of agentic steps to execute")
+    steps: list[StepConfig] = Field(..., description="Agentic steps partitioned into ordered execution stages")
     tool_vendors: dict[str, MCPServerTypes] = Field(default_factory=dict, description="Configured tool vendors available for agents")

@@ -77,7 +77,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             if "id" in item_doc:
                 item_by_id[item_doc["id"]].metadata = item_doc["metadata"]
             else:
-                ctx.metadata = item_doc["metadata"]
+                ctx.metadata = _assign({"metadata": ctx.metadata}, self.path, output)["metadata"]
             ctx.progress(done, len(selected_docs), f"extracted {done}/{len(selected_docs)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": len(selected_docs), "path": self.path})

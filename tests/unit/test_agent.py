@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Literal
 from unittest.mock import AsyncMock, patch
@@ -102,6 +103,25 @@ async def test_extract_agent_updates_item_metadata(vector_store):
             assert ctx.items[0].metadata["learning_outcomes"] == ["old"]
             assert ctx.items[0].metadata["summary"] == "s"
             assert ctx.items[0].metadata["tags"] == ["t"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_extract_agents_merge_root_metadata():
+    ctx = create_ctx(None, "")
+    ctx.items = [KnowledgeItem(content=b"content")]
+    agents = [
+        ExtractAgent(foreach=".", path=f".metadata.{key}", prompt=key, schema={"type": "string"})
+        for key in ("first", "second")
+    ]
+
+    async def extract(agent, _, item_doc, __, ___):
+        await asyncio.sleep(0.01 if agent.path.endswith("first") else 0)
+        return item_doc, agent.prompt
+
+    with patch.object(ExtractAgent, "_extract", extract):
+        await asyncio.gather(*(agent.run(ctx) for agent in agents))
+
+    assert ctx.metadata == {"first": "first", "second": "second"}
 
 
 @pytest.mark.asyncio

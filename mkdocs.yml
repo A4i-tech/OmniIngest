@@ -52,10 +52,12 @@ plugins:
             summary: true
 
 markdown_extensions:
+  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences
 
 nav:
   - Home: README.md
+  - Pipelines: pipelines.md
   - API Reference: api.md

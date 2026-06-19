@@ -1,3 +1,4 @@
+import re
 import tempfile
 from pathlib import Path
 from uuid import UUID
@@ -45,6 +46,42 @@ async def test_create_pipeline_with_config():
         assert chunking_step.overlap == 25
 
 
+def test_pipeline_groups_explicit_stages_and_generates_sequential_defaults(tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "prepare"}, {"agent": "text"}]}))
+
+    runner = create_pipeline_from_config(path)
+
+    assert list(runner.stages)[:1] == ["prepare"]
+    assert re.fullmatch(r"stage-2-[0-9a-f]{8}", list(runner.stages)[1])
+
+
+def test_pipeline_generates_unique_stage_for_each_unstaged_step(tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "text"}, {"agent": "chunking"}]}))
+
+    runner = create_pipeline_from_config(path)
+
+    assert all(re.fullmatch(rf"stage-{i}-[0-9a-f]{{8}}", stage) for i, stage in enumerate(runner.stages, 1))
+
+
+def test_pipeline_rejects_stage_on_component(tmp_path):
+    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "component", "stage": "prepare"}]}))
+
+    with pytest.raises(ValueError, match="Stage cannot be assigned to pipeline component component"):
+        create_pipeline_from_config(root)
+
+
+def test_pipeline_rejects_non_contiguous_stage(tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "process"}, {"agent": "text", "stage": "prepare"}]}))
+
+    with pytest.raises(ValueError, match="Stage prepare must be contiguous"):
+        create_pipeline_from_config(path)
+
+
 @pytest.mark.asyncio
 async def test_pipeline_execution_with_configured_chunking(metadata_store):
     config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 50, "overlap": 10}}]}
@@ -79,13 +116,14 @@ async def test_pipeline_with_default_config():
 
 
 def test_pipeline_inlines_local_yaml_component(tmp_path):
-    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}, {"agent": "chunking", "config": {"chunk_size": 64}}]}))
+    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "prepare", "config": {"chunk_size": 64}}]}))
     root = tmp_path / "root.yaml"
     root.write_text(yaml.dump({"steps": [{"agent": "component"}]}))
 
     runner = create_pipeline_from_config(root)
 
     assert [type(step) for step in runner.steps] == [TextAgent, SentenceChunkingAgent]
+    assert list(runner.stages) == ["prepare"]
     assert runner.steps[1].chunk_size == 64  # type: ignore
 
 
