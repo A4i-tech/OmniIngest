@@ -48,6 +48,9 @@ storage = [
 requires = ["uv_build>=0.8.17,<0.9.0"]
 build-backend = "uv_build"
 
+[tool.coverage.run]
+omit = ["src/omni_ingest/cli.py"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 asyncio_mode = "auto"
