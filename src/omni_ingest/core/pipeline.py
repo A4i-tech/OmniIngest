@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID, uuid4
@@ -40,6 +41,7 @@ _INTERPOLATION_RE = re.compile(r"\$\{([^{}]+)\}")
 _CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP", default=None)
 
 
+@cache
 def _default_ms():
     from ..port.metadata_store import SQLAlchemyMetadataStore
     return SQLAlchemyMetadataStore()
