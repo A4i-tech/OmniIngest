@@ -30,8 +30,8 @@ LANCEDB_PATH=./lancedb_data
 METADATA_STORE=sqlite+aiosqlite:///./knowledge.db
 ```
 
-### Usage: Semantic ingestion pipeline
-This example demonstrates a complete workflow: parsing a technical document, cleaning the markdown, extracting semantic tags and summaries, and writing the final context to a vector store.
+### Usage
+These example demonstrates a complete workflow: parsing a technical document, cleaning the markdown, extracting semantic tags and summaries, and writing the final context to a vector store.
 
 ```yaml
 steps:
@@ -44,6 +44,40 @@ steps:
   - agent: embedding
 ```
 
+To use Omni-Ingest via CLI, install Omni-Ingest as a `uv` tool. In particular, you pass 3 items - (a) the pipeline as a YAML file, (b) the input(s) to ingest, and (c) the output destination.
+```bash
+uv tool install git+https://github.com/A4i-tech/OmniIngest.git
+```
+
+```bash
+# Run a pipeline and output all data in JSON format.
+omni-ingest profiles/enrichment.yaml --input document.pdf --output out.json
+
+# Process multiple inputs concurrently.
+omni-ingest profiles/enrichment.yaml --input a.pdf b.pdf c.pdf --output out.json
+
+# Extract just the metadata you need for a downstream script.
+omni-ingest profiles/enrichment.yaml --input *.pdf --output - | jq '.runs[].metadata'
+
+# Add embedded chunks to the configured vector store.
+omni-ingest textbook_v1.yaml --input textbook.pdf --output vector:default
+
+# Pipeline parameters become CLI flags.
+omni-ingest profiles/quality.yaml --help
+omni-ingest profiles/quality.yaml \
+  --input document.pdf \
+  --output - \
+  --sample-size 5 \
+  --min-quality-score 0.8
+```
+
+You may also run a pipeline on files from remote, e.g., an Azure Blob Storage account. Supported URIs include `ftp://`, `sftp://`, `s3://`, `dropbox://`, `gdrive://`, `zip://`, and many more. Visit [fsspec docs](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported URIs. Secured remote locations will often require specifying environment variables. E.g., Azure Blob Storage will require an `AZURE_STORAGE_CONNECTION_STRING` env. Read fsspec docs for envs.
+```bash
+omni-ingest profiles/enrichment.yaml --input "az://folder/class-*-maths.pdf" --output out.json
+```
+
+To invoke Omni-Ingest programatically, invoke `PipelineRunner.run()` with pipeline and input files.
+You can build the pipeline programatically or use a helper function to build from YAML.
 ```python
 import asyncio
 from pathlib import Path
@@ -62,33 +96,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-```
-
-### Usage: CLI tool
-Install Omni-Ingest as a `uv` tool:
-
-```bash
-uv tool install git+https://github.com/A4i-tech/OmniIngest.git
-```
-
-```bash
-# Run a pipeline from the repo without installing.
-uv run omni-ingest profiles/enrichment.yaml --input document.pdf --output out.json
-
-# Process multiple inputs concurrently.
-omni-ingest profiles/enrichment.yaml --input a.pdf b.pdf c.pdf --output out.json
-
-# Extract just the metadata you need for a downstream script.
-omni-ingest profiles/enrichment.yaml --input *.pdf --output - | jq '.runs[].metadata'
-
-# Add embedded chunks to the configured vector store.
-omni-ingest textbook_v1.yaml --input textbook.pdf --output vector:default
-
-# Pipeline parameters become CLI flags.
-omni-ingest profiles/quality.yaml --help
-omni-ingest profiles/quality.yaml \
-  --input document.pdf \
-  --output - \
-  --sample-size 5 \
-  --min-quality-score 0.8
 ```
