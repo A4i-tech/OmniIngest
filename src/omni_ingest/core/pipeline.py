@@ -88,6 +88,7 @@ _STEP_FACTORY: StepFactory = {
     "text": agent.modality.TextAgent,
 
     "chunking": agent.chunking.SentenceChunkingAgent,
+    "image_extraction": agent.document.ImageExtractionAgent,
     "page_chunking": agent.chunking.PageChunkingAgent,
     "page_stitching": agent.chunking.PageStitchingAgent,
     "timed_chunking": agent.chunking.TimedChunkingAgent,
