@@ -10,7 +10,7 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import TypeAdapter
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
 load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings
 
@@ -94,6 +94,8 @@ async def _main() -> int:
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TimeElapsedColumn(),
+        TextColumn("ETA"),
+        TimeRemainingColumn(),
         console=Console(stderr=True),
         redirect_stdout=True,
         redirect_stderr=True,
