@@ -47,6 +47,7 @@ class _StepMixin:
 class PipelineBeginEvent(Event, _PipelineMixin):
     """Event emitted at the start of a pipeline."""
     identifier: str = field(default="pipeline_begin", init=False)
+    completed_steps: list[Step] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)

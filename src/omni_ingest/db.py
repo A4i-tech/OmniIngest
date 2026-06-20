@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, LargeBinary, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -51,6 +51,12 @@ class PipelineRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class PipelineCheckpointRecord(Base):
+    __tablename__ = "pipeline_checkpoints"
+    pipeline_run_id: Mapped[UUID] = mapped_column(ForeignKey("pipeline_runs.id"), primary_key=True)
+    checkpoint: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
 
 class PipelineStepRun(Base):

@@ -75,6 +75,17 @@ class KnowledgeItem(ByteContent):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary key-value pairs for additional contextual information")
 
 
+class PipelineCheckpoint(BaseModel):
+    """State restored when a pipeline run resumes."""
+
+    stage: int = Field(description="Number of completed stages")
+    resource: ResolvedResource = Field(description="Resolved input resource")
+    tenant_id: UUID = Field(description="Tenant that owns the pipeline run")
+    domain_profile: str = Field(description="Domain profile used by the pipeline")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Shared pipeline metadata")
+    items: list[KnowledgeItem] = Field(default_factory=list, description="Knowledge items produced by completed stages")
+
+
 class StepResult(BaseModel):
     """Result of an individual agentic step."""
 

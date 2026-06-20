@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import PositiveInt
 
-from .model import KnowledgeItem
+from .model import KnowledgeItem, PipelineCheckpoint
 
 
 @runtime_checkable
@@ -84,6 +84,14 @@ class MetadataStore(Protocol):
 
     async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any = None, error: str | None = None) -> None:
         """Updates the status of a pipeline run."""
+        ...
+
+    async def get_pipeline_checkpoint(self, id: UUID) -> PipelineCheckpoint | None:
+        """Returns the latest checkpoint for a pipeline run."""
+        ...
+
+    async def set_pipeline_checkpoint(self, id: UUID, checkpoint: PipelineCheckpoint | None) -> None:
+        """Replaces the checkpoint, or deletes it when checkpoint is None."""
         ...
 
     async def create_step_run(self, run_id: UUID, step_name: str) -> Any:

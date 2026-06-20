@@ -1,6 +1,7 @@
 """Persistent storage implementation for pipeline metadata and tenant information."""
 
 import asyncio
+import pickle
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -9,9 +10,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from ..core.config import settings
-from ..core.model import KnowledgeItem
+from ..core.model import KnowledgeItem, PipelineCheckpoint
 from ..core.protocol import MetadataStore
-from ..db import Base, Chunk, KnowledgeItemRecord, Pipeline, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
+from ..db import Base, Chunk, KnowledgeItemRecord, Pipeline, PipelineCheckpointRecord, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
 
 
 class SQLAlchemyMetadataStore(MetadataStore):
@@ -83,12 +84,30 @@ class SQLAlchemyMetadataStore(MetadataStore):
         async with self.session_factory() as s:
             r = await s.get(PipelineRun, run_id)
             if r:
-                r.status = status
-                if completed_at:
-                    r.completed_at = completed_at
-                if error:
-                    r.error_message = error
+                r.status, r.completed_at, r.error_message = status, completed_at, error
                 await s.commit()
+
+    async def get_pipeline_checkpoint(self, id: UUID) -> PipelineCheckpoint | None:
+        await self._init_db()
+        async with self.session_factory() as s:
+            row = await s.get(PipelineCheckpointRecord, id)
+            if not row:
+                return None
+            try:
+                checkpoint = pickle.loads(row.checkpoint)
+                return checkpoint if isinstance(checkpoint, PipelineCheckpoint) else None
+            except Exception:
+                return None
+
+    async def set_pipeline_checkpoint(self, id: UUID, checkpoint: PipelineCheckpoint | None) -> None:
+        await self._init_db()
+        async with self.session_factory() as s:
+            if checkpoint is None:
+                if row := await s.get(PipelineCheckpointRecord, id):
+                    await s.delete(row)
+            else:
+                await s.merge(PipelineCheckpointRecord(pipeline_run_id=id, checkpoint=pickle.dumps(checkpoint, protocol=pickle.HIGHEST_PROTOCOL)))
+            await s.commit()
 
     async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
         await self._init_db()

@@ -71,6 +71,13 @@ omni-ingest profiles/quality.yaml \
   --min-quality-score 0.8
 ```
 
+The latest successful stage is checkpointed in the configured metadata store. If a run fails, fix the failed or later stages in the pipeline YAML and resume it using the run ID printed by the CLI:
+```bash
+omni-ingest profiles/quality.yaml --resume <run-id> --output out.json
+```
+Completed stages are skipped and the checkpoint is deleted after the pipeline succeeds.
+Multiple runs can be resumed concurrently by passing multiple IDs to `--resume`.
+
 You may also run a pipeline on files from remote, e.g., an Azure Blob Storage account. Supported URIs include `ftp://`, `sftp://`, `s3://`, `dropbox://`, `gdrive://`, `zip://`, and many more. Visit [fsspec docs](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported URIs. Secured remote locations will often require specifying environment variables. E.g., Azure Blob Storage will require an `AZURE_STORAGE_CONNECTION_STRING` env. Read fsspec docs for envs.
 ```bash
 omni-ingest profiles/enrichment.yaml --input "az://folder/class-*-maths.pdf" --output out.json

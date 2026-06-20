@@ -7,7 +7,7 @@ import inspect
 import logging
 import re
 import traceback
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -30,7 +30,7 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from .model import KnowledgeItem, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus
+from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus
 from .output import Output, OutputResult
 from .protocol import MetadataStore, VectorStore
 
@@ -42,7 +42,7 @@ _CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP",
 
 
 @cache
-def _default_ms():
+def default_metadata_store() -> MetadataStore:
     from ..port.metadata_store import SQLAlchemyMetadataStore
     return SQLAlchemyMetadataStore()
 
@@ -59,7 +59,7 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
 
     resource: ResourceT
 
-    store: MetadataStore = field(default_factory=_default_ms)
+    store: MetadataStore = field(default_factory=default_metadata_store)
     """Reference to a storage engine or backend"""
 
     run_id: UUID = field(default_factory=uuid4)
@@ -148,14 +148,33 @@ class PipelineRunner:
 
         ctx = await self._resolve_resource_single(ctx)
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
+        await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, 0))
+        return await self._execute(ctx, output, 0)
+
+    async def resume(self, run_id: UUID, store: MetadataStore, output: Output | None = None) -> tuple[IngestionContext[ResolvedResource], Awaitable[list[StepResult]]]:
+        """Resumes a pipeline run from its latest successful-stage checkpoint."""
+
+        checkpoint = await store.get_pipeline_checkpoint(run_id)
+        if checkpoint is None:
+            raise ValueError(f"Pipeline checkpoint not found: {run_id}")
+        if checkpoint.stage > len(self.stages):
+            raise ValueError(f"Pipeline has {len(self.stages)} stages, but checkpoint {run_id} completed {checkpoint.stage}; resume with the pipeline YAML used to create this run")
+        ctx = IngestionContext(resource=checkpoint.resource, store=store, run_id=run_id, tenant_id=checkpoint.tenant_id, domain_profile=checkpoint.domain_profile, metadata=checkpoint.metadata, items=checkpoint.items)
+        await store.update_pipeline_run(run_id, status="running")
+        return ctx, self._execute(ctx, output, checkpoint.stage)
+
+    async def _execute(self, ctx: IngestionContext[ResolvedResource], output: Output | None, stage: int) -> list[StepResult]:
         PIPELINE_RUNNERS[ctx.run_id] = self
         try:
             result = []
-            async for e in self._run(ctx):
+            async for e in self._run(ctx, stage):
                 event.publish(e)
                 if isinstance(e, event.PipelineStepEndEvent):
                     result.append(e.step_result)
-            if output is not None and all(r.status != StepStatus.FAILURE for r in result):
+            success = all(r.status != StepStatus.FAILURE for r in result)
+            if success:
+                await ctx.store.set_pipeline_checkpoint(ctx.run_id, None)
+            if output is not None and success:
                 self.output_result = await output.write(ctx)
             return result
         finally:
@@ -195,12 +214,14 @@ class PipelineRunner:
         finally:
             await task
 
-    async def _run(self, ctx: IngestionContext[ResolvedResource]) -> AsyncIterator[event.Event]:
+    async def _run(self, ctx: IngestionContext[ResolvedResource], start: int) -> AsyncIterator[event.Event]:
         final_status: Literal["succeeded", "failed"] = "succeeded"
         error_msg = None
 
-        yield event.PipelineBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id)
-        for stage in self.stages.values():
+        yield event.PipelineBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, completed_steps=self.steps[:sum(map(len, list(self.stages.values())[:start]))])
+        for stage_index, stage in enumerate(self.stages.values()):
+            if stage_index < start:
+                continue
             step_runs = []
             for step in stage:
                 step_name = lookup_step_id(step) or "unknown"
@@ -214,6 +235,7 @@ class PipelineRunner:
                 final_status = "failed"
                 error_msg = failed.error
                 break
+            await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, stage_index + 1))
 
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
         yield event.PipelineEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, status=final_status, error=error_msg)
@@ -227,6 +249,9 @@ class PipelineRunner:
             return StepResult(status=StepStatus.FAILURE, error=str(e))
         finally:
             _CURRENT_STEP.reset(token)
+
+    def _checkpoint(self, ctx: IngestionContext[ResolvedResource], stage: int) -> PipelineCheckpoint:
+        return PipelineCheckpoint(stage=stage, resource=ctx.resource, tenant_id=ctx.tenant_id, domain_profile=ctx.domain_profile, metadata=ctx.metadata, items=ctx.items)
 
     async def _resolve_resource_single(self, ctx: IngestionContext[Any], **kwargs) -> IngestionContext[ResolvedResource]:
         if isinstance(ctx.resource, ResolvedResource):
