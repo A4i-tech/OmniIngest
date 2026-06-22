@@ -104,7 +104,7 @@ class Step(ABC):
 
 
 class AgentMixin:
-    model: KnownModelName | str = Field(default=settings.default_chat_completion_model, description="Model to use for this step")
+    model: KnownModelName | str | None = Field(default=None, description="Model to use for this step")
     toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
     retries: int | None = Field(default=None, description="Per-category retry budgets for tools and output validation")
 
@@ -115,7 +115,7 @@ class AgentMixin:
         missing = [ts for ts in self.toolsets if ts not in tool_vendors]
         if missing:
             raise ValueError(f"Toolsets not configured in context: {missing}")
-        return Agent(self.model, toolsets=[tool_vendors[k] for k in self.toolsets], retries=self.retries)
+        return Agent(self.model or settings.default_chat_completion_model, toolsets=[tool_vendors[k] for k in self.toolsets], retries=self.retries)
 
 
 class StepConfig(BaseModel):
