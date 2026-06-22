@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
 from pydantic import BaseModel, Field, PositiveInt
-from pydantic_ai import BinaryContent, ModelRetry
+from pydantic_ai import BinaryContent, ModelRetry, NativeOutput
 from pydantic_ai.capabilities import Hooks
 
 if TYPE_CHECKING:
@@ -47,7 +46,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
     """Extracts structured output with an LLM and writes it to metadata."""
 
     prompt: str = Field(..., description="Instruction prompt")
-    json_schema: dict[str, Any] = Field(..., alias="schema", description="JSON schema for the structured model output")
+    json_schema: dict[str, Any] | JqExpression = Field(..., alias="schema", description="JSON schema or jq expression producing one")
     path: JqExpression = Field(..., description="jq path where extracted output is written")
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting documents to extract from")
     input: JqExpression = Field(default=".text", description="jq expression selecting prompt input")
@@ -56,9 +55,9 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
     assertions: list[ExtractAssertion] = Field(default_factory=list, description="LLM retry assertions")
     concurrency: PositiveInt = Field(default=1, description="Maximum number of selected documents to extract concurrently")
 
-    @cached_property
-    def output_type(self) -> type[BaseModel]:
-        schema = {"type": "object", "properties": {"output": self.json_schema}, "required": ["output"]}
+    def _output_type(self, item: Any) -> type[BaseModel]:
+        output = self.json_schema if isinstance(self.json_schema, dict) else jq.compile(self.json_schema).input_value(item).first()
+        schema = {"type": "object", "properties": {"output": output}, "required": ["output"]}
         return generate_dynamic_models(schema, config=GenerateConfig(formatters=[]))["Model"]
 
     async def run(self, ctx: IngestionContext) -> StepResult:
@@ -90,7 +89,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             @hooks.on.after_output_process
             async def validate_output(_, *, output_context, output):
                 extracted = output.model_dump(mode="json")["output"]
-                failures = [assertion.feedback for assertion in self.assertions if not jq.compile(assertion.expr).input_value(extracted).first()]
+                failures = [assertion.feedback for assertion in self.assertions if not jq.compile(assertion.expr, args={"item": item_doc}).input_value(extracted).first()]
                 if failures:
                     raise ModelRetry("\n".join(failures))
                 return output
@@ -128,7 +127,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             else:
                 user_prompt = [self.prompt, *([prompt_context] if prompt_context is not None else []), prompt_input]
 
-            res = await agent.run(user_prompt, output_type=self.output_type, capabilities=[hooks])
+            res = await agent.run(user_prompt, output_type=NativeOutput(self._output_type(item_doc), strict=True), capabilities=[hooks])
             return item_doc, res.output.model_dump(mode="json")["output"]
 
 class TransformAgent(BaseModel, Step):
