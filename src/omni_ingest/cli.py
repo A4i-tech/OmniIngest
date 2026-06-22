@@ -111,7 +111,10 @@ async def _main() -> int:
                 await listener
 
     await output.write_many([job[2] for job in jobs])
-    return int(any(r.status == StepStatus.FAILURE for run in runs for r in run))
+    failures = [r for run in runs for r in run if r.status == StepStatus.FAILURE]
+    if failures:
+        console.print("\n".join(f"[red]{r.error}[/red]" for r in failures if r.error))
+    return int(any(failures))
 
 
 def main() -> None:
