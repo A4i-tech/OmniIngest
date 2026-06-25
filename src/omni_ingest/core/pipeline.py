@@ -43,7 +43,9 @@ _CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP",
 
 @cache
 def default_metadata_store() -> MetadataStore:
-    from ..port.metadata_store import SQLAlchemyMetadataStore
+    from ..port.metadata_store import NullMetadataStore, SQLAlchemyMetadataStore
+    if settings.metadata_store == "null":
+        return NullMetadataStore()
     return SQLAlchemyMetadataStore()
 
 
@@ -89,6 +91,7 @@ _STEP_FACTORY: StepFactory = {
 
     "chunking": agent.chunking.SentenceChunkingAgent,
     "image_extraction": agent.document.ImageExtractionAgent,
+    "rasterize": agent.document.RasterizeAgent,
     "page_chunking": agent.chunking.PageChunkingAgent,
     "page_stitching": agent.chunking.PageStitchingAgent,
     "timed_chunking": agent.chunking.TimedChunkingAgent,
