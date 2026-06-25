@@ -169,7 +169,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    content=(r.content or "").encode(),
+                    raw_content=(r.content or "").encode(),
                     metadata=r.metadata_ or {},
                 )
             return None
@@ -225,7 +225,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    content=(r.content or "").encode(),
+                    raw_content=(r.content or "").encode(),
                     metadata=r.metadata_ or {},
                 )
                 for r in records
@@ -275,3 +275,123 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 await s.execute(update(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.id != pv.id).values(is_default=False))
             await s.commit()
             return pv.id
+
+
+class NullMetadataStore(MetadataStore):
+    """
+    Metadata store that preserves metadata records without storing item content.
+    """
+
+    def __init__(self):
+        self._inner = SQLAlchemyMetadataStore("sqlite+aiosqlite:///:memory:")
+
+    async def close(self) -> None:
+        await self._inner.close()
+
+    async def __aenter__(self):
+        await self._inner.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._inner.__aexit__(exc_type, exc, tb)
+
+    async def get_tenant(self, slug: str) -> Tenant | None:
+        return await self._inner.get_tenant(slug)
+
+    async def create_tenant(self, slug: str, display_name: str) -> Tenant:
+        return await self._inner.create_tenant(slug, display_name)
+
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str, id: UUID | None = None) -> UUID:
+        return await self._inner.create_pipeline_run(tenant_id, pipeline_version_id, source_uri, id=id)
+
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any | None = None, error: str | None = None) -> None:
+        await self._inner.update_pipeline_run(run_id, status, completed_at=completed_at, error=error)
+
+    async def get_pipeline_checkpoint(self, id: UUID) -> PipelineCheckpoint | None:
+        return None
+
+    async def set_pipeline_checkpoint(self, id: UUID, checkpoint: PipelineCheckpoint | None) -> None:
+        return None
+
+    async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
+        return await self._inner.create_step_run(run_id, step_name)
+
+    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
+        await self._inner.update_step_run(step_id, status, metadata=metadata, error=error)
+
+    async def create_knowledge_item(
+        self,
+        tenant_id: UUID,
+        domain_profile: str,
+        modality: str,
+        source_uri: str,
+        content: str | None = None,
+        pipeline_version_id: Any | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        structured_views: dict[str, Any] | None = None,
+        lineage: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> UUID:
+        return await self._inner.create_knowledge_item(
+            tenant_id=tenant_id,
+            domain_profile=domain_profile,
+            modality=modality,
+            source_uri=source_uri,
+            content="",
+            pipeline_version_id=pipeline_version_id,
+            title=title,
+            description=description,
+            structured_views=structured_views,
+            lineage=lineage,
+            metadata=metadata,
+        )
+
+    async def get_knowledge_item(self, item_id: UUID) -> KnowledgeItem | None:
+        return await self._inner.get_knowledge_item(item_id)
+
+    async def create_chunk(
+        self,
+        chunk_id: UUID,
+        knowledge_item_id: Any,
+        tenant_id: UUID,
+        text: str,
+        vector_store_kind: str,
+        vector_store_space: str,
+        vector_store_ref_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        return await self._inner.create_chunk(
+            chunk_id=chunk_id,
+            knowledge_item_id=knowledge_item_id,
+            tenant_id=tenant_id,
+            text=text,
+            vector_store_kind=vector_store_kind,
+            vector_store_space=vector_store_space,
+            vector_store_ref_id=vector_store_ref_id,
+            metadata=metadata,
+        )
+
+    async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
+        return await self._inner.get_chunks_by_knowledge_item(knowledge_item_id)
+
+    async def get_chunk(self, chunk_id: UUID) -> Chunk | None:
+        return await self._inner.get_chunk(chunk_id)
+
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+        return await self._inner.list_knowledge_items(tenant_id, domain_profile=domain_profile, **filters)
+
+    async def list_chunks(self, tenant_id: UUID, **filters) -> list[Chunk]:
+        return await self._inner.list_chunks(tenant_id, **filters)
+
+    async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
+        return await self._inner.get_pipeline_version(pipeline_name, version)
+
+    async def get_default_pipeline_version(self, pipeline_name: str) -> PipelineVersion | None:
+        return await self._inner.get_default_pipeline_version(pipeline_name)
+
+    async def upsert_pipeline(self, name: str, domain_profile: str) -> UUID:
+        return await self._inner.upsert_pipeline(name, domain_profile)
+
+    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
+        return await self._inner.upsert_pipeline_version(pipeline_id, version, yaml_profile_name, is_default=is_default)
