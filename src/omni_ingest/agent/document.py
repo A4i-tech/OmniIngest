@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+import uuid
+from typing import TYPE_CHECKING, Literal
 
 import jq
 import pymupdf
@@ -26,6 +27,11 @@ class ImageExtractionAgent(BaseModel, Step):
     include_tables: bool = Field(default=False, description="Extract vector tables")
     deduplicate: bool = Field(default=True, description="Remove duplicate images from the same page")
     replace: bool = Field(default=False, description="Replace existing items with extracted images")
+    mode: Literal["preserve", "redact", "caption"] = Field(default="preserve", description=(
+        "How extracted images are represented in the parent PDF: preserve leaves the PDF unchanged, "
+        "redact replaces each image with an `<image id=...>` marker, and caption keeps each image while "
+        "adding its marker below it."
+    ))
     workers: PositiveInt = Field(default=4, description="Maximum number of PDFs to process concurrently")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
@@ -57,6 +63,8 @@ class ImageExtractionAgent(BaseModel, Step):
         extracted = []
         with pymupdf.open(stream=parent.content, filetype="pdf") as pdf:
             for page_number, page in enumerate(pdf.pages(), 1):
+                assert isinstance(page, pymupdf.Page)
+
                 regions = [pymupdf.Rect(image["bbox"]) for image in page.get_image_info()]
                 tables = [] if self.include_tables or not self.include_vector else [pymupdf.Rect(table.bbox) for table in page.find_tables().tables]
                 if self.include_vector:
@@ -74,7 +82,68 @@ class ImageExtractionAgent(BaseModel, Step):
                     if self.deduplicate and content in seen:
                         continue
                     seen.add(content)
+
+                    id = uuid.uuid4()
+                    marker = f'<image id="{id}"/>'
+                    if self.mode == "redact":
+                        page.add_redact_annot(rect, text=marker, fontsize=6, cross_out=False)
+                    elif self.mode == "caption":
+                        page.insert_text((rect.x0, rect.y1 + 7), marker, fontsize=6)
+
                     metadata = {"kind": "image", "parent_id": str(parent.id), "page": page_number, "bbox": [round(value, 3) for value in rect], "content_type": "image/png"}
-                    extracted.append(KnowledgeItem(content=content, content_encoding="binary", tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
+                    extracted.append(KnowledgeItem(id=id, content=content, content_encoding="binary", tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
+
+                if self.mode == "redact":
+                    page.apply_redactions()
+
+            if self.mode != "preserve":
+                parent.content = pdf.tobytes(deflate=True)
 
         return extracted
+
+
+class RasterizeAgent(BaseModel, Step):
+    """Rasterizes PDF items into image-only PDFs.
+
+    Useful when a PDF has a corrupted or unreliable text layer and downstream
+    vision models must read the visible page content instead.
+    """
+
+    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting PDF items")
+    input: JqExpression = Field(default="[.id]", description="jq expression selecting PDF item ids")
+    dpi: PositiveInt = Field(default=180, description="DPI used to render PDF pages")
+    workers: PositiveInt = Field(default=4, description="Maximum number of PDFs to process concurrently")
+
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
+        item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
+        specs = jq.compile(self.foreach).input_value({"metadata": ctx.metadata, "items": item_docs}).all()
+        input_expr, items = jq.compile(self.input), []
+
+        for spec in specs:
+            item_ids = input_expr.input_value(spec).first()
+            if not isinstance(item_ids, list) or not item_ids or any(item_id not in item_by_id for item_id in item_ids):
+                raise ValueError("RasterizeAgent input must resolve to known item ids")
+            items.extend(item_by_id[item_id] for item_id in item_ids)
+
+        if any(item.content_type != "application/pdf" for item in items):
+            raise ValueError("RasterizeAgent only supports application/pdf items")
+
+        sem = asyncio.Semaphore(self.workers)
+        ctx.progress(0, len(items), "rasterizing PDFs")
+        for i, task in enumerate(asyncio.as_completed([self._rasterize(item, sem) for item in items]), 1):
+            await task
+            ctx.progress(i, len(items), f"rasterized {i}/{len(items)}")
+
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "dpi": self.dpi})
+
+    async def _rasterize(self, item: KnowledgeItem, sem: asyncio.Semaphore) -> None:
+        async with sem:
+            await asyncio.to_thread(self._rasterize_pdf, item)
+
+    def _rasterize_pdf(self, item: KnowledgeItem) -> None:
+        with pymupdf.open(stream=item.content, filetype="pdf") as source, pymupdf.open() as output:
+            for page in source:
+                target = output.new_page(width=page.rect.width, height=page.rect.height)
+                target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
+            item.content = output.tobytes(deflate=True)
