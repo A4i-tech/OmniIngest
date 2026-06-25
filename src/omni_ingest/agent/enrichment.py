@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
@@ -68,20 +69,35 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
         item_by_id = {str(item.id): item for item in ctx.items}
         selected_docs = jq.compile(self.foreach).input_value(doc).all()
 
-        ctx.progress(0, len(selected_docs), "extracting")
+        progress_total = len(selected_docs)
+        if self.mode == "buffered":
+            progress_total += sum(len(jq.compile(self.input).input_value(item).first()) for item in selected_docs)
+
+        progress = 0
+        def advance(message: str) -> None:
+            nonlocal progress
+            progress += 1
+            ctx.progress(progress, progress_total, message)
+
+        ctx.progress(0, progress_total, "extracting")
         sem = asyncio.Semaphore(self.concurrency)
-        for done, task in enumerate(asyncio.as_completed([self._extract(ctx, item_doc, item_by_id, sem) for item_doc in selected_docs]), 1):
+        for done, task in enumerate(asyncio.as_completed([self._extract(ctx, item_doc, item_by_id, sem, advance) for item_doc in selected_docs]), 1):
             item_doc, output = await task
-            item_doc = _assign(item_doc, self.path, output)
             if "id" in item_doc:
-                item_by_id[item_doc["id"]].metadata = item_doc["metadata"]
+                item = item_by_id[item_doc["id"]]
+                current_item_doc = {
+                    "id": str(item.id),
+                    "source_uri": item.source_uri,
+                    "metadata": item.metadata,
+                }
+                item.metadata = _assign(current_item_doc, self.path, output)["metadata"]
             else:
                 ctx.metadata = _assign({"metadata": ctx.metadata}, self.path, output)["metadata"]
-            ctx.progress(done, len(selected_docs), f"extracted {done}/{len(selected_docs)}")
+            advance(f"extracted {done}/{len(selected_docs)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": len(selected_docs), "path": self.path})
 
-    async def _extract(self, ctx: IngestionContext, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore) -> tuple[dict[str, Any], Any]:
+    async def _extract(self, ctx: IngestionContext, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore, advance: Callable[[str], None]) -> tuple[dict[str, Any], Any]:
         async with sem:
             agent = self._agent(ctx)
             hooks = Hooks()
@@ -102,18 +118,17 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             if self.mode == "buffered":
                 buffered_ids = tuple(item_ids)
                 cursor = 0
-                ctx.progress(0, len(buffered_ids), "reading buffered input")
 
                 @agent.tool_plain
-                def see_next(buffered_ids: tuple[str, ...] = buffered_ids) -> list[Any]:
+                async def see_next() -> list[Any]:
                     nonlocal cursor
                     if cursor >= len(buffered_ids):
                         raise ModelRetry("You have read all items, you cannot use this tool anymore.")
                     item = item_by_id[buffered_ids[cursor]]
                     cursor += 1
-                    ctx.progress(cursor, len(buffered_ids), f"read {cursor}/{len(buffered_ids)}")
+                    advance(f"read {cursor}/{len(buffered_ids)}")
                     return [
-                        f"Page {item.metadata['page']} / {len(ctx.items)}",
+                        f"Physical page {item.metadata['page']}",
                         _content(item),
                     ]
 
