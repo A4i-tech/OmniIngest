@@ -74,6 +74,8 @@ class PageChunkingAgent(BaseModel, Step):
                 for i, page in enumerate(reader.pages):
                     with io.BytesIO() as s, PdfWriter() as w:
                         w.add_page(page)
+                        for page in w.pages:
+                            page.compress_content_streams()
                         w.write(s)
                         items.append(KnowledgeItem(content=s.getvalue(), content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
                     ctx.progress(i + 1, total, f"page {i + 1}/{total}")
@@ -116,6 +118,8 @@ class PageStitchingAgent(BaseModel, Step):
                 for item_id in ids:
                     with io.BytesIO(item_by_id[item_id].content) as page_pdf, PdfReader(page_pdf) as reader:
                         writer.append(reader)
+                for page in writer.pages:
+                    page.compress_content_streams()
                 writer.write(s)
                 stitched.append(KnowledgeItem(content=s.getvalue(), content_encoding="binary", metadata=jq.compile(self.metadata).input_value(spec).first()))
             ctx.progress(i, len(specs), f"stitched {i}/{len(specs)}")
