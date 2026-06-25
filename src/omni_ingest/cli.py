@@ -70,8 +70,10 @@ async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]]) -> N
         elif isinstance(e, event.PipelineStepProgressEvent):
             progress.update(task_id, total=e.total or 1, completed=e.completed, description=f"{label} [cyan]running[/cyan]" + (f" [dim]{e.message}[/dim]" if e.message else ""))
         elif isinstance(e, event.PipelineStepEndEvent):
-            color = "green" if e.step_result.status == StepStatus.SUCCESS else "red"
-            progress.update(task_id, total=1, completed=1, description=f"{label} [{color}]{e.step_result.status.value}[/{color}]")
+            if e.step_result.status == StepStatus.SUCCESS:
+                progress.update(task_id, total=1, completed=1, description=f"{label} [green]success[/green]")
+            else:
+                progress.update(task_id, description=f"{label} [red]{e.step_result.status.value}[/red]")
             progress.stop_task(task_id)
 
 
