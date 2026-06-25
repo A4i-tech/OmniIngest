@@ -10,6 +10,7 @@ from omni_ingest.core.model import KnowledgeItem, PipelineCheckpoint, ResolvedRe
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 from omni_ingest.db import PipelineCheckpointRecord
+from omni_ingest.port.metadata_store import NullMetadataStore
 
 
 @pytest.mark.asyncio
@@ -48,6 +49,50 @@ async def test_knowledge_item_crud(metadata_store):
     assert item.content == b""
     assert item.source_uri == "blob://test/chapter1.pdf"
     assert item.metadata["grade"] == 6
+
+
+@pytest.mark.asyncio
+async def test_null_metadata_store_discards_knowledge_item_content():
+    async with NullMetadataStore() as store:
+        tenant = await store.create_tenant("null_ki_test_tenant", "Null KI Test Tenant")
+
+        item_id = await store.create_knowledge_item(
+            tenant_id=tenant.id,
+            domain_profile="education_shiksha",
+            modality="document",
+            source_uri="blob://test/chapter1.pdf",
+            content="content that should not be stored",
+            metadata={"board": "CBSE", "grade": 6, "subject": "Science"},
+        )
+
+        item = await store.get_knowledge_item(item_id)
+        items = await store.list_knowledge_items(tenant.id)
+
+    assert item is not None
+    assert item.content == b""
+    assert item.metadata["grade"] == 6
+    assert len(items) == 1
+    assert items[0].content == b""
+    assert items[0].metadata["subject"] == "Science"
+
+
+@pytest.mark.asyncio
+async def test_null_metadata_store_ignores_pipeline_checkpoints():
+    run_id = uuid4()
+    checkpoint = PipelineCheckpoint(
+        stage=1,
+        resource=ResolvedResource(uri="file://large.pdf", content=b"%PDF-binary"),
+        tenant_id=uuid4(),
+        domain_profile="test",
+        items=[KnowledgeItem(content=b"generated content", metadata={"page": 1})],
+    )
+
+    async with NullMetadataStore() as store:
+        await store.create_pipeline_run(checkpoint.tenant_id, uuid4(), checkpoint.resource.uri, id=run_id)
+        await store.set_pipeline_checkpoint(run_id, checkpoint)
+        restored = await store.get_pipeline_checkpoint(run_id)
+
+    assert restored is None
 
 
 @pytest.mark.asyncio

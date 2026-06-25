@@ -71,7 +71,7 @@ async def test_extract_agent_item_set(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output=["Understand testing"])
+            mock_run.return_value.output = agent._output_type(None)(output=["Understand testing"])
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
@@ -96,7 +96,7 @@ async def test_extract_agent_updates_item_metadata(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output={"summary": "s", "tags": ["t"]})
+            mock_run.return_value.output = agent._output_type(None)(output={"summary": "s", "tags": ["t"]})
             result = await agent.run(ctx)
 
             assert result.status == StepStatus.SUCCESS
@@ -114,7 +114,7 @@ async def test_concurrent_extract_agents_merge_root_metadata():
         for key in ("first", "second")
     ]
 
-    async def extract(agent, _, item_doc, __, ___):
+    async def extract(agent, _ctx, item_doc, _item_by_id, _sem, _advance):
         await asyncio.sleep(0.01 if agent.path.endswith("first") else 0)
         return item_doc, agent.prompt
 
@@ -122,6 +122,28 @@ async def test_concurrent_extract_agents_merge_root_metadata():
         await asyncio.gather(*(agent.run(ctx) for agent in agents))
 
     assert ctx.metadata == {"first": "first", "second": "second"}
+
+
+@pytest.mark.asyncio
+async def test_concurrent_extract_agents_merge_item_metadata():
+    ctx = create_ctx(None, "")
+    ctx.items = [KnowledgeItem(content=b"content", metadata={"existing": "keep"})]
+    agents = [
+        ExtractAgent(path=f".metadata.generated.{key}", prompt=key, schema={"type": "string"})
+        for key in ("first", "second")
+    ]
+
+    async def extract(agent, _ctx, item_doc, _item_by_id, _sem, _advance):
+        await asyncio.sleep(0.01 if agent.path.endswith("first") else 0)
+        return item_doc, agent.prompt
+
+    with patch.object(ExtractAgent, "_extract", extract):
+        await asyncio.gather(*(agent.run(ctx) for agent in agents))
+
+    assert ctx.items[0].metadata == {
+        "existing": "keep",
+        "generated": {"first": "first", "second": "second"},
+    }
 
 
 @pytest.mark.asyncio
@@ -139,7 +161,7 @@ async def test_extract_agent_jq_foreach_input(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output=["new"])
+            mock_run.return_value.output = agent._output_type(None)(output=["new"])
             result = await agent.run(ctx)
 
     mock_run.assert_awaited_once()
@@ -166,16 +188,30 @@ async def test_extract_agent_assertions_register_model_retry_validator(vector_st
     ctx = create_ctx(vector_store, "bad content")
     ctx.items = [KnowledgeItem(content=b"bad content")]
     pydantic_agent = PydanticAgent("test")
+    output_type = agent._output_type(None)
 
     with patch.object(agent, "_agent", return_value=pydantic_agent):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output={"overall_score": 0.4, "issues": ["too short"]})
+            mock_run.return_value.output = output_type(output={"overall_score": 0.4, "issues": ["too short"]})
             result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["quality_report"]["overall_score"] == 0.4
-    assert mock_run.await_args.kwargs["output_type"] == agent.output_type
+    assert mock_run.await_args.kwargs["output_type"].outputs.model_json_schema() == output_type.model_json_schema()
     assert isinstance(mock_run.await_args.kwargs["capabilities"][0], Hooks)
+
+
+def test_extract_agent_runtime_schema():
+    agent = ExtractAgent(path=".metadata.answers", prompt="Answer.", schema=".metadata.schema")
+    output_type = agent._output_type({"metadata": {"schema": {
+        "type": "object",
+        "properties": {"a1": {"type": "string"}, "a2": {"type": "string"}},
+        "required": ["a1", "a2"],
+    }}})
+
+    assert output_type(output={"a1": "a", "a2": "b"}).model_dump(mode="json")["output"] == {"a1": "a", "a2": "b"}
+    with pytest.raises(ValueError):
+        output_type(output={"a1": "a"})
 
 
 @pytest.mark.asyncio
@@ -201,7 +237,7 @@ async def test_extract_agent_document_scope(vector_store):
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output=[{"q": "What?", "a": "This."}])
+            mock_run.return_value.output = agent._output_type(None)(output=[{"q": "What?", "a": "This."}])
             result = await agent.run(ctx)
 
     mock_run.assert_awaited_once()
@@ -228,7 +264,7 @@ async def test_extract_agent_binary_input_uses_selected_items():
     ]
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output={"subject": "Mathematics"})
+            mock_run.return_value.output = agent._output_type(None)(output={"subject": "Mathematics"})
             result = await agent.run(ctx)
 
     content = mock_run.await_args.args[0][1]
@@ -280,7 +316,7 @@ async def test_extract_agent_buffered_mode_registers_page_reader():
 
     with patch.object(agent, "_agent", return_value=pydantic_agent):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value.output = agent.output_type(output={"found": True})
+            mock_run.return_value.output = agent._output_type(None)(output={"found": True})
             result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
