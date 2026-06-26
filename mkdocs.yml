@@ -59,5 +59,6 @@ markdown_extensions:
 
 nav:
   - Home: README.md
-  - Pipelines: pipelines.md
+  - Pipeline playbook: pipelines.md
+  - Working with event stream: events.md
   - API Reference: api.md
