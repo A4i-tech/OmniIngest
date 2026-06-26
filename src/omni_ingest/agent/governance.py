@@ -3,38 +3,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import jq
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import JqExpression, ResolvedResource, Step, StepResult, StepStatus
-
-
-class ValidateCheck(BaseModel):
-    expr: JqExpression = Field(..., description="jq expression that must evaluate truthy")
-    message: str = Field(..., description="Error message when the check fails")
-
-
-class ValidateAgent(BaseModel, Step):
-    """Runs hard jq checks against pipeline state."""
-
-    foreach: JqExpression = Field(default=".", description="jq expression selecting documents to validate")
-    checks: list[ValidateCheck] = Field(..., description="Hard validation checks")
-
-    async def run(self, ctx: IngestionContext) -> StepResult:
-        doc: dict[str, Any] = {
-            "metadata": ctx.metadata,
-            "items": [{"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata} for item in ctx.items],
-        }
-        for selected_doc in jq.compile(self.foreach).input_value(doc).all():
-            for check in self.checks:
-                if not jq.compile(check.expr).input_value(selected_doc).first():
-                    return StepResult(status=StepStatus.FAILURE, error=check.message)
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items)
+from ..core.model import ResolvedResource, Step, StepResult, StepStatus
 
 
 class IngestionLoggerAgent(BaseModel, Step):

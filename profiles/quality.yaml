@@ -38,8 +38,7 @@ steps:
             items:
               type: string
         required: [overall_score, issues]
-  - agent: validate
-    config:
-      checks:
-        - expr: ".metadata.quality_report.overall_score >= ${.config.min_quality_score}"
-          message: "Quality check failed"
+    validation:
+      - mode: after
+        expr: ".metadata.quality_report.overall_score >= ${.config.min_quality_score}"
+        message: "Quality check failed (score = ${.metadata.quality_report.overall_score})"

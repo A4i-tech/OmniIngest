@@ -14,10 +14,7 @@ from omni_ingest.agent.cleaning import (
     TranscriptionPostProcessorAgent,
 )
 from omni_ingest.agent.enrichment import ExtractAgent, TransformAgent
-from omni_ingest.agent.governance import (
-    DataLineageAgent,
-    ValidateAgent,
-)
+from omni_ingest.agent.governance import DataLineageAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
@@ -362,29 +359,6 @@ async def test_transform_agent_maps_nested_metadata():
 def test_transform_agent_rejects_invalid_jq():
     with pytest.raises(ValidationError):
         TransformAgent(value=".metadata |", path=".metadata.records")
-
-
-@pytest.mark.asyncio
-async def test_validate_agent_checks_root_metadata():
-    agent = ValidateAgent(checks=[{"expr": ".metadata.score >= 0.7", "message": "too low"}])
-    ctx = create_ctx(None, "")
-    ctx.metadata["score"] = 0.4
-
-    result = await agent.run(ctx)
-
-    assert result.status == StepStatus.FAILURE
-    assert result.error == "too low"
-
-
-@pytest.mark.asyncio
-async def test_validate_agent_checks_each_selected_item():
-    agent = ValidateAgent(foreach=".items[]", checks=[{"expr": ".metadata.ok == true", "message": "bad item"}])
-    ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(raw_content=b"a", metadata={"ok": True}), KnowledgeItem(raw_content=b"b", metadata={"ok": True})]
-
-    result = await agent.run(ctx)
-
-    assert result.status == StepStatus.SUCCESS
 
 
 @pytest.mark.asyncio

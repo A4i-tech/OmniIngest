@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
@@ -74,6 +75,15 @@ def test_pipeline_rejects_stage_on_component(tmp_path):
         create_pipeline_from_config(root)
 
 
+def test_pipeline_rejects_validation_on_component(tmp_path):
+    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "component", "validation": [{"mode": "plain", "expr": "true", "message": "bad"}]}]}))
+
+    with pytest.raises(ValueError, match="Validation cannot be assigned to pipeline component component"):
+        create_pipeline_from_config(root)
+
+
 def test_pipeline_rejects_non_contiguous_stage(tmp_path):
     path = tmp_path / "pipeline.yaml"
     path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "process"}, {"agent": "text", "stage": "prepare"}]}))
@@ -98,6 +108,62 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
         assert len(results) == 1
         assert results[0].status == StepStatus.SUCCESS
         assert results[0].metadata["chunk_size"] == 50
+
+
+@pytest.mark.asyncio
+async def test_pipeline_before_validation_prevents_step_execution(metadata_store, tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "before", "expr": "false", "message": "blocked"}]}]}))
+    pipeline = create_pipeline_from_config(path)
+
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+
+    assert results[0].status == StepStatus.FAILURE
+    assert results[0].error == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_after_validation_fails_with_interpolated_message(metadata_store, tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "after", "expr": "false", "message": "bad chunk size ${.result.metadata.chunk_size}"}]}]}))
+    pipeline = create_pipeline_from_config(path)
+
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+
+    assert results[0].status == StepStatus.FAILURE
+    assert results[0].error == "bad chunk size 512"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_after_validation_skips_skipped_step(metadata_store, tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "after", "expr": "false", "message": "should not run"}]}]}))
+    pipeline = create_pipeline_from_config(path)
+
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store))
+
+    assert results[0].status == StepStatus.SKIPPED
+
+
+@pytest.mark.asyncio
+async def test_pipeline_plain_validation_terminates_validation_chain(metadata_store, tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "plain", "expr": ".metadata.ok == true", "message": "missing ok"}, {"mode": "after", "expr": "false", "message": "should not run"}]}]}))
+    pipeline = create_pipeline_from_config(path)
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store)
+    ctx.metadata["ok"] = True
+
+    results = await pipeline.run(ctx)
+
+    assert results[0].status == StepStatus.SUCCESS
+
+
+def test_pipeline_validation_requires_mode(tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"expr": "true", "message": "bad"}]}]}))
+
+    with pytest.raises(ValidationError):
+        create_pipeline_from_config(path)
 
 
 @pytest.mark.asyncio

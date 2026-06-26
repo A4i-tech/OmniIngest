@@ -33,7 +33,7 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus
+from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck
 from .output import Output, OutputResult
 from .protocol import MetadataStore, VectorStore
 
@@ -106,7 +106,6 @@ _STEP_FACTORY: StepFactory = {
     "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
 
     "extract": agent.enrichment.ExtractAgent,
-    "validate": agent.governance.ValidateAgent,
     "transform": agent.enrichment.TransformAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
@@ -125,13 +124,14 @@ class PipelineRunner:
     Steps in a stage run concurrently against the same ingestion context.
     """
 
-    def __init__(self, steps: list[Step] | Mapping[str, list[Step]], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None):
+    def __init__(self, steps: list[Step] | Mapping[str, list[Step]], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None, step_validations: Mapping[int, list[ValidationCheck]] | None = None):
         self.stages = dict(steps) if isinstance(steps, Mapping) else {f"stage-{i}-{uuid4().hex[:8]}": [step] for i, step in enumerate(steps, 1)}
         self.steps = [step for stage in self.stages.values() for step in stage]
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.toolsets = toolsets
         self.output_result: OutputResult | None = None
         self.step_descriptions = dict(step_descriptions or {})
+        self.step_validations = dict(step_validations or {})
 
         if logger is None:
             logger = logging.getLogger(__name__)
@@ -234,10 +234,10 @@ class PipelineRunner:
             step_runs = []
             for step in stage:
                 step_name = lookup_step_id(step) or "unknown"
-                step_runs.append((await ctx.store.create_step_run(ctx.run_id, step_name), step_name, step))
+                step_runs.append((await ctx.store.create_step_run(ctx.run_id, step_name), step_name, step, self.step_validations.get(id(step), [])))
                 yield event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step)
-            results = await asyncio.gather(*(self._run_step(ctx, step_name, step) for _, step_name, step in step_runs))
-            for (sid, step_name, step), res in zip(step_runs, results, strict=True):
+            results = await asyncio.gather(*(self._run_step(ctx, step_name, step, validation) for _, step_name, step, validation in step_runs))
+            for (sid, step_name, step, _), res in zip(step_runs, results, strict=True):
                 yield event.PipelineStepEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name=step_name, step=step, step_result=res)
                 await ctx.store.update_step_run(sid, status=res.status.value, metadata=res.metadata, error=res.error)
             if failed := next((res for res in results if res.status == StepStatus.FAILURE), None):
@@ -249,15 +249,37 @@ class PipelineRunner:
         await ctx.store.update_pipeline_run(ctx.run_id, status=final_status, completed_at=datetime.now(UTC), error=error_msg)
         yield event.PipelineEndEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, status=final_status, error=error_msg)
 
-    async def _run_step(self, ctx: IngestionContext[ResolvedResource], step_name: str, step: Step) -> StepResult:
+    async def _run_step(self, ctx: IngestionContext[ResolvedResource], step_name: str, step: Step, validation: list[ValidationCheck]) -> StepResult:
         token = _CURRENT_STEP.set((step_name, step))
         try:
-            return await step.run(ctx)
+            failed, stop_validation = self._validate(ctx, validation, {"before", "plain"})
+            if failed:
+                return failed
+            result = await step.run(ctx)
+            if result.status == StepStatus.SUCCESS and not stop_validation and (failed := self._validate(ctx, validation, {"after"}, result)[0]):
+                return failed
+            return result
         except Exception as e:
             traceback.print_exception(e)
             return StepResult(status=StepStatus.FAILURE, error=str(e))
         finally:
             _CURRENT_STEP.reset(token)
+
+    def _validate(self, ctx: IngestionContext[ResolvedResource], validation: list[ValidationCheck], modes: set[str], result: StepResult | None = None) -> tuple[StepResult | None, bool]:
+        doc: dict[str, Any] = {
+            "metadata": ctx.metadata,
+            "items": [{"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata} for item in ctx.items],
+        }
+        if result is not None:
+            doc["result"] = result.model_dump(mode="json")
+        for check in validation:
+            if check.mode not in modes:
+                continue
+            if not jq.compile(check.expr).input_value(doc).first():
+                return StepResult(status=StepStatus.FAILURE, error=_interpolate_value(check.message, doc)), False
+            if check.mode == "plain":
+                return None, True
+        return None, False
 
     def _checkpoint(self, ctx: IngestionContext[ResolvedResource], stage: int) -> PipelineCheckpoint:
         return PipelineCheckpoint(stage=stage, resource=ctx.resource, tenant_id=ctx.tenant_id, domain_profile=ctx.domain_profile, metadata=ctx.metadata, items=ctx.items)
@@ -329,6 +351,7 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
 
     stages: dict[str, list[Step]] = {}
     descriptions = {}
+    validations = {}
     for s in _flatten_steps(_resolve_pipeline_steps(config, config_args or {}, config_path), config_path.parent, factory):
         stage = s.stage if s.stage is not None else f"stage-{len(stages) + 1}-{uuid4().hex[:8]}"
         if stage in stages and stage != next(reversed(stages)):
@@ -338,9 +361,11 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
         step = cls(**kwargs)
         if s.description:
             descriptions[id(step)] = s.description
+        if s.validation:
+            validations[id(step)] = s.validation
         stages.setdefault(stage, []).append(step)
     toolsets = {k: MCPToolset(Client(MCPConfig(mcpServers={k: v}).to_dict())) for k, v in config.tool_vendors.items()}
-    return PipelineRunner(steps=stages, toolsets=toolsets, step_descriptions=descriptions)
+    return PipelineRunner(steps=stages, toolsets=toolsets, step_descriptions=descriptions, step_validations=validations)
 
 
 def _load_pipeline_config(path: Path) -> PipelineConfig:
@@ -354,6 +379,8 @@ def _flatten_steps(steps: list[StepConfig], base_dir: Path, factory: StepFactory
         if path := _resolve_step_pipeline_path(step.agent, base_dir, factory):
             if step.stage is not None:
                 raise ValueError(f"Stage cannot be assigned to pipeline component {step.agent}")
+            if step.validation:
+                raise ValueError(f"Validation cannot be assigned to pipeline component {step.agent}")
             path = path.resolve()
             if path in stack:
                 cycle = " -> ".join(str(p) for p in (*stack, path))
@@ -389,7 +416,16 @@ def _resolve_pipeline_steps(config: PipelineConfig, overrides: dict[str, Any], c
         validate(instance=values, schema=schema)
     except ValidationError as e:
         raise ValueError(f"Invalid parameters for pipeline {config_path}: {e.message}") from e
-    return [StepConfig(agent=step.agent, description=step.description, stage=step.stage, config=_interpolate_value(step.config, {"config": values})) for step in config.steps]
+    return [
+        StepConfig(
+            agent=step.agent,
+            description=step.description,
+            stage=step.stage,
+            config=_interpolate_value(step.config, {"config": values}),
+            validation=[check.model_copy(update={"expr": _interpolate_value(check.expr, {"config": values})}) for check in step.validation],
+        )
+        for step in config.steps
+    ]
 
 
 def _interpolate_value(value: Any, context: dict[str, Any]) -> Any:

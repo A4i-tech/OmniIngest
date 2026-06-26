@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, final
+from typing import TYPE_CHECKING, Annotated, Any, Literal, final
 from uuid import UUID, uuid4
 
 import jq
@@ -125,11 +125,26 @@ class AgentMixin:
         return Agent(self.model or settings.default_chat_completion_model, toolsets=[tool_vendors[k] for k in self.toolsets], retries=self.retries)
 
 
+class ValidationCheck(BaseModel):
+    """
+    A jq validation attached to a pipeline step.
+
+    `before` checks run before the step. `after` checks run after a successful step
+    and can inspect `.result`. `plain` checks run before the step, but when they
+    pass, they stop the remaining validation chain for that step.
+    """
+
+    mode: Literal["before", "plain", "after"] = Field(..., description="When the validation runs relative to the step")
+    expr: str = Field(..., description="jq expression that must evaluate truthy")
+    message: str = Field(..., description="Error message when the check fails")
+
+
 class StepConfig(BaseModel):
     agent: str = Field(..., description="The registry name of the agent to execute")
     description: str | None = Field(default=None, description="Human-readable step label")
     stage: str | None = Field(default=None, description="Execution stage shared by concurrently running steps")
     config: dict[str, Any] = Field(default_factory=dict, description="Step-specific configuration parameters")
+    validation: list[ValidationCheck] = Field(default_factory=list, description="Validation checks for this configured step")
 
 
 class PipelineConfig(BaseModel):
