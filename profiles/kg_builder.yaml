@@ -1,0 +1,37 @@
+steps:
+  - agent: extract
+    config:
+      prompt: "Directly extract entities and their relationships from the provided text into a graph format."
+      foreach: ".items[]"
+      input: ".text"
+      path: ".metadata.kg_data"
+      schema:
+        type: object
+        properties:
+          nodes:
+            type: array
+            items:
+              type: object
+              properties:
+                id: {type: string}
+                label: {type: string}
+                properties: {type: object}
+              required: [id, label]
+          edges:
+            type: array
+            items:
+              type: object
+              properties:
+                source: {type: string}
+                target: {type: string}
+                type: {type: string}
+              required: [source, target, type]
+        required: [nodes, edges]
+  - agent: transform
+    config:
+      path: ".metadata.kg_data"
+      value: |
+        {
+          "nodes": [.items[].metadata.kg_data.nodes[]?],
+          "edges": [.items[].metadata.kg_data.edges[]?]
+        }
