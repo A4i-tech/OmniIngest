@@ -61,7 +61,7 @@ async def test_null_metadata_store_discards_knowledge_item_content():
             domain_profile="education_shiksha",
             modality="document",
             source_uri="blob://test/chapter1.pdf",
-            content="content that should not be stored",
+            content=b"content that should not be stored",
             metadata={"board": "CBSE", "grade": 6, "subject": "Science"},
         )
 

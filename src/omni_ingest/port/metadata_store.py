@@ -133,7 +133,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
         domain_profile: str,
         modality: str,
         source_uri: str,
-        content: str | None = None,
+        content: bytes | None = None,
         pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
@@ -168,7 +168,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    raw_content=(r.content or "").encode(),
+                    raw_content=r.content or b"",
                     metadata=r.metadata_ or {},
                 )
             return None
@@ -224,7 +224,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                     id=r.id,
                     tenant_id=r.tenant_id,
                     source_uri=r.source_uri,
-                    raw_content=(r.content or "").encode(),
+                    raw_content=r.content or b"",
                     metadata=r.metadata_ or {},
                 )
                 for r in records
@@ -324,7 +324,7 @@ class NullMetadataStore(MetadataStore):
         domain_profile: str,
         modality: str,
         source_uri: str,
-        content: str | None = None,
+        content: bytes | None = None,
         pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
@@ -337,7 +337,7 @@ class NullMetadataStore(MetadataStore):
             domain_profile=domain_profile,
             modality=modality,
             source_uri=source_uri,
-            content="",
+            content=b"",
             pipeline_version_id=pipeline_version_id,
             title=title,
             description=description,

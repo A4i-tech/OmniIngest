@@ -11,7 +11,7 @@ async def test_tenant_isolation_registry(metadata_store):
     t1 = await metadata_store.create_tenant("t1", "Tenant 1")
     t2 = await metadata_store.create_tenant("t2", "Tenant 2")
 
-    await metadata_store.create_knowledge_item(tenant_id=t1.id, domain_profile="p1", modality="text", source_uri="s1", content="c1")
+    await metadata_store.create_knowledge_item(tenant_id=t1.id, domain_profile="p1", modality="text", source_uri="s1", content=b"c1")
 
     items_t2 = await metadata_store.list_knowledge_items(tenant_id=t2.id)
     assert len(items_t2) == 0

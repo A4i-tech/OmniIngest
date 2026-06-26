@@ -113,7 +113,7 @@ class MetadataStore(Protocol):
         domain_profile: str,
         modality: str,
         source_uri: str,
-        content: str | None = None,
+        content: bytes | None = None,
         pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,

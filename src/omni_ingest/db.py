@@ -79,7 +79,7 @@ class KnowledgeItemRecord(Base):
     domain_profile: Mapped[str] = mapped_column(String, nullable=False)
     modality: Mapped[str] = mapped_column(String, nullable=False)
     source_uri: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=True)
+    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     embeddings: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     pipeline_version_id: Mapped[UUID | None] = mapped_column(ForeignKey("pipeline_versions.id"), nullable=True)
     title: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -37,8 +37,8 @@ async def test_discovery_adapter_isolation_and_filters(metadata_store, vector_st
     adapter = KnowledgeBaseAdapter(metadata_store, vector_store)
 
     t1, t2 = uuid4(), uuid4()
-    await metadata_store.create_knowledge_item(tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content="c1")
-    await metadata_store.create_knowledge_item(tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content="c2")
+    await metadata_store.create_knowledge_item(tenant_id=t1, domain_profile="p1", modality="text", source_uri="s1", content=b"c1")
+    await metadata_store.create_knowledge_item(tenant_id=t2, domain_profile="p1", modality="audio", source_uri="s2", content=b"c2")
 
     items_t1 = await adapter.list_items(tenant_id=t1)
     assert len(items_t1) == 1
