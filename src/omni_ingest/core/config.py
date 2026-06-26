@@ -24,7 +24,7 @@ class InMemoryVectorStoreConfig(BaseModel):
 class LanceDBVectorStoreConfig(BaseModel):
     type: Literal["lancedb"] = "lancedb"
     table_name: str = "default_vectors"
-    path: DirectoryPath | NewPath = DirectoryPath("./lancedb_data")
+    path: DirectoryPath | NewPath = Path("./lancedb_data")
     vector_size: PositiveInt = 1536
 
     def build(self):
