@@ -116,15 +116,23 @@ class VectorStoreOutput(Output):
             await self.store.upsert(items, ctx)
             if ctx.store and (pid := ctx.metadata.get("knowledge_item_id")):
                 for item in items:
-                    await ctx.store.create_chunk(
-                        chunk_id=item.id,
-                        knowledge_item_id=pid,
+                    metadata = {
+                        **item.metadata,
+                        "kind": "chunk",
+                        "parent_knowledge_item_id": str(pid),
+                        "vector_store": {
+                            "kind": self.store.kind,
+                            "space": self.store.space,
+                            "ref_id": str(item.id),
+                        },
+                    }
+                    await ctx.store.create_knowledge_item(
                         tenant_id=ctx.tenant_id,
-                        text=await item.decode(ctx),
-                        vector_store_kind=self.store.kind,
-                        vector_store_space=self.store.space,
-                        vector_store_ref_id=str(item.id),
-                        metadata=item.metadata,
+                        domain_profile=ctx.domain_profile,
+                        modality="text",
+                        source_uri=item.source_uri or ctx.resource.uri,
+                        content=await item.content(ctx),
+                        metadata=metadata,
                     )
 
         return OutputResult(

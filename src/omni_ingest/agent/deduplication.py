@@ -6,7 +6,7 @@ import hashlib
 import re
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
@@ -51,24 +51,24 @@ class ScopedDeduplicationStrategy(DeduplicationStrategy, ABC):
 
     scope: DeduplicationScope = Field(default="source", description="Scope used to compare a chunk against previously indexed chunks")
 
-    async def _existing_chunks(self, ctx: IngestionContext[ResolvedResource]) -> list[Any]:
+    async def _existing_chunks(self, ctx: IngestionContext[ResolvedResource]) -> list[KnowledgeItem]:
         store = ctx.store
         if not isinstance(store, MetadataStore):
             return []
 
         if self.scope == "tenant":
-            return await store.list_chunks(ctx.tenant_id)
+            items = await store.list_knowledge_items(ctx.tenant_id)
+            return [item for item in items if item.metadata.get("kind") == "chunk"]
 
         source_uri = ctx.resource.uri
         if source_uri:
             items = await store.list_knowledge_items(tenant_id=ctx.tenant_id, source_uri=source_uri)
-            chunks: list[Any] = []
-            for item in items:
-                chunks.extend(await store.get_chunks_by_knowledge_item(item.id))
-            return chunks
+            return [item for item in items if item.metadata.get("kind") == "chunk"]
 
         if knowledge_item_id := ctx.metadata.get("knowledge_item_id"):
-            return await store.get_chunks_by_knowledge_item(knowledge_item_id)
+            parent_id = str(knowledge_item_id)
+            items = await store.list_knowledge_items(ctx.tenant_id)
+            return [item for item in items if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == parent_id]
 
         return []
 
@@ -89,7 +89,7 @@ class DeterministicIdDeduplicationStrategy(ScopedDeduplicationStrategy):
     kind: Literal["deterministic_id"] = "deterministic_id"
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
-        seen_ids = {chunk.id for chunk in await self._existing_chunks(ctx)}
+        seen_ids = {v for chunk in await self._existing_chunks(ctx) if isinstance(v := chunk.metadata.get(_DETERMINISTIC_ID_KEY), str)}
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
@@ -118,7 +118,7 @@ class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
         seen_hashes = {
-            _normalized_text_hash(chunk.text, (chunk.metadata_ or {}).get(_NORMALIZED_TEXT_HASH_KEY))
+            _normalized_text_hash(await chunk.decode(ctx), cast(str | None, chunk.metadata.get(_NORMALIZED_TEXT_HASH_KEY)))
             for chunk in await self._existing_chunks(ctx)
         }
         kept_items: list[KnowledgeItem] = []
@@ -148,7 +148,7 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
     shingle_size: PositiveInt = Field(default=3, description="Token shingle size used for near-duplicate detection")
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
-        seen_shingles = [_shingles(chunk.text, self.shingle_size) for chunk in await self._existing_chunks(ctx)]
+        seen_shingles = [_shingles(await chunk.decode(ctx), self.shingle_size) for chunk in await self._existing_chunks(ctx)]
         kept_items: list[KnowledgeItem] = []
 
         for item in items:

@@ -96,50 +96,6 @@ async def test_null_metadata_store_ignores_pipeline_checkpoints():
 
 
 @pytest.mark.asyncio
-async def test_chunk_crud(metadata_store):
-    tenant = await metadata_store.create_tenant("chunk_test_tenant", "Chunk Test Tenant")
-
-    item_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="generic", modality="text", source_uri="file://test.txt")
-
-    chunk1_id = await metadata_store.create_chunk(
-        chunk_id="chunk_001",
-        knowledge_item_id=item_id,
-        tenant_id=tenant.id,
-        text="This is the first chunk of text.",
-        vector_store_kind="qdrant",
-        vector_store_space="test_collection",
-        vector_store_ref_id="qdrant_001",
-        metadata={"page": 1, "char_start": 0},
-    )
-
-    chunk2_id = await metadata_store.create_chunk(
-        chunk_id="chunk_002",
-        knowledge_item_id=item_id,
-        tenant_id=tenant.id,
-        text="This is the second chunk of text.",
-        vector_store_kind="qdrant",
-        vector_store_space="test_collection",
-        vector_store_ref_id="qdrant_002",
-        metadata={"page": 1, "char_start": 100},
-    )
-
-    assert chunk1_id == "chunk_001"
-    assert chunk2_id == "chunk_002"
-
-    chunk = await metadata_store.get_chunk("chunk_001")
-    assert chunk is not None
-    assert chunk.text == "This is the first chunk of text."
-    assert chunk.vector_store_kind == "qdrant"
-    assert chunk.vector_store_space == "test_collection"
-
-    chunks = await metadata_store.get_chunks_by_knowledge_item(item_id)
-    assert len(chunks) == 2
-
-    missing = await metadata_store.get_chunk("nonexistent")
-    assert missing is None
-
-
-@pytest.mark.asyncio
 async def test_pipeline_run_tracking(metadata_store):
     tenant = await metadata_store.create_tenant("run_test_tenant", "Run Test Tenant")
     pipeline_version_id = uuid4()
@@ -226,6 +182,11 @@ async def test_vector_store_output_registers_chunks(metadata_store, vector_store
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", raw_content=b""))
     res = await output.write(ctx)
     assert res.status == StepStatus.SUCCESS, f"Output failed: {res.error}"
-    chunks = await metadata_store.get_chunks_by_knowledge_item(ki_id)
+    chunks = [
+        item
+        for item in await metadata_store.list_knowledge_items(tenant.id, source_uri="")
+        if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == str(ki_id)
+    ]
     assert len(chunks) == 1
-    assert chunks[0].text == "Chunk 1"
+    assert chunks[0].raw_content == b"Chunk 1"
+    assert chunks[0].metadata["vector_store"]["kind"] == vector_store.kind

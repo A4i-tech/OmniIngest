@@ -32,20 +32,17 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     tenant = await metadata_store.create_tenant("dedup-default", "Dedup Default")
     source_uri = "file://source-default.txt"
 
-    existing_item_id = await metadata_store.create_knowledge_item(
+    await metadata_store.create_knowledge_item(
         tenant_id=tenant.id,
         domain_profile="default",
         modality="text",
         source_uri=source_uri,
-    )
-    await metadata_store.create_chunk(
-        chunk_id="existing-chunk",
-        knowledge_item_id=existing_item_id,
-        tenant_id=tenant.id,
-        text="Hello world",
-        vector_store_kind="memory",
-        vector_store_space="test_space",
-        vector_store_ref_id="existing-chunk",
+        content=b"Hello world",
+        metadata={
+            "kind": "chunk",
+            "parent_knowledge_item_id": str(uuid4()),
+            "vector_store": {"kind": "memory", "space": "test_space", "ref_id": "existing-chunk"},
+        },
     )
 
     new_item_id = await metadata_store.create_knowledge_item(
@@ -77,9 +74,13 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     assert len(vector_store.upsert_calls) == 1
     assert [await item.content(ctx) for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
 
-    chunks = await metadata_store.get_chunks_by_knowledge_item(new_item_id)
+    chunks = [
+        item
+        for item in await metadata_store.list_knowledge_items(tenant.id, source_uri=source_uri)
+        if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == str(new_item_id)
+    ]
     assert len(chunks) == 1
-    assert chunks[0].metadata_["dedup_normalized_text_hash"] == hashlib.sha256(b"fresh content").hexdigest()
+    assert chunks[0].metadata["dedup_normalized_text_hash"] == hashlib.sha256(b"fresh content").hexdigest()
 
 
 @pytest.mark.asyncio
@@ -158,7 +159,12 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
     assert second_result.metadata["deduplicated_count"] == 1
     assert second_result.metadata["deduplication_strategy"] == "deterministic_id"
     assert second_store.upsert_calls == []
-    assert await metadata_store.get_chunks_by_knowledge_item(replay_item_id) == []
+    replay_chunks = [
+        item
+        for item in await metadata_store.list_knowledge_items(tenant.id, source_uri=source_uri)
+        if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == str(replay_item_id)
+    ]
+    assert replay_chunks == []
 
 
 @pytest.mark.asyncio

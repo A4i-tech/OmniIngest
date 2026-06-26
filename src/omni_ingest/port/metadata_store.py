@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from ..core.config import settings
 from ..core.model import KnowledgeItem, PipelineCheckpoint
 from ..core.protocol import JsonObject, MetadataStore
-from ..db import Base, Chunk, KnowledgeItemRecord, Pipeline, PipelineCheckpointRecord, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
+from ..db import Base, KnowledgeItemRecord, Pipeline, PipelineCheckpointRecord, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
 
 
 class SQLAlchemyMetadataStore(MetadataStore):
@@ -173,43 +173,6 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 )
             return None
 
-    async def create_chunk(
-        self,
-        chunk_id: UUID | str,
-        knowledge_item_id: UUID,
-        tenant_id: UUID,
-        text: str,
-        vector_store_kind: str,
-        vector_store_space: str,
-        vector_store_ref_id: str,
-        metadata: JsonObject | None = None,
-    ) -> str:
-        await self._init_db()
-        async with self.session_factory() as s:
-            c = Chunk(
-                id=str(chunk_id),
-                knowledge_item_id=knowledge_item_id,
-                tenant_id=tenant_id,
-                text=text,
-                vector_store_kind=vector_store_kind,
-                vector_store_space=vector_store_space,
-                vector_store_ref_id=vector_store_ref_id,
-                metadata_=metadata,
-            )
-            s.add(c)
-            await s.commit()
-            return c.id
-
-    async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
-        await self._init_db()
-        async with self.session_factory() as s:
-            return list((await s.execute(select(Chunk).where(Chunk.knowledge_item_id == knowledge_item_id))).scalars().all())
-
-    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
-        await self._init_db()
-        async with self.session_factory() as s:
-            return await s.get(Chunk, chunk_id)
-
     async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         await self._init_db()
         async with self.session_factory() as s:
@@ -229,14 +192,6 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 )
                 for r in records
             ]
-
-    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
-        await self._init_db()
-        async with self.session_factory() as s:
-            q = select(Chunk).where(Chunk.tenant_id == tenant_id)
-            for k, v in filters.items():
-                q = q.where(getattr(Chunk, k) == v)
-            return list((await s.execute(q)).scalars().all())
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         await self._init_db()
@@ -349,39 +304,8 @@ class NullMetadataStore(MetadataStore):
     async def get_knowledge_item(self, item_id: UUID) -> KnowledgeItem | None:
         return await self._inner.get_knowledge_item(item_id)
 
-    async def create_chunk(
-        self,
-        chunk_id: UUID | str,
-        knowledge_item_id: UUID,
-        tenant_id: UUID,
-        text: str,
-        vector_store_kind: str,
-        vector_store_space: str,
-        vector_store_ref_id: str,
-        metadata: JsonObject | None = None,
-    ) -> str:
-        return await self._inner.create_chunk(
-            chunk_id=chunk_id,
-            knowledge_item_id=knowledge_item_id,
-            tenant_id=tenant_id,
-            text=text,
-            vector_store_kind=vector_store_kind,
-            vector_store_space=vector_store_space,
-            vector_store_ref_id=vector_store_ref_id,
-            metadata=metadata,
-        )
-
-    async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
-        return await self._inner.get_chunks_by_knowledge_item(knowledge_item_id)
-
-    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
-        return await self._inner.get_chunk(chunk_id)
-
     async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         return await self._inner.list_knowledge_items(tenant_id, domain_profile=domain_profile, **filters)
-
-    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
-        return await self._inner.list_chunks(tenant_id, **filters)
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         return await self._inner.get_pipeline_version(pipeline_name, version)

@@ -43,9 +43,6 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store
         async def create_knowledge_item(self, *args, **kwargs):
             return uuid4()
 
-        async def create_chunk(self, *args, **kwargs):
-            return "chunk_id"
-
         async def create_pipeline_run(self, *args, **kwargs):
             return uuid4()
 

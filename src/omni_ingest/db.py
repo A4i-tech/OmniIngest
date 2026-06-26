@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, LargeBinary, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, LargeBinary, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -89,17 +89,3 @@ class KnowledgeItemRecord(Base):
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-
-
-class Chunk(Base):
-    __tablename__ = "chunks"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    knowledge_item_id: Mapped[UUID] = mapped_column(ForeignKey("knowledge_items.id"))
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=True)
-    vector_store_kind: Mapped[str] = mapped_column(String, nullable=False)
-    vector_store_space: Mapped[str] = mapped_column(String, nullable=False)
-    vector_store_ref_id: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-    __table_args__ = (Index("ix_chunks_knowledge_item", "knowledge_item_id"), Index("ix_chunks_tenant", "tenant_id"))

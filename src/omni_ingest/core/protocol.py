@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import PositiveInt
 
-from ..db import Chunk, PipelineVersion, Tenant
+from ..db import PipelineVersion, Tenant
 from .model import KnowledgeItem, PipelineCheckpoint
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
@@ -128,34 +128,8 @@ class MetadataStore(Protocol):
         """Retrieves a knowledge item by ID."""
         ...
 
-    async def create_chunk(
-        self,
-        chunk_id: UUID | str,
-        knowledge_item_id: UUID,
-        tenant_id: UUID,
-        text: str,
-        vector_store_kind: str,
-        vector_store_space: str,
-        vector_store_ref_id: str,
-        metadata: JsonObject | None = None,
-    ) -> str:
-        """Records a data chunk and its vector store reference."""
-        ...
-
-    async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
-        """Retrieves all chunks for a specific knowledge item."""
-        ...
-
-    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
-        """Retrieves a specific chunk."""
-        ...
-
     async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         """Lists knowledge items for a tenant."""
-        ...
-
-    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
-        """Lists chunks for a tenant."""
         ...
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
