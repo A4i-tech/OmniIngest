@@ -9,7 +9,7 @@ from omni_ingest.parser import read_resources
 
 @pytest.mark.asyncio
 async def test_https_fetch():
-    resources = [r async for r in read_resources("https://httpbin.org/robots.txt")]
+    resources = [r async for r in read_resources("https://httpbingo.org/robots.txt")]
     ctx = IngestionContext(resource=resources[0])
     assert len(resources) == 1
     assert "User-agent" in await resources[0].decode(ctx)

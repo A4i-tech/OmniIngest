@@ -11,12 +11,11 @@ requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
-    "openai>=2.41.1",
     "PyYAML>=6.0.3",
     "sqlalchemy[asyncio]>=2.0.50",
     "aiosqlite>=0.22.1",
-    "aiohttp>=3.14.1",
     "fsspec>=2026.4.0",
+    "fastmcp>=3.4.2",
     "adlfs>=2026.5.0",
     "qdrant-client>=1.18.0",
     "pypdf>=6.13.2",
@@ -24,13 +23,13 @@ dependencies = [
     "python-docx>=1.2.0",
     "lancedb>=0.33.0",
     "azure-cognitiveservices-speech>=1.50.0",
-    "pydantic-ai>=1.107.0",
+    "pydantic-ai-slim[openai]>=2.0.0",
     "python-magic>=0.4.27",
     "datamodel-code-generator>=0.63.0",
     "jq>=1.11.0",
     "jsonschema>=4.26.0",
+    "logfire>=4.37.0",
     "rich>=15.0.0",
-    "types-jsonschema>=4.26.0.20260518",
     "pymupdf>=1.27.2.3",
 ]
 
@@ -38,12 +37,23 @@ dependencies = [
 omni-ingest = "omni_ingest.cli:main"
 
 [project.optional-dependencies]
+anthropic = ["pydantic-ai-slim[anthropic]>=2.0.0"]
+bedrock = ["pydantic-ai-slim[bedrock]>=2.0.0"]
+cohere = ["pydantic-ai-slim[cohere]>=2.0.0"]
+google = ["pydantic-ai-slim[google]>=2.0.0"]
+groq = ["pydantic-ai-slim[groq]>=2.0.0"]
+huggingface = ["pydantic-ai-slim[huggingface]>=2.0.0"]
+mistral = ["pydantic-ai-slim[mistral]>=2.0.0"]
+openrouter = ["pydantic-ai-slim[openrouter]>=2.0.0"]
+sentence-transformers = ["pydantic-ai-slim[sentence-transformers]>=2.0.0"]
 storage = [
     "azure-search-documents>=12.0.0",
     "chromadb>=1.5.9",
     "neo4j>=6.2.0",
     "pymongo>=4.17.0",
 ]
+voyageai = ["pydantic-ai-slim[voyageai]>=2.0.0"]
+xai = ["pydantic-ai-slim[xai]>=2.0.0"]
 
 [build-system]
 requires = ["uv_build>=0.8.17,<0.9.0"]
@@ -66,6 +76,7 @@ dev = [
     "ruff>=0.15.17",
     "mypy>=2.1.0",
     "types-PyYAML>=6.0.12.20260518",
+    "types-jsonschema>=4.26.0.20260518",
     "mkdocs-material>=9.7.6",
     "mkdocstrings[python]>=1.0.4",
     "mkdocs-gen-files>=0.6.1",

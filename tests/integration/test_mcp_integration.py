@@ -6,8 +6,7 @@ from typing import Any
 import pytest
 import yaml
 from fastmcp import FastMCP
-from groq import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from omni_ingest.core.model import AgentMixin, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config

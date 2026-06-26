@@ -36,7 +36,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Run ruff
         run: uv run ruff check src
 
@@ -53,7 +53,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev --extra storage
       - name: Run mypy
         run: uv run mypy src
 
@@ -71,7 +71,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Run unit tests
         run: uv run pytest tests/unit
 
@@ -91,7 +91,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Run mkdocs build
         run: uv run mkdocs build
       - name: Upload Documentation Artifact
@@ -120,7 +120,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y --fix-missing ffmpeg
       - name: Run all tests
@@ -170,6 +170,6 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Deploy to GitHub Pages
         run: uv run mkdocs gh-deploy --force
