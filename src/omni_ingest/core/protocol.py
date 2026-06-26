@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic import PositiveInt
 
+from ..db import Chunk, PipelineVersion, Tenant
 from .model import KnowledgeItem, PipelineCheckpoint
+
+type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
 
 
 @runtime_checkable
@@ -70,19 +75,19 @@ class MetadataStore(Protocol):
     execution logs, and data provenance information.
     """
 
-    async def get_tenant(self, slug: str) -> Any:
+    async def get_tenant(self, slug: str) -> Tenant | None:
         """Retrieves a tenant by slug."""
         ...
 
-    async def create_tenant(self, slug: str, display_name: str) -> Any:
+    async def create_tenant(self, slug: str, display_name: str) -> Tenant:
         """Creates a new tenant."""
         ...
 
-    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: Any, source_uri: str, id: UUID | None = None) -> UUID:
+    async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str, id: UUID | None = None) -> UUID:
         """Records the start of a pipeline run."""
         ...
 
-    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any = None, error: str | None = None) -> None:
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: datetime | None = None, error: str | None = None) -> None:
         """Updates the status of a pipeline run."""
         ...
 
@@ -94,11 +99,11 @@ class MetadataStore(Protocol):
         """Replaces the checkpoint, or deletes it when checkpoint is None."""
         ...
 
-    async def create_step_run(self, run_id: UUID, step_name: str) -> Any:
+    async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
         """Records the start of a pipeline step."""
         ...
 
-    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
+    async def update_step_run(self, step_id: UUID, status: str, metadata: JsonObject | None = None, error: str | None = None) -> None:
         """Updates the status and metadata of a step run."""
         ...
 
@@ -109,13 +114,13 @@ class MetadataStore(Protocol):
         modality: str,
         source_uri: str,
         content: str | None = None,
-        pipeline_version_id: Any | None = None,
+        pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
-        structured_views: dict[str, Any] | None = None,
-        lineage: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> Any:
+        structured_views: JsonObject | None = None,
+        lineage: JsonObject | None = None,
+        metadata: JsonObject | None = None,
+    ) -> UUID:
         """Persists a new knowledge item."""
         ...
 
@@ -125,46 +130,46 @@ class MetadataStore(Protocol):
 
     async def create_chunk(
         self,
-        chunk_id: UUID,
-        knowledge_item_id: Any,
+        chunk_id: UUID | str,
+        knowledge_item_id: UUID,
         tenant_id: UUID,
         text: str,
         vector_store_kind: str,
         vector_store_space: str,
         vector_store_ref_id: str,
-        metadata: dict[str, Any] | None = None,
+        metadata: JsonObject | None = None,
     ) -> str:
         """Records a data chunk and its vector store reference."""
         ...
 
-    async def get_chunks_by_knowledge_item(self, knowledge_item_id: Any) -> list[Any]:
+    async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
         """Retrieves all chunks for a specific knowledge item."""
         ...
 
-    async def get_chunk(self, chunk_id: UUID) -> Any:
+    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
         """Retrieves a specific chunk."""
         ...
 
-    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         """Lists knowledge items for a tenant."""
         ...
 
-    async def list_chunks(self, tenant_id: UUID, **filters) -> list[Any]:
+    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
         """Lists chunks for a tenant."""
         ...
 
-    async def get_pipeline_version(self, pipeline_name: str, version: str) -> Any:
+    async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         """Retrieves a specific pipeline version."""
         ...
 
-    async def get_default_pipeline_version(self, pipeline_name: str) -> Any:
+    async def get_default_pipeline_version(self, pipeline_name: str) -> PipelineVersion | None:
         """Retrieves the default version for a pipeline."""
         ...
 
-    async def upsert_pipeline(self, name: str, domain_profile: str) -> Any:
+    async def upsert_pipeline(self, name: str, domain_profile: str) -> UUID:
         """Creates or updates a pipeline definition."""
         ...
 
-    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> Any:
+    async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         """Creates or updates a pipeline version."""
         ...

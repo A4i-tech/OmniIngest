@@ -3,7 +3,6 @@
 import asyncio
 import pickle
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
@@ -11,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from ..core.config import settings
 from ..core.model import KnowledgeItem, PipelineCheckpoint
-from ..core.protocol import MetadataStore
+from ..core.protocol import JsonObject, MetadataStore
 from ..db import Base, Chunk, KnowledgeItemRecord, Pipeline, PipelineCheckpointRecord, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
 
 
@@ -79,7 +78,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return r.id
 
-    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any | None = None, error: str | None = None) -> None:
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: datetime | None = None, error: str | None = None) -> None:
         await self._init_db()
         async with self.session_factory() as s:
             r = await s.get(PipelineRun, run_id)
@@ -117,7 +116,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return st.id
 
-    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
+    async def update_step_run(self, step_id: UUID, status: str, metadata: JsonObject | None = None, error: str | None = None) -> None:
         await self._init_db()
         async with self.session_factory() as s:
             st = await s.get(PipelineStepRun, step_id)
@@ -135,12 +134,12 @@ class SQLAlchemyMetadataStore(MetadataStore):
         modality: str,
         source_uri: str,
         content: str | None = None,
-        pipeline_version_id: Any | None = None,
+        pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
-        structured_views: dict[str, Any] | None = None,
-        lineage: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
+        structured_views: JsonObject | None = None,
+        lineage: JsonObject | None = None,
+        metadata: JsonObject | None = None,
     ) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
@@ -176,14 +175,14 @@ class SQLAlchemyMetadataStore(MetadataStore):
 
     async def create_chunk(
         self,
-        chunk_id: UUID,
-        knowledge_item_id: Any,
+        chunk_id: UUID | str,
+        knowledge_item_id: UUID,
         tenant_id: UUID,
         text: str,
         vector_store_kind: str,
         vector_store_space: str,
         vector_store_ref_id: str,
-        metadata: dict[str, Any] | None = None,
+        metadata: JsonObject | None = None,
     ) -> str:
         await self._init_db()
         async with self.session_factory() as s:
@@ -206,12 +205,12 @@ class SQLAlchemyMetadataStore(MetadataStore):
         async with self.session_factory() as s:
             return list((await s.execute(select(Chunk).where(Chunk.knowledge_item_id == knowledge_item_id))).scalars().all())
 
-    async def get_chunk(self, chunk_id: UUID) -> Chunk | None:
+    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
         await self._init_db()
         async with self.session_factory() as s:
             return await s.get(Chunk, chunk_id)
 
-    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         await self._init_db()
         async with self.session_factory() as s:
             q = select(KnowledgeItemRecord).where(KnowledgeItemRecord.tenant_id == tenant_id)
@@ -231,7 +230,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 for r in records
             ]
 
-    async def list_chunks(self, tenant_id: UUID, **filters) -> list[Chunk]:
+    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
         await self._init_db()
         async with self.session_factory() as s:
             q = select(Chunk).where(Chunk.tenant_id == tenant_id)
@@ -261,7 +260,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             await s.commit()
             return p.id
 
-    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
+    async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
             pv = (await s.execute(select(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.version == version))).scalar_one_or_none()
@@ -304,7 +303,7 @@ class NullMetadataStore(MetadataStore):
     async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str, id: UUID | None = None) -> UUID:
         return await self._inner.create_pipeline_run(tenant_id, pipeline_version_id, source_uri, id=id)
 
-    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: Any | None = None, error: str | None = None) -> None:
+    async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: datetime | None = None, error: str | None = None) -> None:
         await self._inner.update_pipeline_run(run_id, status, completed_at=completed_at, error=error)
 
     async def get_pipeline_checkpoint(self, id: UUID) -> PipelineCheckpoint | None:
@@ -316,7 +315,7 @@ class NullMetadataStore(MetadataStore):
     async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
         return await self._inner.create_step_run(run_id, step_name)
 
-    async def update_step_run(self, step_id: UUID, status: str, metadata: dict[str, Any] | None = None, error: str | None = None) -> None:
+    async def update_step_run(self, step_id: UUID, status: str, metadata: JsonObject | None = None, error: str | None = None) -> None:
         await self._inner.update_step_run(step_id, status, metadata=metadata, error=error)
 
     async def create_knowledge_item(
@@ -326,12 +325,12 @@ class NullMetadataStore(MetadataStore):
         modality: str,
         source_uri: str,
         content: str | None = None,
-        pipeline_version_id: Any | None = None,
+        pipeline_version_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
-        structured_views: dict[str, Any] | None = None,
-        lineage: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
+        structured_views: JsonObject | None = None,
+        lineage: JsonObject | None = None,
+        metadata: JsonObject | None = None,
     ) -> UUID:
         return await self._inner.create_knowledge_item(
             tenant_id=tenant_id,
@@ -352,14 +351,14 @@ class NullMetadataStore(MetadataStore):
 
     async def create_chunk(
         self,
-        chunk_id: UUID,
-        knowledge_item_id: Any,
+        chunk_id: UUID | str,
+        knowledge_item_id: UUID,
         tenant_id: UUID,
         text: str,
         vector_store_kind: str,
         vector_store_space: str,
         vector_store_ref_id: str,
-        metadata: dict[str, Any] | None = None,
+        metadata: JsonObject | None = None,
     ) -> str:
         return await self._inner.create_chunk(
             chunk_id=chunk_id,
@@ -375,13 +374,13 @@ class NullMetadataStore(MetadataStore):
     async def get_chunks_by_knowledge_item(self, knowledge_item_id: UUID) -> list[Chunk]:
         return await self._inner.get_chunks_by_knowledge_item(knowledge_item_id)
 
-    async def get_chunk(self, chunk_id: UUID) -> Chunk | None:
+    async def get_chunk(self, chunk_id: UUID | str) -> Chunk | None:
         return await self._inner.get_chunk(chunk_id)
 
-    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters) -> list[KnowledgeItem]:
+    async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         return await self._inner.list_knowledge_items(tenant_id, domain_profile=domain_profile, **filters)
 
-    async def list_chunks(self, tenant_id: UUID, **filters) -> list[Chunk]:
+    async def list_chunks(self, tenant_id: UUID, **filters: object) -> list[Chunk]:
         return await self._inner.list_chunks(tenant_id, **filters)
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
@@ -393,5 +392,5 @@ class NullMetadataStore(MetadataStore):
     async def upsert_pipeline(self, name: str, domain_profile: str) -> UUID:
         return await self._inner.upsert_pipeline(name, domain_profile)
 
-    async def upsert_pipeline_version(self, pipeline_id: str, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
+    async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         return await self._inner.upsert_pipeline_version(pipeline_id, version, yaml_profile_name, is_default=is_default)
