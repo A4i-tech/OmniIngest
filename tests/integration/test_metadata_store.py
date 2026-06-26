@@ -46,7 +46,7 @@ async def test_knowledge_item_crud(metadata_store):
 
     item = await metadata_store.get_knowledge_item(item_id)
     assert item is not None
-    assert item.content == b""
+    assert item.raw_content == b""
     assert item.source_uri == "blob://test/chapter1.pdf"
     assert item.metadata["grade"] == 6
 
@@ -69,10 +69,10 @@ async def test_null_metadata_store_discards_knowledge_item_content():
         items = await store.list_knowledge_items(tenant.id)
 
     assert item is not None
-    assert item.content == b""
+    assert item.raw_content == b""
     assert item.metadata["grade"] == 6
     assert len(items) == 1
-    assert items[0].content == b""
+    assert items[0].raw_content == b""
     assert items[0].metadata["subject"] == "Science"
 
 
@@ -81,10 +81,10 @@ async def test_null_metadata_store_ignores_pipeline_checkpoints():
     run_id = uuid4()
     checkpoint = PipelineCheckpoint(
         stage=1,
-        resource=ResolvedResource(uri="file://large.pdf", content=b"%PDF-binary"),
+        resource=ResolvedResource(uri="file://large.pdf", raw_content=b"%PDF-binary"),
         tenant_id=uuid4(),
         domain_profile="test",
-        items=[KnowledgeItem(content=b"generated content", metadata={"page": 1})],
+        items=[KnowledgeItem(raw_content=b"generated content", metadata={"page": 1})],
     )
 
     async with NullMetadataStore() as store:
@@ -160,7 +160,7 @@ async def test_pipeline_run_tracking(metadata_store):
 @pytest.mark.asyncio
 async def test_pipeline_checkpoint_crud(metadata_store):
     run_id = await metadata_store.create_pipeline_run(uuid4(), uuid4(), "file://input.pdf")
-    checkpoint = PipelineCheckpoint(stage=1, resource=ResolvedResource(uri="file://input.pdf", content=b"%PDF-binary"), tenant_id=uuid4(), domain_profile="test", metadata={"stage": 1}, items=[KnowledgeItem(content=b"\x89PNG-binary")])
+    checkpoint = PipelineCheckpoint(stage=1, resource=ResolvedResource(uri="file://input.pdf", raw_content=b"%PDF-binary"), tenant_id=uuid4(), domain_profile="test", metadata={"stage": 1}, items=[KnowledgeItem(raw_content=b"\x89PNG-binary")])
 
     assert await metadata_store.get_pipeline_checkpoint(run_id) is None
     await metadata_store.set_pipeline_checkpoint(run_id, checkpoint)
@@ -178,7 +178,7 @@ async def test_pipeline_checkpoint_crud(metadata_store):
 @pytest.mark.asyncio
 async def test_invalid_pipeline_checkpoint_returns_none(metadata_store):
     run_id = await metadata_store.create_pipeline_run(uuid4(), uuid4(), "file://input.pdf")
-    await metadata_store.set_pipeline_checkpoint(run_id, PipelineCheckpoint(stage=0, resource=ResolvedResource(uri="file://input.pdf", content=b""), tenant_id=uuid4(), domain_profile="test"))
+    await metadata_store.set_pipeline_checkpoint(run_id, PipelineCheckpoint(stage=0, resource=ResolvedResource(uri="file://input.pdf", raw_content=b""), tenant_id=uuid4(), domain_profile="test"))
     async with metadata_store.session_factory() as s:
         await s.execute(update(PipelineCheckpointRecord).where(PipelineCheckpointRecord.pipeline_run_id == run_id).values(checkpoint=b"invalid pickle"))
         await s.commit()
@@ -192,7 +192,7 @@ async def test_invalid_pipeline_checkpoint_returns_none(metadata_store):
 
 @pytest.mark.asyncio
 async def test_db_registry_logging(metadata_store):
-    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b""))
+    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
     runner = PipelineRunner(steps=[IngestionLoggerAgent()])
     results = await runner.run(ctx)
     assert results[0].status == StepStatus.SUCCESS
@@ -222,8 +222,8 @@ async def test_pipeline_registration(metadata_store):
 async def test_vector_store_output_registers_chunks(metadata_store, vector_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     output = VectorStoreOutput(store=vector_store)
-    item = KnowledgeItem(content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
-    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", content=b""))
+    item = KnowledgeItem(raw_content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
+    ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", raw_content=b""))
     res = await output.write(ctx)
     assert res.status == StepStatus.SUCCESS, f"Output failed: {res.error}"
     chunks = await metadata_store.get_chunks_by_knowledge_item(ki_id)

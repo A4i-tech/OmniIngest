@@ -19,8 +19,8 @@ async def test_domain_enrichment_flow(metadata_store):
             "required": ["summary", "tags"],
         },
     )
-    item = KnowledgeItem(content=b"Sample text about machine learning and neural networks.")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b""))
+    item = KnowledgeItem(raw_content=b"Sample text about machine learning and neural networks.")
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
 
     res = await PipelineRunner([agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -38,8 +38,8 @@ async def test_learning_outcome_extraction(metadata_store):
             "items": {"type": "string"},
         },
     )
-    item = KnowledgeItem(content=b"The student will learn about Newton's laws of motion.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=ResolvedResource(uri="", content=b""))
+    item = KnowledgeItem(raw_content=b"The student will learn about Newton's laws of motion.")
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="education", resource=ResolvedResource(uri="", raw_content=b""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS, f"Step failed: {res[0].error}"
@@ -56,8 +56,8 @@ async def test_extract_agent_does_not_branch_on_domain(metadata_store):
             "items": {"type": "string"},
         },
     )
-    item = KnowledgeItem(content=b"Some content.")
-    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=ResolvedResource(uri="", content=b""))
+    item = KnowledgeItem(raw_content=b"Some content.")
+    ctx = IngestionContext(items=[item], store=metadata_store, domain_profile="generic", resource=ResolvedResource(uri="", raw_content=b""))
 
     res = await PipelineRunner([ed_agent]).run(ctx)
     assert res[0].status == StepStatus.SUCCESS
@@ -67,8 +67,8 @@ async def test_extract_agent_does_not_branch_on_domain(metadata_store):
 @pytest.mark.asyncio
 async def test_graph_store_output(metadata_store):
     output = GraphStoreOutput(store=AsyncMock())
-    item = KnowledgeItem(content=b"Test content")
-    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b""))
+    item = KnowledgeItem(raw_content=b"Test content")
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}, {"id": "n2"}], "edges": []}
 
     res = await output.write(ctx)

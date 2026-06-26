@@ -38,18 +38,26 @@ class StepStatus(StrEnum):
 
 
 class ByteContent(BaseModel):
-    content: StrictBytes = Field(...)
+    raw_content: StrictBytes = Field(default=b"")
+    content_uri: str | None = Field(default=None)
     content_encoding: str = Field(default="utf-8")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    @property
-    def content_type(self) -> str:
-        return magic.from_buffer(self.content, mime=True)
+    async def content(self, ctx: IngestionContext[ResolvedResource]) -> bytes:
+        if self.content_uri is None:
+            return self.raw_content
+        return await ctx.content_resolver.resolve(self.content_uri, ctx)
 
-    def decode(self) -> str:
-        if not self.content_type.startswith("text/"):
-            raise ValueError(f"Expected text content, got {self.content_type}")
-        return self.content.decode(self.content_encoding)
+    async def content_type(self, ctx: IngestionContext[ResolvedResource]) -> str:
+        if isinstance(content_type := self.metadata.get("content_type"), str):
+            return content_type
+        return magic.from_buffer(await self.content(ctx), mime=True)
+
+    async def decode(self, ctx: IngestionContext[ResolvedResource]) -> str:
+        content_type = await self.content_type(ctx)
+        if not content_type.startswith("text/"):
+            raise ValueError(f"Expected text content, got {content_type}")
+        return (await self.content(ctx)).decode(self.content_encoding)
 
 
 class ResolvedResource(ByteContent):
@@ -71,7 +79,6 @@ class KnowledgeItem(ByteContent):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the knowledge item")
     tenant_id: UUID | None = Field(default=None, description="Identifier for the associated tenant or organization")
     source_uri: str | None = Field(default=None, description="Origin URI of the raw data")
-    content: StrictBytes = Field(default=b"", description="The primary byte content of the item")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary key-value pairs for additional contextual information")
 
 

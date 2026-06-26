@@ -38,7 +38,8 @@ class ImageExtractionAgent(BaseModel, Step):
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
         item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
         specs = jq.compile(self.foreach).input_value({"metadata": ctx.metadata, "items": item_docs}).all()
-        input_expr, parents = jq.compile(self.input), []
+        input_expr = jq.compile(self.input)
+        parents: list[KnowledgeItem] = []
 
         for spec in specs:
             item_ids = input_expr.input_value(spec).first()
@@ -48,20 +49,21 @@ class ImageExtractionAgent(BaseModel, Step):
 
         sem, extracted = asyncio.Semaphore(self.workers), []
         ctx.progress(0, len(parents), "extracting images")
-        for i, task in enumerate(asyncio.as_completed([self._extract(parent, sem) for parent in parents if parent.content_type == "application/pdf"]), 1):
+        pdf_parents = [(parent, await parent.content(ctx)) for parent in parents if await parent.content_type(ctx) == "application/pdf"]
+        for i, task in enumerate(asyncio.as_completed([self._extract(parent, content, sem) for parent, content in pdf_parents]), 1):
             extracted.extend(await task)
             ctx.progress(i, len(parents), f"extracted {i}/{len(parents)}")
 
         ctx.items = extracted if self.replace else [*ctx.items, *extracted]
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(extracted), "replace": self.replace})
 
-    async def _extract(self, parent: KnowledgeItem, sem: asyncio.Semaphore) -> list[KnowledgeItem]:
+    async def _extract(self, parent: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> list[KnowledgeItem]:
         async with sem:
-            return await asyncio.to_thread(self._extract_pdf, parent)
+            return await asyncio.to_thread(self._extract_pdf, parent, content)
 
-    def _extract_pdf(self, parent: KnowledgeItem) -> list[KnowledgeItem]:
+    def _extract_pdf(self, parent: KnowledgeItem, content: bytes) -> list[KnowledgeItem]:
         extracted = []
-        with pymupdf.open(stream=parent.content, filetype="pdf") as pdf:
+        with pymupdf.open(stream=content, filetype="pdf") as pdf:
             for page_number, page in enumerate(pdf.pages(), 1):
                 assert isinstance(page, pymupdf.Page)
 
@@ -91,13 +93,14 @@ class ImageExtractionAgent(BaseModel, Step):
                         page.insert_text((rect.x0, rect.y1 + 7), marker, fontsize=6)
 
                     metadata = {"kind": "image", "parent_id": str(parent.id), "page": page_number, "bbox": [round(value, 3) for value in rect], "content_type": "image/png"}
-                    extracted.append(KnowledgeItem(id=id, content=content, content_encoding="binary", tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
+                    extracted.append(KnowledgeItem(id=id, raw_content=content, content_encoding="binary", tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
 
                 if self.mode == "redact":
                     page.apply_redactions()
 
             if self.mode != "preserve":
-                parent.content = pdf.tobytes(deflate=True)
+                parent.raw_content = pdf.tobytes(deflate=True)
+                parent.content_uri = None
 
         return extracted
 
@@ -118,7 +121,8 @@ class RasterizeAgent(BaseModel, Step):
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
         item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
         specs = jq.compile(self.foreach).input_value({"metadata": ctx.metadata, "items": item_docs}).all()
-        input_expr, items = jq.compile(self.input), []
+        input_expr = jq.compile(self.input)
+        items: list[KnowledgeItem] = []
 
         for spec in specs:
             item_ids = input_expr.input_value(spec).first()
@@ -126,24 +130,26 @@ class RasterizeAgent(BaseModel, Step):
                 raise ValueError("RasterizeAgent input must resolve to known item ids")
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
-        if any(item.content_type != "application/pdf" for item in items):
+        if any([await item.content_type(ctx) != "application/pdf" for item in items]):
             raise ValueError("RasterizeAgent only supports application/pdf items")
 
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "rasterizing PDFs")
-        for i, task in enumerate(asyncio.as_completed([self._rasterize(item, sem) for item in items]), 1):
+        tasks = [self._rasterize(item, await item.content(ctx), sem) for item in items]
+        for i, task in enumerate(asyncio.as_completed(tasks), 1):
             await task
             ctx.progress(i, len(items), f"rasterized {i}/{len(items)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "dpi": self.dpi})
 
-    async def _rasterize(self, item: KnowledgeItem, sem: asyncio.Semaphore) -> None:
+    async def _rasterize(self, item: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> None:
         async with sem:
-            await asyncio.to_thread(self._rasterize_pdf, item)
+            await asyncio.to_thread(self._rasterize_pdf, item, content)
 
-    def _rasterize_pdf(self, item: KnowledgeItem) -> None:
-        with pymupdf.open(stream=item.content, filetype="pdf") as source, pymupdf.open() as output:
+    def _rasterize_pdf(self, item: KnowledgeItem, content: bytes) -> None:
+        with pymupdf.open(stream=content, filetype="pdf") as source, pymupdf.open() as output:
             for page in source:
                 target = output.new_page(width=page.rect.width, height=page.rect.height)
                 target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
-            item.content = output.tobytes(deflate=True)
+            item.raw_content = output.tobytes(deflate=True)
+            item.content_uri = None

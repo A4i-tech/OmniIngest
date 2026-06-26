@@ -45,7 +45,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
-        return ResolvedResource(uri=path, content=stream.read())
+        return ResolvedResource(uri=path, raw_content=stream.read())
 
 
 async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
@@ -56,7 +56,7 @@ async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
 
     if parse_limit is not None and len(paths) > parse_limit:
         for path in paths[parse_limit:]:
-            yield ResolvedResource(uri=path, content=b"")
+            yield ResolvedResource(uri=path, raw_content=b"")
 
 
 @asynccontextmanager

@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 import yaml
 
-from omni_ingest.core.model import StepStatus
+from omni_ingest.core.model import ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter, create_pipeline_from_config
 
@@ -60,12 +60,13 @@ async def test_byoeb_ingestion_and_search(tmp_path, metadata_store, vector_store
 
     adapter = KnowledgeBaseAdapter(metadata_store=DummyMetadataStore(), vector_store=vector_store)  # type: ignore
 
+    query_ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
     results = await adapter.query_text(tenant_id=tid, query="what color are blueberries", k=3)
     assert len(results) > 0
-    assert any("blueberries" in r.decode().lower() for r in results)
-    assert not any("jaipur" in r.decode().lower() for r in results)
+    assert any(["blueberries" in (await r.decode(query_ctx)).lower() for r in results])
+    assert not any(["jaipur" in (await r.decode(query_ctx)).lower() for r in results])
 
     results_j = await adapter.query_text(tenant_id=tid, query="Jaipur Protocol", k=3)
     assert len(results_j) > 0
-    assert any("jaipur" in r.decode().lower() for r in results_j)
-    assert not any("blueberries" in r.decode().lower() for r in results_j)
+    assert any(["jaipur" in (await r.decode(query_ctx)).lower() for r in results_j])
+    assert not any(["blueberries" in (await r.decode(query_ctx)).lower() for r in results_j])

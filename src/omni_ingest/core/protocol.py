@@ -20,7 +20,7 @@ class VectorStore(Protocol):
     search capabilities based on contextual meaning.
     """
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         """Persists or updates knowledge items in the store."""
         ...
 

@@ -10,15 +10,15 @@ from omni_ingest.core.pipeline import IngestionContext
 
 @pytest.mark.asyncio
 async def test_text_agent_encodes_text_bytes_and_recomputes_content_type():
-    res = ResolvedResource(uri="data:text/plain,hello", content=b"hello")
-    ctx = IngestionContext(resource=res, items=[KnowledgeItem(content=b"world")])
+    res = ResolvedResource(uri="data:text/plain,hello", raw_content=b"hello")
+    ctx = IngestionContext(resource=res, items=[KnowledgeItem(raw_content=b"world")])
     result = await TextAgent().run(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    assert ctx.resource.content == b"hello"
-    assert ctx.resource.content_type.startswith("text/")
-    assert ctx.items[0].content == b"world"
-    assert ctx.items[0].content_type.startswith("text/")
+    assert await ctx.resource.content(ctx) == b"hello"
+    assert (await ctx.resource.content_type(ctx)).startswith("text/")
+    assert await ctx.items[0].content(ctx) == b"world"
+    assert (await ctx.items[0].content_type(ctx)).startswith("text/")
 
 
 @pytest.mark.parametrize("uri, parser, expected", [
@@ -32,7 +32,7 @@ async def test_text_agent_parse_routes_by_mime_type(uri, parser, expected, monke
     mock_parse = AsyncMock(return_value=("", {}))
     monkeypatch.setattr(f"omni_ingest.agent.modality.{parser}", mock_parse)
 
-    ctx = IngestionContext(resource=ResolvedResource(uri=uri, content=b""))
+    ctx = IngestionContext(resource=ResolvedResource(uri=uri, raw_content=b""))
     _, metadata = await TextAgent().parse(ctx, uri, io.BytesIO())
 
     assert metadata["selected_parser"] == expected
@@ -42,5 +42,5 @@ async def test_text_agent_parse_routes_by_mime_type(uri, parser, expected, monke
 @pytest.mark.asyncio
 async def test_text_agent_parse_rejects_unsupported_mime_type():
     with pytest.raises(ValueError, match="Unsupported data URI MIME type: 'font/ttf'"):
-        ctx = IngestionContext(resource=ResolvedResource(uri="/tmp/sample.ttf", content=b""))
+        ctx = IngestionContext(resource=ResolvedResource(uri="/tmp/sample.ttf", raw_content=b""))
         await TextAgent().parse(ctx, "/tmp/sample.ttf", io.BytesIO())

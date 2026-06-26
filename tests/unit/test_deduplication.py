@@ -1,4 +1,5 @@
 import hashlib
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -11,16 +12,19 @@ from omni_ingest.agent.deduplication import (
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext
+from omni_ingest.core.protocol import VectorStore
 
 
 class RecordingVectorStore:
     def __init__(self):
         self.upsert_calls: list[list[KnowledgeItem]] = []
-        self.kind = self.__class__.__name__
-        self.space = "default"
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
+        del ctx
         self.upsert_calls.append(list(items))
+
+    kind = "RecordingVectorStore"
+    space = "default"
 
 
 @pytest.mark.asyncio
@@ -52,16 +56,16 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     )
 
     vector_store = RecordingVectorStore()
-    output = VectorStoreOutput(store=vector_store)
+    output = VectorStoreOutput(store=cast(VectorStore, vector_store))
     ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[
-            KnowledgeItem(content=b"  HELLO   WORLD  ", metadata={"embedding": [0.1, 0.2, 0.3]}),
-            KnowledgeItem(content=b"Fresh content", metadata={"embedding": [0.4, 0.5, 0.6]}),
+            KnowledgeItem(raw_content=b"  HELLO   WORLD  ", metadata={"embedding": [0.1, 0.2, 0.3]}),
+            KnowledgeItem(raw_content=b"Fresh content", metadata={"embedding": [0.4, 0.5, 0.6]}),
         ],
         store=metadata_store,
         metadata={"knowledge_item_id": new_item_id},
-        resource=ResolvedResource(uri=source_uri, content=b""),
+        resource=ResolvedResource(uri=source_uri, raw_content=b""),
     )
 
     result = await output.write(ctx)
@@ -71,7 +75,7 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     assert result.metadata["deduplicated_count"] == 1
     assert result.metadata["deduplication_strategy"] == "normalized_text_hash"
     assert len(vector_store.upsert_calls) == 1
-    assert [item.content for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
+    assert [await item.content(ctx) for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
 
     chunks = await metadata_store.get_chunks_by_knowledge_item(new_item_id)
     assert len(chunks) == 1
@@ -81,14 +85,14 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
 @pytest.mark.asyncio
 async def test_vector_store_output_no_deduplication_strategy_keeps_duplicates():
     vector_store = RecordingVectorStore()
-    output = VectorStoreOutput(store=vector_store, deduplication_strategy=NoDeduplicationStrategy())
+    output = VectorStoreOutput(store=cast(VectorStore, vector_store), deduplication_strategy=NoDeduplicationStrategy())
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(content=b"Same chunk", metadata={"embedding": [0.1]}),
-            KnowledgeItem(content=b"Same chunk", metadata={"embedding": [0.2]}),
+            KnowledgeItem(raw_content=b"Same chunk", metadata={"embedding": [0.1]}),
+            KnowledgeItem(raw_content=b"Same chunk", metadata={"embedding": [0.2]}),
         ],
-        resource=ResolvedResource(uri="file://same.txt", content=b""),
+        resource=ResolvedResource(uri="file://same.txt", raw_content=b""),
     )
 
     result = await output.write(ctx)
@@ -114,14 +118,14 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
         source_uri=source_uri,
     )
     first_store = RecordingVectorStore()
-    first_output = VectorStoreOutput(store=first_store, deduplication_strategy=strategy)
-    first_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
+    first_output = VectorStoreOutput(store=cast(VectorStore, first_store), deduplication_strategy=strategy)
+    first_item = KnowledgeItem(raw_content=b"Stable chunk", metadata={"embedding": [0.1], "char_start": 0, "source_idx": 0})
     first_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[first_item],
         store=metadata_store,
         metadata={"knowledge_item_id": initial_item_id},
-        resource=ResolvedResource(uri=source_uri, content=b""),
+        resource=ResolvedResource(uri=source_uri, raw_content=b""),
     )
 
     first_result = await first_output.write(first_ctx)
@@ -136,14 +140,14 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
         source_uri=source_uri,
     )
     second_store = RecordingVectorStore()
-    second_output = VectorStoreOutput(store=second_store, deduplication_strategy=DeterministicIdDeduplicationStrategy())
-    replay_item = KnowledgeItem(content=b"Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
+    second_output = VectorStoreOutput(store=cast(VectorStore, second_store), deduplication_strategy=DeterministicIdDeduplicationStrategy())
+    replay_item = KnowledgeItem(raw_content=b"Stable chunk", metadata={"embedding": [0.2], "char_start": 0, "source_idx": 0})
     replay_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[replay_item],
         store=metadata_store,
         metadata={"knowledge_item_id": replay_item_id},
-        resource=ResolvedResource(uri=source_uri, content=b""),
+        resource=ResolvedResource(uri=source_uri, raw_content=b""),
     )
 
     second_result = await second_output.write(replay_ctx)
@@ -161,17 +165,17 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
 async def test_vector_store_output_shingle_jaccard_strategy_skips_near_duplicates():
     vector_store = RecordingVectorStore()
     output = VectorStoreOutput(
-        store=vector_store,
+        store=cast(VectorStore, vector_store),
         deduplication_strategy=ShingleJaccardDeduplicationStrategy(threshold=0.8),
     )
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(content=b"alpha beta gamma delta epsilon zeta", metadata={"embedding": [0.1]}),
-            KnowledgeItem(content=b"alpha beta gamma delta epsilon zeta eta", metadata={"embedding": [0.2]}),
-            KnowledgeItem(content=b"completely different content here", metadata={"embedding": [0.3]}),
+            KnowledgeItem(raw_content=b"alpha beta gamma delta epsilon zeta", metadata={"embedding": [0.1]}),
+            KnowledgeItem(raw_content=b"alpha beta gamma delta epsilon zeta eta", metadata={"embedding": [0.2]}),
+            KnowledgeItem(raw_content=b"completely different content here", metadata={"embedding": [0.3]}),
         ],
-        resource=ResolvedResource(uri="file://near-duplicates.txt", content=b""),
+        resource=ResolvedResource(uri="file://near-duplicates.txt", raw_content=b""),
     )
 
     result = await output.write(ctx)
@@ -181,7 +185,7 @@ async def test_vector_store_output_shingle_jaccard_strategy_skips_near_duplicate
     assert result.metadata["deduplicated_count"] == 1
     assert result.metadata["deduplication_strategy"] == "shingle_jaccard"
     assert len(vector_store.upsert_calls) == 1
-    assert [item.content for item in vector_store.upsert_calls[0]] == [
+    assert [await item.content(ctx) for item in vector_store.upsert_calls[0]] == [
         b"alpha beta gamma delta epsilon zeta",
         b"completely different content here",
     ]

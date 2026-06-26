@@ -21,21 +21,22 @@ if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
 
-def _json_dump_content(obj: ByteContent) -> dict[str, Any]:
-    data = obj.model_dump(mode="json", exclude={"content"})
+async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
+    data = obj.model_dump(mode="json", exclude={"raw_content"})
+    content = await obj.content(ctx)
     try:
-        data["content"] = obj.content.decode(obj.content_encoding)
+        data["content"] = content.decode(obj.content_encoding)
     except (LookupError, UnicodeDecodeError):
-        data["content"] = b64encode(obj.content).decode("ascii")
+        data["content"] = b64encode(content).decode("ascii")
         data["content_encoding"] = "base64"
     return data
 
 
-def json_dump_context(ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
+async def json_dump_context(ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
     return {
-        "resource": _json_dump_content(ctx.resource),
+        "resource": await _json_dump_content(ctx.resource, ctx),
         "metadata": ctx.metadata,
-        "items": [_json_dump_content(item) for item in ctx.items],
+        "items": [await _json_dump_content(item, ctx) for item in ctx.items],
     }
 
 
@@ -64,16 +65,16 @@ class JsonFileOutput(Output):
     def __init__(self, path: Path) -> None:
         self.path = path
 
-    def dump(self, ctxs: list[IngestionContext[ResolvedResource]]) -> str:
-        data = json_dump_context(ctxs[0]) if len(ctxs) == 1 else {"runs": [json_dump_context(ctx) for ctx in ctxs]}
+    async def dump(self, ctxs: list[IngestionContext[ResolvedResource]]) -> str:
+        data = await json_dump_context(ctxs[0]) if len(ctxs) == 1 else {"runs": [await json_dump_context(ctx) for ctx in ctxs]}
         return json.dumps(data, indent=2)
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
-        self.path.write_text(self.dump([ctx]))
+        self.path.write_text(await self.dump([ctx]))
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        self.path.write_text(self.dump(ctxs))
+        self.path.write_text(await self.dump(ctxs))
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
 
 
@@ -84,11 +85,11 @@ class StdoutOutput(Output):
         self._inner = JsonFileOutput(Path(os.devnull))
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
-        print(self._inner.dump([ctx]), file=sys.stdout)
+        print(await self._inner.dump([ctx]), file=sys.stdout)
         return OutputResult(status=StepStatus.SUCCESS)
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        print(self._inner.dump(ctxs), file=sys.stdout)
+        print(await self._inner.dump(ctxs), file=sys.stdout)
         return OutputResult(status=StepStatus.SUCCESS)
 
 
@@ -112,14 +113,14 @@ class VectorStoreOutput(Output):
         deduplication_result = await self.deduplication_strategy.deduplicate(ctx.items, ctx)
         items = deduplication_result.kept_items
         if items:
-            await self.store.upsert(items)
+            await self.store.upsert(items, ctx)
             if ctx.store and (pid := ctx.metadata.get("knowledge_item_id")):
                 for item in items:
                     await ctx.store.create_chunk(
                         chunk_id=item.id,
                         knowledge_item_id=pid,
                         tenant_id=ctx.tenant_id,
-                        text=item.decode(),
+                        text=await item.decode(ctx),
                         vector_store_kind=self.store.kind,
                         vector_store_space=self.store.space,
                         vector_store_ref_id=str(item.id),

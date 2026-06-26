@@ -39,7 +39,7 @@ async def test_education_v2_pipeline(metadata_store, tenant, profiles_dir):
         tenant_id=tenant.id,
         store=metadata_store,
         domain_profile="education",
-        resource=ResolvedResource(uri="", content=b"Students will learn the advanced concepts of Physics."),
+        resource=ResolvedResource(uri="", raw_content=b"Students will learn the advanced concepts of Physics."),
     )
 
     results = await runner.run(ctx)
@@ -75,7 +75,7 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, tmp_path)
 async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "governance_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content=b"Audit this file for compliance."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"Audit this file for compliance."))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
@@ -87,7 +87,7 @@ async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
 async def test_health_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "health_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content=b"The patient was diagnosed with type 2 diabetes."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"The patient was diagnosed with type 2 diabetes."))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"

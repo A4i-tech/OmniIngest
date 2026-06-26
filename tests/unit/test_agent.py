@@ -26,7 +26,7 @@ from omni_ingest.core.pipeline import IngestionContext
 def create_ctx(store, content):
     if isinstance(content, str):
         content = content.encode()
-    return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", content=content), store=store, domain_profile="education")
+    return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", raw_content=content), store=store, domain_profile="education")
 
 
 @pytest.mark.asyncio
@@ -38,7 +38,7 @@ async def test_markdown_cleaning_agent(vector_store):
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
-        assert ctx.resource.content == b"## Clean"
+        assert await ctx.resource.content(ctx) == b"## Clean"
 
 
 @pytest.mark.asyncio
@@ -51,7 +51,7 @@ async def test_transcription_post_processor_agent(vector_store):
         result = await agent.run(ctx)
 
         assert result.status == StepStatus.SUCCESS
-        assert ctx.resource.content == b"Hello"
+        assert await ctx.resource.content(ctx) == b"Hello"
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_extract_agent_item_set(vector_store):
     )
 
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"educational content")]
+    ctx.items = [KnowledgeItem(raw_content=b"educational content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -92,7 +92,7 @@ async def test_extract_agent_updates_item_metadata(vector_store):
     )
 
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"content", metadata={"learning_outcomes": ["old"]})]
+    ctx.items = [KnowledgeItem(raw_content=b"content", metadata={"learning_outcomes": ["old"]})]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -108,7 +108,7 @@ async def test_extract_agent_updates_item_metadata(vector_store):
 @pytest.mark.asyncio
 async def test_concurrent_extract_agents_merge_root_metadata():
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(content=b"content")]
+    ctx.items = [KnowledgeItem(raw_content=b"content")]
     agents = [
         ExtractAgent(foreach=".", path=f".metadata.{key}", prompt=key, schema={"type": "string"})
         for key in ("first", "second")
@@ -127,7 +127,7 @@ async def test_concurrent_extract_agents_merge_root_metadata():
 @pytest.mark.asyncio
 async def test_concurrent_extract_agents_merge_item_metadata():
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(content=b"content", metadata={"existing": "keep"})]
+    ctx.items = [KnowledgeItem(raw_content=b"content", metadata={"existing": "keep"})]
     agents = [
         ExtractAgent(path=f".metadata.generated.{key}", prompt=key, schema={"type": "string"})
         for key in ("first", "second")
@@ -157,7 +157,7 @@ async def test_extract_agent_jq_foreach_input(vector_store):
         schema={"type": "array", "items": {"type": "string"}},
     )
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"alpha"), KnowledgeItem(content=b"bravo")]
+    ctx.items = [KnowledgeItem(raw_content=b"alpha"), KnowledgeItem(raw_content=b"bravo")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -186,7 +186,7 @@ async def test_extract_agent_assertions_register_model_retry_validator(vector_st
         },
     )
     ctx = create_ctx(vector_store, "bad content")
-    ctx.items = [KnowledgeItem(content=b"bad content")]
+    ctx.items = [KnowledgeItem(raw_content=b"bad content")]
     pydantic_agent = PydanticAgent("test")
     output_type = agent._output_type(None)
 
@@ -233,7 +233,7 @@ async def test_extract_agent_document_scope(vector_store):
     )
 
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"alpha"), KnowledgeItem(content=b"bravo"), KnowledgeItem(content=b"charlie")]
+    ctx.items = [KnowledgeItem(raw_content=b"alpha"), KnowledgeItem(raw_content=b"bravo"), KnowledgeItem(raw_content=b"charlie")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -259,8 +259,8 @@ async def test_extract_agent_binary_input_uses_selected_items():
 
     ctx = create_ctx(None, "")
     ctx.items = [
-        KnowledgeItem(content=b"%PDF-1.4\npage 1", metadata={"page": 1}),
-        KnowledgeItem(content=b"%PDF-1.4\npage 2", metadata={"page": 2}),
+        KnowledgeItem(raw_content=b"%PDF-1.4\npage 1", metadata={"page": 1}),
+        KnowledgeItem(raw_content=b"%PDF-1.4\npage 2", metadata={"page": 2}),
     ]
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -288,7 +288,7 @@ async def test_extract_agent_serializes_pydantic_output():
         schema={"type": "object", "properties": {"board": {"type": "string", "enum": ["CBSE"]}}, "required": ["board"]},
     )
     ctx = create_ctx(None, "content")
-    ctx.items = [KnowledgeItem(content=b"content")]
+    ctx.items = [KnowledgeItem(raw_content=b"content")]
 
     with patch.object(agent, "_agent", return_value=PydanticAgent("test")):
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
@@ -311,7 +311,7 @@ async def test_extract_agent_buffered_mode_registers_page_reader():
         schema={"type": "object", "properties": {"found": {"type": "boolean"}}, "required": ["found"]},
     )
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(content=b"%PDF-1.4\npage", metadata={"page": 1})]
+    ctx.items = [KnowledgeItem(raw_content=b"%PDF-1.4\npage", metadata={"page": 1})]
     pydantic_agent = PydanticAgent("test")
 
     with patch.object(agent, "_agent", return_value=pydantic_agent):
@@ -380,7 +380,7 @@ async def test_validate_agent_checks_root_metadata():
 async def test_validate_agent_checks_each_selected_item():
     agent = ValidateAgent(foreach=".items[]", checks=[{"expr": ".metadata.ok == true", "message": "bad item"}])
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(content=b"a", metadata={"ok": True}), KnowledgeItem(content=b"b", metadata={"ok": True})]
+    ctx.items = [KnowledgeItem(raw_content=b"a", metadata={"ok": True}), KnowledgeItem(raw_content=b"b", metadata={"ok": True})]
 
     result = await agent.run(ctx)
 
@@ -391,7 +391,7 @@ async def test_validate_agent_checks_each_selected_item():
 async def test_data_lineage_agent(vector_store):
     agent = DataLineageAgent()
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"test")]
+    ctx.items = [KnowledgeItem(raw_content=b"test")]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "run_id" in result.metadata
@@ -411,7 +411,7 @@ async def test_json_file_output(vector_store, tmp_path):
     output = JsonFileOutput(path=tmp_path / "items.json")
     ctx = create_ctx(vector_store, "resource")
     ctx.metadata["source"] = "unit"
-    ctx.items = [KnowledgeItem(content=b"test", metadata={"tag": "x"}), KnowledgeItem(content=b"\xff", content_encoding="binary")]
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tag": "x"}), KnowledgeItem(raw_content=b"\xff", content_encoding="binary")]
 
     result = await output.write(ctx)
     data = json.loads(output.path.read_text())
@@ -445,7 +445,7 @@ async def test_parse_output_and_stdout(vector_store, tmp_path, capsys):
 async def test_vector_store_output(vector_store):
     output = VectorStoreOutput(store=vector_store)
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"test", metadata={"embedding": [0.1] * 1536})]
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"embedding": [0.1] * 1536})]
     result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
     assert await vector_store.count() == 1
@@ -456,7 +456,7 @@ async def test_graph_store_output(vector_store):
     mock_store = AsyncMock()
     output = GraphStoreOutput(store=mock_store)
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
     result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
@@ -468,7 +468,7 @@ async def test_graph_store_output_with_edges(vector_store):
     mock_store = AsyncMock()
     output = GraphStoreOutput(store=mock_store)
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(content=b"test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
     result = await output.write(ctx)

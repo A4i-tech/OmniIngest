@@ -8,11 +8,11 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 @pytest.mark.asyncio
 async def test_text_agent_converts_image_to_text(metadata_store, resources_dir):
     image_path = resources_dir / "supermarket-shelf.webp"
-    ctx = IngestionContext(resource=ResolvedResource(uri=str(image_path), content=image_path.read_bytes()), store=metadata_store)
+    ctx = IngestionContext(resource=ResolvedResource(uri=str(image_path), raw_content=image_path.read_bytes()), store=metadata_store)
 
     result = (await PipelineRunner([TextAgent()]).run(ctx))[0]
 
-    text = ctx.resource.decode().lower()
+    text = (await ctx.resource.decode(ctx)).lower()
     assert result.status == StepStatus.SUCCESS
     assert ctx.resource.metadata["selected_parser"] == "image"
     assert any(word in text for word in ["shelf", "store", "supermarket", "product", "package"])

@@ -26,6 +26,9 @@ from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
 from pydantic_ai.mcp import MCPToolset
 
+from omni_ingest.core.content import ContentResolver
+from omni_ingest.core.content import default as default_content_resolver
+
 from .. import agent
 from ..core import event
 from ..core.config import settings
@@ -62,6 +65,9 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     resource: ResourceT
 
     store: MetadataStore = field(default_factory=default_metadata_store)
+    """Reference to a storage engine or backend"""
+
+    content_resolver: ContentResolver = field(default_factory=default_content_resolver)
     """Reference to a storage engine or backend"""
 
     run_id: UUID = field(default_factory=uuid4)

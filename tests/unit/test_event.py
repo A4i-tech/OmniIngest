@@ -192,7 +192,7 @@ async def test_subscribe_with_async_for():
 async def test_pipeline_step_progress_event(metadata_store):
     stream = event.subscribe(populate_with_buffered=False)
     runner = PipelineRunner([ProgressStep()])
-    ctx = IngestionContext(resource=ResolvedResource(uri="", content=b""), store=metadata_store)
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store)
     task = asyncio.create_task(runner.run(ctx))
 
     async for e in stream:

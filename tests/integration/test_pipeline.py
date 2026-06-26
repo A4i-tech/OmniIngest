@@ -42,20 +42,20 @@ class FixedStep(Step):
 @pytest.mark.asyncio
 async def test_pipeline_execution_basic(metadata_store):
     runner = PipelineRunner(steps=[EchoStep()])
-    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
     assert results[0].status == StepStatus.SUCCESS and results[0].metadata["echo"] == "echo"
 
 
 @pytest.mark.asyncio
 async def test_pipeline_failure_stops_execution(metadata_store):
     runner = PipelineRunner(steps=[FailingStep(), EchoStep()])
-    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
     assert len(results) == 1 and results[0].status == StepStatus.FAILURE
 
 
 @pytest.mark.asyncio
 async def test_pipeline_resume_restores_last_successful_stage(metadata_store):
-    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="file://input.pdf", content=b"%PDF"))
+    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="file://input.pdf", raw_content=b"%PDF"))
     results = await PipelineRunner([SaveStep(), MutatingFailingStep()]).run(ctx)
     assert results[-1].status == StepStatus.FAILURE
     checkpoint = await metadata_store.get_pipeline_checkpoint(ctx.run_id)
@@ -71,7 +71,7 @@ async def test_pipeline_resume_restores_last_successful_stage(metadata_store):
 
 @pytest.mark.asyncio
 async def test_successful_pipeline_deletes_checkpoint(metadata_store):
-    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="file://input.pdf", content=b"%PDF"))
+    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="file://input.pdf", raw_content=b"%PDF"))
     await PipelineRunner([SaveStep()]).run(ctx)
     assert await metadata_store.get_pipeline_checkpoint(ctx.run_id) is None
 
@@ -80,8 +80,8 @@ async def test_successful_pipeline_deletes_checkpoint(metadata_store):
 async def test_embedding_agent_standalone(metadata_store):
     from omni_ingest.core.model import KnowledgeItem
 
-    item = KnowledgeItem(content=b"hello world")
-    res = await EmbeddingAgent().run(IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    item = KnowledgeItem(raw_content=b"hello world")
+    res = await EmbeddingAgent().run(IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
     assert res.status == StepStatus.SUCCESS and len(res.items) == 1
 
 
@@ -90,7 +90,7 @@ async def test_full_ingestion_flow(metadata_store, vector_store):
     steps = [SentenceChunkingAgent(), EmbeddingAgent()]
 
     runner = PipelineRunner(steps=steps)
-    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=vector_store))
+    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=vector_store))
     assert all(r.status == StepStatus.SUCCESS for r in results) and await vector_store.count() >= 1
     assert runner.output_result is not None and runner.output_result.status == StepStatus.SUCCESS
 
@@ -102,7 +102,7 @@ async def test_yaml_pipeline_factory(metadata_store):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
         yaml.dump(config, tmp)
         tmp.flush()
-        results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(resource=ResolvedResource(uri="", content=b"YAML test."), store=metadata_store))
+        results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"YAML test."), store=metadata_store))
         assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 2
 
 

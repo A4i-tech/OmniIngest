@@ -34,9 +34,9 @@ async def test_parallel_pipeline_execution(metadata_store, tenant):
     async def run_pipeline(idx):
         ctx = IngestionContext(
             tenant_id=tenant.id,
-            items=[KnowledgeItem(content=f"Parallel content {idx}".encode(), source_uri=f"file://{idx}.txt")],
+            items=[KnowledgeItem(raw_content=f"Parallel content {idx}".encode(), source_uri=f"file://{idx}.txt")],
             store=metadata_store,
-            resource=ResolvedResource(uri="", content=f"Parallel content {idx}".encode()),
+            resource=ResolvedResource(uri="", raw_content=f"Parallel content {idx}".encode()),
         )
         runner = PipelineRunner(steps=[SentenceChunkingAgent(chunk_size=10, overlap=0)])
         results = await runner.run(ctx)
@@ -67,7 +67,7 @@ async def test_steps_in_stage_run_concurrently_and_stages_wait(metadata_store):
         steps={"s1": [RecordingStep("a", calls, active, delay=0.02), RecordingStep("b", calls, active, delay=0.01)], "s2": [RecordingStep("c", calls, active)]},
     )
 
-    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
 
     assert active["max"] == 2
     assert calls.index("c:start") > calls.index("a:end")
@@ -81,7 +81,7 @@ async def test_unstaged_steps_remain_sequential(metadata_store):
     active = {"count": 0, "max": 0}
     runner = PipelineRunner(steps=[RecordingStep("a", calls, active, delay=0.01), RecordingStep("b", calls, active, delay=0.01)])
 
-    await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
 
     assert active["max"] == 1
     assert calls == ["a:start", "a:end", "b:start", "b:end"]
@@ -94,7 +94,7 @@ async def test_failing_stage_finishes_and_stops_later_stages(metadata_store):
         steps={"s1": [RecordingStep("slow", calls, delay=0.02), RecordingStep("fail", calls, fail=True)], "s2": [RecordingStep("later", calls)]},
     )
 
-    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=b"")))
+    results = await runner.run(IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
 
     assert [result.metadata["name"] for result in results] == ["slow", "fail"]
     assert "slow:end" in calls

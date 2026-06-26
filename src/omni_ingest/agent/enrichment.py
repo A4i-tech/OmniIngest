@@ -23,19 +23,20 @@ def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
     return cast(dict[str, Any], jq.compile(f"{path} |= if type == \"object\" and ($output | type) == \"object\" then . + $output else $output end", args={"output": output}).input_value(doc).first())
 
 
-def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
+async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
     return {
         "metadata": ctx.metadata,
         "items": [
             {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
-            | ({"text": item.decode() if item.content_type.startswith("text/") else None} if text else {})
+            | ({"text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} if text else {})
             for item in ctx.items
         ],
     }
 
 
-def _content(item: KnowledgeItem) -> Any:
-    return item.decode() if item.content_type.startswith("text/") else BinaryContent(data=item.content, media_type=item.content_type)
+async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryContent:
+    content_type = await item.content_type(ctx)
+    return await item.decode(ctx) if content_type.startswith("text/") else BinaryContent(data=await item.content(ctx), media_type=content_type)
 
 
 class ExtractAssertion(BaseModel):
@@ -65,7 +66,7 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items for extraction")
 
-        doc = _doc(ctx, text=True)
+        doc = await _doc(ctx, text=True)
         item_by_id = {str(item.id): item for item in ctx.items}
         selected_docs = jq.compile(self.foreach).input_value(doc).all()
 
@@ -129,15 +130,16 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
                     advance(f"read {cursor}/{len(buffered_ids)}")
                     return [
                         f"Physical page {item.metadata['page']}",
-                        _content(item),
+                        await _content(item, ctx),
                     ]
 
                 user_prompt: Any = self.prompt
             elif item_ids:
+                contents = [await _content(item_by_id[item_id], ctx) for item_id in item_ids]
                 user_prompt = [
                     self.prompt,
                     *([prompt_context] if prompt_context is not None else []),
-                    *(_content(item_by_id[item_id]) for item_id in item_ids),
+                    *contents,
                 ]
             else:
                 user_prompt = [self.prompt, *([prompt_context] if prompt_context is not None else []), prompt_input]
@@ -152,7 +154,7 @@ class TransformAgent(BaseModel, Step):
     path: JqExpression = Field(..., description="jq path where transformed output is written")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        doc = _doc(ctx)
+        doc = await _doc(ctx)
         ctx.metadata = _assign(doc, self.path, jq.compile(self.value).input_value(doc).first())["metadata"]
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
 
@@ -182,7 +184,7 @@ class KnowledgeGraphBuilderAgent(BaseModel, Step, AgentMixin):
         agent = self._agent(ctx)
         all_nodes, all_edges = [], []
         for item in ctx.items:
-            res = await agent.run("Directly extract entities and their relationships from the following text into a graph format. Content: " + item.decode(), output_type=KGData)
+            res = await agent.run("Directly extract entities and their relationships from the following text into a graph format. Content: " + (await item.decode(ctx)), output_type=KGData)
             all_nodes.extend([n.model_dump() for n in res.output.nodes])
             all_edges.extend([e.model_dump() for e in res.output.edges])
 

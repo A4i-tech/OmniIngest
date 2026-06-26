@@ -93,8 +93,9 @@ class DeterministicIdDeduplicationStrategy(ScopedDeduplicationStrategy):
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            deterministic_id = str(uuid5(NAMESPACE_URL, _deterministic_identity(item, ctx)))
-            item.id = uuid5(NAMESPACE_URL, _deterministic_identity(item, ctx))
+            identity = await _deterministic_identity(item, ctx)
+            deterministic_id = str(uuid5(NAMESPACE_URL, identity))
+            item.id = uuid5(NAMESPACE_URL, identity)
             item.metadata[_DETERMINISTIC_ID_KEY] = deterministic_id
             if deterministic_id in seen_ids:
                 continue
@@ -123,7 +124,7 @@ class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            normalized_hash = _normalized_text_hash(item.decode())
+            normalized_hash = _normalized_text_hash(await item.decode(ctx))
             item.metadata[_NORMALIZED_TEXT_HASH_KEY] = normalized_hash
             if normalized_hash in seen_hashes:
                 continue
@@ -151,7 +152,7 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            item_shingles = _shingles(item.decode(), self.shingle_size)
+            item_shingles = _shingles(await item.decode(ctx), self.shingle_size)
             item.metadata[_SHINGLE_SIZE_KEY] = self.shingle_size
             if any(_jaccard_similarity(item_shingles, existing) >= self.threshold for existing in seen_shingles):
                 continue
@@ -173,11 +174,11 @@ type DeduplicationStrategyConfig = Annotated[
 ]
 
 
-def _deterministic_identity(item: KnowledgeItem, ctx: IngestionContext[ResolvedResource]) -> str:
+async def _deterministic_identity(item: KnowledgeItem, ctx: IngestionContext[ResolvedResource]) -> str:
     source_uri = item.source_uri or ctx.resource.uri or ""
     position_keys = ("char_start", "source_idx", "page", "start_offset_ms", "end_offset_ms")
     position = "|".join(f"{k}={item.metadata[k]}" for k in position_keys if k in item.metadata)
-    normalized = _normalize_text(item.decode())
+    normalized = _normalize_text(await item.decode(ctx))
     return "|".join((str(ctx.tenant_id), source_uri, ctx.domain_profile, position, normalized))
 
 

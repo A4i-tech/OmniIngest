@@ -30,7 +30,7 @@ class EmbeddingAgent(BaseModel, Step):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No items to embed")
 
-        texts = [i.decode() for i in ctx.items]
+        texts = [await i.decode(ctx) for i in ctx.items]
         res = await Embedder(self.model).embed_documents(texts)
         for item, emb in zip(ctx.items, res.embeddings, strict=True):
             item.metadata["embedding"] = emb

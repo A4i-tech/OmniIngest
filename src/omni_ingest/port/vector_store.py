@@ -40,7 +40,7 @@ class LanceDBVectorStore(VectorStore):
     async def __aexit__(self, exc_type, exc, tb):
         await self.close()
 
-    async def _get_table(self) -> Any:
+    async def _get_table(self) -> lancedb.Table:
         if self._table is None:
             db = lancedb.connect(self.db_path)
             self._table = db.create_table(self.table_name, schema=pa.schema([
@@ -54,7 +54,7 @@ class LanceDBVectorStore(VectorStore):
             self._db = db
         return self._table
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         t, data = await self._get_table(), []
         for i in items:
             if emb := i.metadata.get("embedding"):
@@ -62,7 +62,7 @@ class LanceDBVectorStore(VectorStore):
                     {
                         "id": str(i.id),
                         "vector": emb,
-                        "content": i.decode(),
+                        "content": await i.decode(ctx),
                         "tenant_id": "" if i.tenant_id is None else str(i.tenant_id),
                         "source_uri": i.source_uri or "",
                         "metadata": json.dumps(i.metadata),
@@ -85,7 +85,7 @@ class LanceDBVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row["id"])),
-                    content=str(row["content"] or "").encode(),
+                    raw_content=str(row["content"] or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -152,14 +152,14 @@ class QdrantVectorStore(VectorStore):
                 await self._client.create_collection(self.col, VectorParams(size=self.size, distance=Distance.COSINE))
             self._init = True
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         await self._ensure()
         pts = [
             PointStruct(
                 id=str(i.id),
                 vector=i.metadata["embedding"],
                 payload={
-                    DOCUMENT_CONTENT_FIELD: i.decode(),
+                    DOCUMENT_CONTENT_FIELD: await i.decode(ctx),
                     DOCUMENT_TENANT_ID_FIELD: "" if i.tenant_id is None else str(i.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: i.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(i.metadata),
@@ -183,7 +183,7 @@ class QdrantVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row.id)),
-                    content=str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    raw_content=str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -228,7 +228,7 @@ class MongoVectorStore(VectorStore):
     async def __aexit__(self, exc_type, exc, tb):
         await self.close()
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         try:
             from pymongo import ReplaceOne
         except ModuleNotFoundError as exc:
@@ -245,7 +245,7 @@ class MongoVectorStore(VectorStore):
                     {
                         DOCUMENT_ID_FIELD: str(item.id),
                         DOCUMENT_VECTOR_FIELD: embedding,
-                        DOCUMENT_CONTENT_FIELD: item.decode(),
+                        DOCUMENT_CONTENT_FIELD: await item.decode(ctx),
                         DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                         DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                         DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -288,7 +288,7 @@ class MongoVectorStore(VectorStore):
             results.append(
                 KnowledgeItem(
                     id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                    content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    raw_content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -331,7 +331,7 @@ class AzureVectorSearchStore(VectorStore):
     async def __aexit__(self, exc_type, exc, tb):
         await self.close()
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         documents = []
         for item in items:
             embedding = item.metadata.get("embedding")
@@ -341,7 +341,7 @@ class AzureVectorSearchStore(VectorStore):
                 {
                     DOCUMENT_ID_FIELD: str(item.id),
                     DOCUMENT_VECTOR_FIELD: embedding,
-                    DOCUMENT_CONTENT_FIELD: item.decode(),
+                    DOCUMENT_CONTENT_FIELD: await item.decode(ctx),
                     DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -385,7 +385,7 @@ class AzureVectorSearchStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                    content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    raw_content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -427,7 +427,7 @@ class ChromaVectorStore(VectorStore):
     async def __aexit__(self, exc_type, exc, tb):
         await self.close()
 
-    async def upsert(self, items: list[KnowledgeItem]) -> None:
+    async def upsert(self, items: list[KnowledgeItem], ctx: Any) -> None:
         ids: list[str] = []
         documents: list[str] = []
         embeddings: list[list[float]] = []
@@ -438,7 +438,7 @@ class ChromaVectorStore(VectorStore):
             if embedding is None:
                 continue
             ids.append(str(item.id))
-            documents.append(item.decode())
+            documents.append(await item.decode(ctx))
             embeddings.append(embedding)
             metadatas.append(
                 {
@@ -469,7 +469,7 @@ class ChromaVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(item_id)),
-                    content=str(content or "").encode(),
+                    raw_content=str(content or "").encode(),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(raw_metadata) if isinstance(raw_metadata, str) else dict(raw_metadata),
