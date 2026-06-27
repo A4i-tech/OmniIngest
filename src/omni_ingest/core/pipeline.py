@@ -33,7 +33,7 @@ from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
-from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck
+from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
 from .output import Output, OutputResult
 from .protocol import MetadataStore, VectorStore
 
@@ -265,13 +265,13 @@ class PipelineRunner:
         finally:
             _CURRENT_STEP.reset(token)
 
-    def _validate(self, ctx: IngestionContext[ResolvedResource], validation: list[ValidationCheck], modes: set[str], result: StepResult | None = None) -> tuple[StepResult | None, bool]:
+    def _validate(self, ctx: IngestionContext[ResolvedResource], validation: list[ValidationCheck], modes: set[ValidationMode], result: StepResult | None = None) -> tuple[StepResult | None, bool]:
         doc: dict[str, Any] = {
             "metadata": ctx.metadata,
             "items": [{"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata} for item in ctx.items],
         }
         if result is not None:
-            doc["result"] = result.model_dump(mode="json")
+            doc["result"] = result.model_dump(mode="json", exclude={"items": {"__all__": {"raw_content"}}})
         for check in validation:
             if check.mode not in modes:
                 continue

@@ -125,6 +125,9 @@ class AgentMixin:
         return Agent(self.model or settings.default_chat_completion_model, toolsets=[tool_vendors[k] for k in self.toolsets], retries=self.retries)
 
 
+type ValidationMode = Literal["before", "plain", "after"]
+
+
 class ValidationCheck(BaseModel):
     """
     A jq validation attached to a pipeline step.
@@ -134,7 +137,7 @@ class ValidationCheck(BaseModel):
     pass, they stop the remaining validation chain for that step.
     """
 
-    mode: Literal["before", "plain", "after"] = Field(..., description="When the validation runs relative to the step")
+    mode: ValidationMode = Field(..., description="When the validation runs relative to the step")
     expr: str = Field(..., description="jq expression that must evaluate truthy")
     message: str = Field(..., description="Error message when the check fails")
 

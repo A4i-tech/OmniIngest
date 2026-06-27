@@ -12,8 +12,8 @@ from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.config import LanceDBVectorStoreConfig
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.pipeline import IngestionContext, _resolve_step_kwargs, create_pipeline_from_config
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, _resolve_step_kwargs, create_pipeline_from_config
 from omni_ingest.port.vector_store import LanceDBVectorStore
 
 
@@ -132,6 +132,15 @@ async def test_pipeline_after_validation_fails_with_interpolated_message(metadat
 
     assert results[0].status == StepStatus.FAILURE
     assert results[0].error == "bad chunk size 512"
+
+
+def test_pipeline_validation_does_not_serialize_item_content():
+    runner = PipelineRunner([])
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
+    result = StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(raw_content=b"%PDF-\xe2", metadata={"page": 1})])
+
+    check = ValidationCheck(mode="after", expr='.result.items[0].metadata.page == 1 and (.result.items[0] | has("raw_content") | not)', message="bad")
+    assert runner._validate(ctx, [check], {"after"}, result) == (None, False)
 
 
 @pytest.mark.asyncio
