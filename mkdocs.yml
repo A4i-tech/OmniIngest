@@ -61,5 +61,6 @@ nav:
   - Home: README.md
   - Command-line usage: cli.md
   - Pipeline playbook: pipelines.md
+  - Advanced pipeline patterns: advanced.md
   - Working with event stream: events.md
   - API Reference: api.md
