@@ -37,6 +37,7 @@ def _parse_args() -> argparse.Namespace:
     source.add_argument("--input", nargs="+", type=TypeAdapter(Resource).validate_python)
     source.add_argument("--resume", nargs="+", type=UUID)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--format")
     parser.add_argument("-q", "--quiet", action="store_true")
     for name, schema in properties.items():
         kwargs = {"default": schema.get("default", argparse.SUPPRESS), "help": schema.get("description"), "required": name in parameters.get("required", [])}
@@ -82,7 +83,7 @@ async def _main() -> int:
     logfire.instrument_pydantic_ai()
 
     args = _parse_args()
-    output = parse_output(args.output)
+    output = parse_output(args.output, args.format)
     if args.resume:
         store = default_metadata_store()
         jobs = [

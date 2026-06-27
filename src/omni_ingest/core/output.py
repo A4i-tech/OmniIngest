@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import fsspec  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
@@ -59,30 +60,37 @@ class Output(ABC):
         return result
 
 
-class JsonFileOutput(Output):
-    """Writes finalized ingestion output to a JSON file."""
+class FileOutput(Output):
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: str) -> None:
         self.path = path
+
+    def _write(self, data: str | bytes, mode: str) -> None:
+        with fsspec.open(self.path, mode) as f:
+            f.write(data)
+
+
+class JsonFileOutput(FileOutput):
+    """Writes finalized ingestion output to a JSON file."""
 
     async def dump(self, ctxs: list[IngestionContext[ResolvedResource]]) -> str:
         data = await json_dump_context(ctxs[0]) if len(ctxs) == 1 else {"runs": [await json_dump_context(ctx) for ctx in ctxs]}
         return json.dumps(data, indent=2)
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
-        self.path.write_text(await self.dump([ctx]))
-        return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
+        await asyncio.to_thread(self._write, await self.dump([ctx]), mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        self.path.write_text(await self.dump(ctxs))
-        return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": str(self.path)})
+        await asyncio.to_thread(self._write, await self.dump(ctxs), mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
 
 
 class StdoutOutput(Output):
     """Writes finalized ingestion output to stdout as JSON."""
 
     def __init__(self) -> None:
-        self._inner = JsonFileOutput(Path(os.devnull))
+        self._inner = JsonFileOutput(os.devnull)
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         print(await self._inner.dump([ctx]), file=sys.stdout)
@@ -170,13 +178,17 @@ class GraphStoreOutput(Output):
         return OutputResult(status=StepStatus.SUCCESS, metadata={"graph_nodes": len(kg_data.get("nodes", []))})
 
 
-def parse(value: str) -> Output:
-    if value == "-":
-        return StdoutOutput()
-    if value == "vector:default":
+def parse(value: str, format: str | None = None) -> Output:
+    format = format or {
+        "-": "json",
+        "vector:default": "vector",
+        "graph:default": "graph",
+    }.get(value, value.rsplit(".", 1)[-1].lower())
+
+    if format == "vector":
         return VectorStoreOutput(settings.vector_store.build())
-    if value == "graph:default":
+    if format == "graph":
         return GraphStoreOutput(settings.graph_store.build())
-    if Path(value).suffix == ".json":
-        return JsonFileOutput(Path(value))
-    raise ValueError(f"Unsupported output: {value}")
+    if format == "json":
+        return StdoutOutput() if value == "-" else JsonFileOutput(value)
+    raise ValueError(f"Unsupported output format: {format}")

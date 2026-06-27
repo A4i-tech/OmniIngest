@@ -4,6 +4,7 @@ from typing import Literal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import fsspec
 import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.capabilities import Hooks
@@ -382,16 +383,17 @@ async def test_page_chunking_agent(vector_store, resources_dir):
 
 @pytest.mark.asyncio
 async def test_json_file_output(vector_store, tmp_path):
-    output = JsonFileOutput(path=tmp_path / "items.json")
+    path = tmp_path / "items.json"
+    output = JsonFileOutput(path=str(path))
     ctx = create_ctx(vector_store, "resource")
     ctx.metadata["source"] = "unit"
     ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tag": "x"}), KnowledgeItem(raw_content=b"\xff", content_encoding="binary")]
 
     result = await output.write(ctx)
-    data = json.loads(output.path.read_text())
+    data = json.loads(path.read_text())
 
     assert result.status == StepStatus.SUCCESS
-    assert result.output_paths == {"json": str(output.path)}
+    assert result.output_paths == {"json": str(path)}
     assert data["resource"]["content"] == "resource"
     assert data["metadata"] == {"source": "unit"}
     assert data["items"][0]["content"] == "test"
@@ -405,6 +407,7 @@ async def test_parse_output_and_stdout(vector_store, tmp_path, capsys):
     assert isinstance(parse("-"), StdoutOutput)
     assert isinstance(parse(str(tmp_path / "items.json")), JsonFileOutput)
     assert isinstance(parse("vector:default"), VectorStoreOutput)
+    assert isinstance(parse(str(tmp_path / "items.yml"), "json"), JsonFileOutput)
     output = parse("-")
     ctx = create_ctx(vector_store, "resource")
 
@@ -413,6 +416,17 @@ async def test_parse_output_and_stdout(vector_store, tmp_path, capsys):
 
     assert result.status == StepStatus.SUCCESS
     assert data["resource"]["content"] == "resource"
+
+
+@pytest.mark.asyncio
+async def test_json_file_output_supports_fsspec_urls(vector_store):
+    output = parse("memory://omni-ingest/items.txt", "json")
+    ctx = create_ctx(vector_store, "resource")
+
+    await output.write(ctx)
+
+    with fsspec.open("memory://omni-ingest/items.txt", "rt") as f:
+        assert json.load(f)["resource"]["content"] == "resource"
 
 
 @pytest.mark.asyncio
