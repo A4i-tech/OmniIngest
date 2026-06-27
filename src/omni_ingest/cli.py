@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -16,7 +17,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings
 
 from omni_ingest.core import event  # noqa: E402
-from omni_ingest.core.model import PipelineConfig, Resource, StepStatus  # noqa: E402
+from omni_ingest.core.model import PipelineConfig, ResolvedResource, Resource, StepStatus  # noqa: E402
 from omni_ingest.core.output import parse as parse_output  # noqa: E402
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id  # noqa: E402
 
@@ -34,8 +35,9 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="omni-ingest", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("pipeline", type=Path, help="Pipeline YAML file")
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--input", nargs="+", type=TypeAdapter(Resource).validate_python, help="Resource URI or local path to ingest")
+    source.add_argument("--input", nargs="+", type=TypeAdapter(Resource).validate_python, help="Resource URI, local path, or '-' for stdin")
     source.add_argument("--resume", nargs="+", type=UUID, help="Pipeline run ID to resume")
+    parser.add_argument("--input-name", help="Filename hint for stdin input")
     parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
     parser.add_argument("--format", choices=["json"], help="Output format, overrides filename extension")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
@@ -49,8 +51,17 @@ def _parse_args() -> argparse.Namespace:
             kwargs.update(metavar=schema.get("type", "VALUE").upper(), type={"integer": int, "number": float, "string": str}.get(schema.get("type"), json.loads))
         parser.add_argument(f"--{name.replace('_', '-')}", **kwargs)
     args = parser.parse_args()
+    stdin = args.input and any(str(resource) == "-" for resource in args.input)
+    if stdin and len(args.input) != 1:
+        parser.error("stdin input '-' cannot be combined with other inputs")
+    if args.input_name and not stdin:
+        parser.error("--input-name requires --input -")
     args.params = {name: getattr(args, name) for name in properties if hasattr(args, name)}
     return args
+
+
+def _read_stdin(name: str | None) -> ResolvedResource:
+    return ResolvedResource(uri=name or "stdin://", raw_content=sys.stdin.buffer.read())
 
 
 async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]]) -> None:
@@ -91,7 +102,8 @@ async def _main() -> int:
             for run_id in args.resume
         ]
     else:
-        resolvers = ((input_path, create_pipeline_from_config(args.pipeline, config_args=args.params)) for input_path in args.input)
+        inputs = [_read_stdin(args.input_name)] if str(args.input[0]) == "-" else args.input
+        resolvers = ((input_path, create_pipeline_from_config(args.pipeline, config_args=args.params)) for input_path in inputs)
         jobs = [
             (Path(ctx.resource.uri).name, runner := create_pipeline_from_config(args.pipeline, config_args=args.params), ctx, runner.run(ctx))
             for input_path, resolver in resolvers
