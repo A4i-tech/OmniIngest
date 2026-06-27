@@ -13,6 +13,7 @@ from pypdf import PdfReader, PdfWriter
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
+from ..core.content import resource_pages_uri
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
@@ -72,7 +73,7 @@ class PageChunkingAgent(BaseModel, Step):
             ctx.progress(0, total, "reading pages")
             if self.mode == "pdf":
                 for i, _ in enumerate(reader.pages):
-                    items.append(KnowledgeItem(raw_content=b"", content_uri=f"omni-ingest://resource/page/{i + 1}", content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
+                    items.append(KnowledgeItem(raw_content=b"", content_uri=resource_pages_uri([i + 1]), content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
                     ctx.progress(i + 1, total, f"page {i + 1}/{total}")
             else:
                 for i, p in enumerate(reader.pages):
@@ -109,14 +110,20 @@ class PageStitchingAgent(BaseModel, Step):
             if not isinstance(ids, list) or not ids or any(item_id not in item_by_id for item_id in ids):
                 raise ValueError("PageStitchingAgent input must resolve to known item ids")
 
-            with io.BytesIO() as s, PdfWriter() as writer:
-                for item_id in ids:
-                    with io.BytesIO(await item_by_id[item_id].content(ctx)) as page_pdf, PdfReader(page_pdf) as reader:
-                        writer.append(reader)
-                for page in writer.pages:
-                    page.compress_content_streams()
-                writer.write(s)
-                stitched.append(KnowledgeItem(raw_content=s.getvalue(), content_encoding="binary", metadata=jq.compile(self.metadata).input_value(spec).first()))
+            items = [item_by_id[item_id] for item_id in ids]
+            pages = [page for item in items if isinstance(page := item.metadata.get("page"), int)]
+            metadata = jq.compile(self.metadata).input_value(spec).first()
+            if len(pages) == len(items) and all(item.content_uri == resource_pages_uri([page]) for item, page in zip(items, pages, strict=True)):
+                stitched.append(KnowledgeItem(raw_content=b"", content_uri=resource_pages_uri(pages), content_encoding="binary", metadata=metadata))
+            else:
+                with io.BytesIO() as s, PdfWriter() as writer:
+                    for item in items:
+                        with io.BytesIO(await item.content(ctx)) as page_pdf, PdfReader(page_pdf) as reader:
+                            writer.append(reader)
+                    for page in writer.pages:
+                        page.compress_content_streams()
+                    writer.write(s)
+                    stitched.append(KnowledgeItem(raw_content=s.getvalue(), content_encoding="binary", metadata=metadata))
             ctx.progress(i, len(specs), f"stitched {i}/{len(specs)}")
 
         if self.replace:

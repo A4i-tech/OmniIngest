@@ -16,21 +16,26 @@ if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
 
-async def resource_page(parsed: ParseResult, ctx: IngestionContext[ResolvedResource]) -> bytes | None:
+def resource_pages_uri(pages: list[int]) -> str:
+    return f"omni-ingest://resource/pages/{','.join(map(str, pages))}"
+
+
+async def resource_pages(parsed: ParseResult, ctx: IngestionContext[ResolvedResource]) -> bytes | None:
     if parsed.scheme != "omni-ingest" or parsed.netloc != "resource":
         return None
 
     parts = [p for p in parsed.path.split("/") if p]
-    if len(parts) != 2 or parts[0] != "page":
+    if len(parts) != 2 or parts[0] != "pages":
         return None
 
-    page_number = int(parts[1])
-    if page_number < 1:
-        raise ValueError(f"Invalid omni-ingest page number: {page_number}")
+    pages = [int(page) for page in parts[1].split(",")]
+    if any(page < 1 for page in pages):
+        raise ValueError(f"Invalid omni-ingest page numbers: {pages}")
 
     source = io.BytesIO(await ctx.resource.content(ctx))
     with source, PdfReader(source) as reader, io.BytesIO() as output, PdfWriter() as writer:
-        writer.add_page(reader.pages[page_number - 1])
+        for page in pages:
+            writer.add_page(reader.pages[page - 1])
         for pdf_page in writer.pages:
             pdf_page.compress_content_streams()
         writer.write(output)
@@ -70,4 +75,4 @@ class CompositeContentResolver(ContentResolver):
 
 
 def default():
-    return CompositeContentResolver(resolvers=[resource_page])
+    return CompositeContentResolver(resolvers=[resource_pages])

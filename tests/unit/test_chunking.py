@@ -132,7 +132,7 @@ async def test_page_chunking_pdf_mode_emits_virtual_page_items():
     assert result.metadata == {"page_count": 2, "mode": "pdf"}
     assert [item.metadata["page"] for item in result.items] == [1, 2]
     assert all(item.metadata["content_type"] == "application/pdf" for item in result.items)
-    assert [item.content_uri for item in result.items] == ["omni-ingest://resource/page/1", "omni-ingest://resource/page/2"]
+    assert [item.content_uri for item in result.items] == ["omni-ingest://resource/pages/1", "omni-ingest://resource/pages/2"]
     assert all(item.raw_content == b"" for item in result.items)
     assert all([len(PdfReader(io.BytesIO(await item.content(ctx))).pages) == 1 for item in result.items])
 
@@ -182,4 +182,6 @@ async def test_page_stitching_agent_combines_virtual_page_items():
 
     assert result.status == StepStatus.SUCCESS
     assert result.metadata == {"count": 1, "replace": True}
+    assert ctx.items[0].raw_content == b""
+    assert ctx.items[0].content_uri == "omni-ingest://resource/pages/1,3"
     assert len(PdfReader(io.BytesIO(await ctx.items[0].content(ctx))).pages) == 2

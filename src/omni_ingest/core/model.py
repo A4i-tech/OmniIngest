@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal, final
+from typing import TYPE_CHECKING, Annotated, Any, Literal, final, overload
 from uuid import UUID, uuid4
 
 import jq
 import magic
 from fastmcp.mcp_config import MCPServerTypes
 from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, Field, StrictBytes
-from pydantic_ai import Agent
+from pydantic_ai import Agent, AgentCapability
 from pydantic_ai.models import KnownModelName
+from pydantic_ai.output import OutputSpec
 
 from .config import settings
 
@@ -115,14 +117,22 @@ class AgentMixin:
     toolsets: list[str] = Field(default_factory=list, description="Toolsets to enable for the agent")
     retries: int | None = Field(default=None, description="Per-category retry budgets for tools and output validation")
 
+    @overload
+    def _agent(self, ctx: IngestionContext[Any], deps_type: type[object] = object, output_type: OutputSpec[str] = str, capabilities: Sequence[AgentCapability[object]] | None = None) -> Agent[object, str]: ...
+
+    @overload
+    def _agent[DepsT, OutputT](self, ctx: IngestionContext[Any], deps_type: type[DepsT], output_type: OutputSpec[OutputT], capabilities: Sequence[AgentCapability[DepsT]] | None = None) -> Agent[DepsT, OutputT]: ...
+
     @final
-    def _agent(self, ctx: IngestionContext[Any]) -> Agent:
+    def _agent(self, ctx: IngestionContext[Any], deps_type: type[Any] = object, output_type: OutputSpec[Any] = str, capabilities: Sequence[AgentCapability[Any]] | None = None) -> Agent[Any, Any]:
         from ..core.pipeline import PIPELINE_RUNNERS
         tool_vendors = PIPELINE_RUNNERS[ctx.run_id].toolsets
         missing = [ts for ts in self.toolsets if ts not in tool_vendors]
         if missing:
             raise ValueError(f"Toolsets not configured in context: {missing}")
-        return Agent(self.model or settings.default_chat_completion_model, toolsets=[tool_vendors[k] for k in self.toolsets], retries=self.retries)
+        model = self.model or settings.default_chat_completion_model
+        toolsets = [tool_vendors[k] for k in self.toolsets]
+        return Agent(model=model, toolsets=toolsets, retries=self.retries, deps_type=deps_type, output_type=output_type, capabilities=capabilities)
 
 
 type ValidationMode = Literal["before", "plain", "after"]

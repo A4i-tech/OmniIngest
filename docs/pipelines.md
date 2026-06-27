@@ -462,7 +462,7 @@ steps:
       replace: true
 ```
 
-`mode: pdf` does not copy page bytes into every item. It emits virtual page items with `content_uri` like `omni-ingest://resource/page/7`. Actual one-page PDF bytes are materialised only when a later step calls `await item.content(ctx)`. That keeps memory sane for fat textbooks.
+`mode: pdf` does not copy page bytes into every item. It emits virtual page items with `content_uri` like `omni-ingest://resource/pages/7`. Actual one-page PDF bytes are materialised only when a later step calls `await item.content(ctx)`. That keeps memory sane for fat textbooks.
 
 !!! note
     `page_stitching` can replace page items with stitched chapter PDFs. Leave `replace: true` when you only care about chapters. Set it false only if downstream work needs both pages and stitched outputs.

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
 from pydantic import BaseModel, Field, PositiveInt
-from pydantic_ai import BinaryContent, ModelRetry, NativeOutput
+from pydantic_ai import BinaryContent, ModelRetry, NativeOutput, RunContext, ToolDefinition
 from pydantic_ai.capabilities import Hooks
 
 if TYPE_CHECKING:
@@ -42,6 +43,12 @@ async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryCo
 class ExtractAssertion(BaseModel):
     expr: JqExpression = Field(..., description="jq expression that must evaluate truthy against extracted output")
     feedback: str = Field(..., description="Feedback sent to the model when the assertion fails")
+
+
+@dataclass
+class ExtractAgentDeps:
+    cursor: int
+    buffered_ids: tuple[str, ...]
 
 
 class ExtractAgent(BaseModel, Step, AgentMixin):
@@ -98,9 +105,25 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"items_processed": len(selected_docs), "path": self.path})
 
-    async def _extract(self, ctx: IngestionContext, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore, advance: Callable[[str], None]) -> tuple[dict[str, Any], Any]:
+    async def _extract(self, ingestion_ctx: IngestionContext, item_doc: Any, item_by_id: dict[str, KnowledgeItem], sem: asyncio.Semaphore, advance: Callable[[str], None]) -> tuple[dict[str, Any], Any]:
         async with sem:
-            agent = self._agent(ctx)
+            item_doc = cast(dict[str, Any], item_doc)
+            prompt_input = jq.compile(self.input).input_value(item_doc).first()
+            item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
+            prompt_context = jq.compile(self.context).input_value(item_doc).first() if self.context else None
+
+            user_prompt: str | list[Any]
+            if self.mode == "buffered":
+                user_prompt = self.prompt
+            elif item_ids:
+                user_prompt = [
+                    self.prompt,
+                    *([prompt_context] if prompt_context is not None else []),
+                    *[await _content(item_by_id[item_id], ingestion_ctx) for item_id in item_ids],
+                ]
+            else:
+                user_prompt = [self.prompt, *([prompt_context] if prompt_context is not None else []), prompt_input]
+
             hooks = Hooks()
 
             @hooks.on.after_output_process
@@ -111,41 +134,28 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
                     raise ModelRetry("\n".join(failures))
                 return output
 
-            item_doc = cast(dict[str, Any], item_doc)
-            prompt_input = jq.compile(self.input).input_value(item_doc).first()
-            item_ids: list[str] = prompt_input if isinstance(prompt_input, list) and all(item_id in item_by_id for item_id in prompt_input) else []
-            prompt_context = jq.compile(self.context).input_value(item_doc).first() if self.context else None
 
-            if self.mode == "buffered":
-                buffered_ids = tuple(item_ids)
-                cursor = 0
+            async def prepare_see_next(ctx: RunContext[ExtractAgentDeps], tool_def: ToolDefinition):
+                return tool_def if self.mode == "buffered" and ctx.deps.cursor < len(ctx.deps.buffered_ids) else None
 
-                @agent.tool_plain
-                async def see_next() -> list[Any]:
-                    nonlocal cursor
-                    if cursor >= len(buffered_ids):
-                        raise ModelRetry("You have read all items, you cannot use this tool anymore.")
-                    item = item_by_id[buffered_ids[cursor]]
-                    cursor += 1
-                    advance(f"read {cursor}/{len(buffered_ids)}")
-                    return [
-                        f"Physical page {item.metadata['page']}",
-                        await _content(item, ctx),
-                    ]
 
-                user_prompt: Any = self.prompt
-            elif item_ids:
-                contents = [await _content(item_by_id[item_id], ctx) for item_id in item_ids]
-                user_prompt = [
-                    self.prompt,
-                    *([prompt_context] if prompt_context is not None else []),
-                    *contents,
-                ]
-            else:
-                user_prompt = [self.prompt, *([prompt_context] if prompt_context is not None else []), prompt_input]
+            agent = self._agent(ingestion_ctx, deps_type=ExtractAgentDeps, output_type=NativeOutput(self._output_type(item_doc), strict=True), capabilities=[hooks])
 
-            res = await agent.run(user_prompt, output_type=NativeOutput(self._output_type(item_doc), strict=True), capabilities=[hooks])
+            @agent.tool(prepare=prepare_see_next, sequential=True)
+            async def see_next(ctx: RunContext[ExtractAgentDeps]) -> list[Any]:
+                if ctx.deps.cursor >= len(ctx.deps.buffered_ids):
+                    return ["No pages remain. Return the structured output now."]
+                item = item_by_id[ctx.deps.buffered_ids[ctx.deps.cursor]]
+                ctx.deps.cursor += 1
+                advance(f"read {ctx.deps.cursor}/{len(ctx.deps.buffered_ids)}")
+                content = [f"Physical page {item.metadata['page']}"]
+                if ctx.deps.cursor >= len(ctx.deps.buffered_ids):
+                    content.append("This is the final page, you can no longer call this tool.")
+                return [*content, await _content(item, ingestion_ctx)]
+
+            res = await agent.run(user_prompt, deps=ExtractAgentDeps(cursor=0, buffered_ids=tuple(item_ids)))
             return item_doc, res.output.model_dump(mode="json")["output"]
+
 
 class TransformAgent(BaseModel, Step):
     """Applies jq transforms to root metadata."""

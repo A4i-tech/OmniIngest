@@ -64,9 +64,10 @@ def _read_stdin(name: str | None) -> ResolvedResource:
     return ResolvedResource(uri=name or "stdin://", raw_content=sys.stdin.buffer.read())
 
 
-async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]]) -> None:
+async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]], summary: TaskID) -> None:
     async for e in event.subscribe(populate_with_buffered=False):
         if isinstance(e, event.PipelineBeginEvent):
+            progress.advance(summary, len(e.completed_steps))
             for step in e.completed_steps:
                 task_id, label = tasks[id(step)]
                 progress.update(task_id, completed=1, description=f"{label} [green]success[/green]")
@@ -82,6 +83,7 @@ async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]]) -> N
         elif isinstance(e, event.PipelineStepProgressEvent):
             progress.update(task_id, total=e.total or 1, completed=e.completed, description=f"{label} [cyan]running[/cyan]" + (f" [dim]{e.message}[/dim]" if e.message else ""))
         elif isinstance(e, event.PipelineStepEndEvent):
+            progress.advance(summary)
             if e.step_result.status == StepStatus.SUCCESS:
                 progress.update(task_id, total=1, completed=1, description=f"{label} [green]success[/green]")
             else:
@@ -112,10 +114,11 @@ async def _main() -> int:
 
     console = Console(stderr=True)
     console.print("\n".join(f"Pipeline run [bold]{ctx.run_id}[/bold] ({name})" for name, _, ctx, _ in jobs))
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), TimeElapsedColumn(), TextColumn("ETA"), TimeRemainingColumn(), console=console, redirect_stdout=True, redirect_stderr=True, disable=args.quiet) as p:
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(bar_width=None), TimeElapsedColumn(), TextColumn("ETA"), TimeRemainingColumn(), console=console, redirect_stdout=True, redirect_stderr=True, disable=args.quiet) as p:
         labels = {id(step): f"{name} {i:02d} {runner.step_descriptions.get(id(step)) or lookup_step_id(step) or type(step).__name__}" for name, runner, _, _ in jobs for i, step in enumerate(runner.steps, 1)}
         tasks = {step_id: (p.add_task(f"{label} [dim]pending[/dim]", total=1, start=False), label) for step_id, label in labels.items()}
-        listener = None if args.quiet else asyncio.create_task(_events(p, tasks))
+        summary = p.add_task("[bold]total[/bold]", total=len(tasks))
+        listener = None if args.quiet else asyncio.create_task(_events(p, tasks, summary))
         if listener:
             await asyncio.sleep(0)
         try:
