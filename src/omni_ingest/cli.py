@@ -32,13 +32,13 @@ def _parse_args() -> argparse.Namespace:
     properties = parameters.get("properties", {})
 
     parser = argparse.ArgumentParser(prog="omni-ingest", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("pipeline", type=Path)
+    parser.add_argument("pipeline", type=Path, help="Pipeline YAML file")
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--input", nargs="+", type=TypeAdapter(Resource).validate_python)
-    source.add_argument("--resume", nargs="+", type=UUID)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--format")
-    parser.add_argument("-q", "--quiet", action="store_true")
+    source.add_argument("--input", nargs="+", type=TypeAdapter(Resource).validate_python, help="Resource URI or local path to ingest")
+    source.add_argument("--resume", nargs="+", type=UUID, help="Pipeline run ID to resume")
+    parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
+    parser.add_argument("--format", choices=["json"], help="Output format, overrides filename extension")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
     for name, schema in properties.items():
         kwargs = {"default": schema.get("default", argparse.SUPPRESS), "help": schema.get("description"), "required": name in parameters.get("required", [])}
         if "enum" in schema:
