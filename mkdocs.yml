@@ -59,6 +59,7 @@ markdown_extensions:
 
 nav:
   - Home: README.md
+  - Command-line usage: cli.md
   - Pipeline playbook: pipelines.md
   - Working with event stream: events.md
   - API Reference: api.md
