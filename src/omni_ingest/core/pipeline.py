@@ -26,16 +26,14 @@ from pydantic_ai import AbstractToolset
 from pydantic_ai.embeddings import Embedder
 from pydantic_ai.mcp import MCPToolset
 
-from omni_ingest.core.content import ContentResolver
-from omni_ingest.core.content import default as default_content_resolver
-
 from .. import agent
 from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
+from ..port.content import default_content_resolver
 from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
 from .output import Output, OutputResult
-from .protocol import MetadataStore, VectorStore
+from .protocol import ContentResolver, MetadataStore, VectorStore
 
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 

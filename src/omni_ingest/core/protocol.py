@@ -3,16 +3,34 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic import PositiveInt
 
 from ..db import PipelineVersion, Tenant
-from .model import KnowledgeItem, PipelineCheckpoint
+from .model import KnowledgeItem, PipelineCheckpoint, ResolvedResource
+
+if TYPE_CHECKING:
+    from .pipeline import IngestionContext
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 type JsonObject = dict[str, JsonValue]
+
+
+@runtime_checkable
+class ContentResolver(Protocol):
+    """Resolve virtual content URIs into bytes during ingestion.
+
+    `ByteContent.content(ctx)` delegates to `ctx.content_resolver` whenever an
+    item has `content_uri` instead of inline `raw_content`. Implementations can
+    use full ingestion context to resolve routes against source resources,
+    object stores, caches, or other pipeline-scoped state.
+    """
+
+    async def resolve(self, uri: str, ctx: IngestionContext[ResolvedResource]) -> bytes:
+        """Return resolved bytes or raise `ValueError` when URI is unsupported."""
+        ...
 
 
 @runtime_checkable
