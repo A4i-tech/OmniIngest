@@ -1,4 +1,6 @@
 import io
+import json
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from pypdf import PdfReader, PdfWriter
@@ -185,3 +187,32 @@ async def test_page_stitching_agent_combines_virtual_page_items():
     assert ctx.items[0].raw_content == b""
     assert ctx.items[0].content_uri == "omni-ingest://resource/pages/1,3"
     assert len(PdfReader(io.BytesIO(await ctx.items[0].content(ctx))).pages) == 2
+
+
+@pytest.mark.asyncio
+async def test_page_stitching_agent_chains_virtual_stitches():
+    with PdfWriter() as writer, io.BytesIO() as pdf:
+        for _ in range(4):
+            writer.add_blank_page(width=72, height=72)
+        writer.write(pdf)
+        ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=pdf.getvalue()))
+
+    await PageChunkingAgent(mode="pdf").run(ctx)
+    ids = [str(item.id) for item in ctx.items]
+    await PageStitchingAgent(
+        foreach=f'[{{"ids": ["{ids[0]}", "{ids[1]}"]}}, {{"ids": ["{ids[2]}", "{ids[3]}"]}}][]',
+        input=".ids",
+    ).run(ctx)
+    stitched_ids = [str(item.id) for item in ctx.items]
+
+    await PageStitchingAgent(
+        foreach=f'{{"ids": ["{stitched_ids[0]}", "{stitched_ids[1]}"]}}',
+        input=".ids",
+    ).run(ctx)
+
+    item = ctx.items[0]
+    assert item.content_uri is not None
+    recipe = json.loads(parse_qs(urlparse(item.content_uri).query)["recipe"][0])
+    assert item.raw_content == b""
+    assert recipe == {"op": "pdf.concat", "inputs": ["omni-ingest://resource/pages/1,2", "omni-ingest://resource/pages/3,4"]}
+    assert len(PdfReader(io.BytesIO(await item.content(ctx))).pages) == 4

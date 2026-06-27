@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
-from ..core.content import resource_page
+from ..core.content import content_chain, resource_page
 from ..core.model import ResolvedResource
 
 if TYPE_CHECKING:
@@ -27,4 +27,4 @@ class CompositeContentResolver:
 
 
 def default_content_resolver() -> ContentResolver:
-    return CompositeContentResolver(resolvers=[resource_page])
+    return CompositeContentResolver(resolvers=[resource_page, content_chain])

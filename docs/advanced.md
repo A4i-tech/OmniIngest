@@ -280,7 +280,7 @@ omni-ingest://resource/pages/7
 omni-ingest://resource/pages/7,8,9,10
 ```
 
-`page_chunking` in PDF mode emits one-page virtual items. `page_stitching` keeps a stitch virtual when every selected item still points to original source pages. Combined PDF is built only when a consumer asks for content.
+`page_chunking` in PDF mode emits one-page virtual items. `page_stitching` flattens source pages into one short route. Stitching virtual stitches produces an encoded `pdf.concat` chain instead. Combined PDF is built only when a consumer asks for content.
 
 ```yaml
 steps:
@@ -304,7 +304,7 @@ steps:
       replace: true
 ```
 
-Rasterisation, model input, or JSON output materialises bytes because those consumers need real content. Arbitrary PDF items also use eager stitching because they may already contain edits which cannot be reconstructed from source page numbers.
+Rasterisation, model input, or JSON output materialises bytes because those consumers need real content. Items with inline bytes use eager stitching. Virtual inputs can remain virtual across repeated stitching.
 
 !!! tip
     Select pages before rasterisation. Virtual stitch costs almost nothing. Rasterising whole textbook then selecting twelve pages does expensive work in wrong order.

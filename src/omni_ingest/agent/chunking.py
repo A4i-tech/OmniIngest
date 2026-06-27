@@ -13,7 +13,7 @@ from pypdf import PdfReader, PdfWriter
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.content import resource_pages_uri
+from ..core.content import content_chain_uri, resource_pages_uri
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
@@ -112,9 +112,12 @@ class PageStitchingAgent(BaseModel, Step):
 
             items = [item_by_id[item_id] for item_id in ids]
             pages = [page for item in items if isinstance(page := item.metadata.get("page"), int)]
+            uris = [item.content_uri for item in items if item.content_uri]
             metadata = jq.compile(self.metadata).input_value(spec).first()
             if len(pages) == len(items) and all(item.content_uri == resource_pages_uri([page]) for item, page in zip(items, pages, strict=True)):
                 stitched.append(KnowledgeItem(raw_content=b"", content_uri=resource_pages_uri(pages), content_encoding="binary", metadata=metadata))
+            elif len(uris) == len(items):
+                stitched.append(KnowledgeItem(raw_content=b"", content_uri=content_chain_uri("pdf.concat", uris), content_encoding="binary", metadata=metadata))
             else:
                 with io.BytesIO() as s, PdfWriter() as writer:
                     for item in items:

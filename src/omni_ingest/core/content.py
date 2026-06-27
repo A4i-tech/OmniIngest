@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import io
+import json
 from typing import TYPE_CHECKING
-from urllib.parse import ParseResult
+from urllib.parse import ParseResult, parse_qs, quote
 
 from pypdf import PdfReader, PdfWriter
 
@@ -16,6 +17,11 @@ if TYPE_CHECKING:
 
 def resource_pages_uri(pages: list[int]) -> str:
     return f"omni-ingest://resource/pages/{','.join(map(str, pages))}"
+
+
+def content_chain_uri(operation: str, inputs: list[str]) -> str:
+    recipe = json.dumps({"op": operation, "inputs": inputs}, separators=(",", ":"), sort_keys=True)
+    return f"omni-ingest://chain?recipe={quote(recipe, safe='')}"
 
 
 async def resource_page(parsed: ParseResult, ctx: IngestionContext[ResolvedResource]) -> bytes | None:
@@ -36,5 +42,23 @@ async def resource_page(parsed: ParseResult, ctx: IngestionContext[ResolvedResou
             writer.add_page(reader.pages[page - 1])
         for pdf_page in writer.pages:
             pdf_page.compress_content_streams()
+        writer.write(output)
+        return output.getvalue()
+
+
+async def content_chain(parsed: ParseResult, ctx: IngestionContext[ResolvedResource]) -> bytes | None:
+    if parsed.scheme != "omni-ingest" or parsed.netloc != "chain":
+        return None
+
+    recipe = json.loads(parse_qs(parsed.query)["recipe"][0])
+    if recipe.get("op") != "pdf.concat" or not isinstance(recipe.get("inputs"), list):
+        raise ValueError(f"Unsupported content chain recipe: {recipe}")
+
+    with io.BytesIO() as output, PdfWriter() as writer:
+        for uri in recipe["inputs"]:
+            with io.BytesIO(await ctx.content_resolver.resolve(uri, ctx)) as pdf, PdfReader(pdf) as reader:
+                writer.append(reader)
+        for page in writer.pages:
+            page.compress_content_streams()
         writer.write(output)
         return output.getvalue()
