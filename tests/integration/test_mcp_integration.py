@@ -17,11 +17,12 @@ class MCPCallingAgent(BaseModel, Step, AgentMixin):
         class CleanedBarkdownModel(BaseModel):
             bark: str = Field(..., description="The bark text")
 
-        response = await self._agent(ctx).run(
-            instructions="You are a bark agent. Bark is a custom homegrown format. Convert the user input to bark format.",
-            user_prompt=await ctx.items[0].decode(ctx),
-            output_type=CleanedBarkdownModel,
-        )
+        async with self._agent(ctx) as agent:
+            response = await agent.run(
+                instructions="You are a bark agent. Bark is a custom homegrown format. Convert the user input to bark format.",
+                user_prompt=await ctx.items[0].decode(ctx),
+                output_type=CleanedBarkdownModel,
+            )
         return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(raw_content=response.output.bark.encode())], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
 
 def create_runner(config: dict[str, Any]):

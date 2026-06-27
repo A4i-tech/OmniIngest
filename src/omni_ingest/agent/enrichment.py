@@ -153,7 +153,8 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
                     content.append("This is the final page, you can no longer call this tool.")
                 return [*content, await _content(item, ingestion_ctx)]
 
-            res = await agent.run(user_prompt, deps=ExtractAgentDeps(cursor=0, buffered_ids=tuple(item_ids)))
+            async with agent:
+                res = await agent.run(user_prompt, deps=ExtractAgentDeps(cursor=0, buffered_ids=tuple(item_ids)))
             return item_doc, res.output.model_dump(mode="json")["output"]
 
 

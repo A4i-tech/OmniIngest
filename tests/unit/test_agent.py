@@ -188,15 +188,15 @@ async def test_extract_agent_assertions_register_model_retry_validator(vector_st
     pydantic_agent = PydanticAgent("test")
     output_type = agent._output_type(None)
 
-    with patch.object(agent, "_agent", return_value=pydantic_agent):
+    with patch.object(agent, "_agent", return_value=pydantic_agent) as mock_agent:
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_run:
             mock_run.return_value.output = output_type(output={"overall_score": 0.4, "issues": ["too short"]})
             result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata["quality_report"]["overall_score"] == 0.4
-    assert mock_run.await_args.kwargs["output_type"].outputs.model_json_schema() == output_type.model_json_schema()
-    assert isinstance(mock_run.await_args.kwargs["capabilities"][0], Hooks)
+    assert mock_agent.call_args.kwargs["output_type"].outputs.model_json_schema() == output_type.model_json_schema()
+    assert isinstance(mock_agent.call_args.kwargs["capabilities"][0], Hooks)
 
 
 def test_extract_agent_runtime_schema():

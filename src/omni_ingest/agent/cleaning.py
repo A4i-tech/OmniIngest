@@ -28,7 +28,8 @@ class MarkdownCleaningAgent(BaseModel, Step, AgentMixin):
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         text = await ctx.resource.decode(ctx)
-        resp = await self._agent(ctx).run(self.prompt_template.format(text=text))
+        async with self._agent(ctx) as agent:
+            resp = await agent.run(self.prompt_template.format(text=text))
         cleaned = resp.output or ""
         ctx.resource.raw_content = cleaned.encode(ctx.resource.content_encoding)
         ctx.resource.content_uri = None
@@ -48,7 +49,8 @@ class TranscriptionPostProcessorAgent(BaseModel, Step, AgentMixin):
         if not await ctx.resource.content(ctx):
             return StepResult(status=StepStatus.SKIPPED, error="No transcript")
         prompt = f"Improve the following audio transcript by fixing punctuation and correcting common STT errors. Output ONLY the improved text.\n\n{await ctx.resource.decode(ctx)}"
-        resp = await self._agent(ctx).run(prompt)
+        async with self._agent(ctx) as agent:
+            resp = await agent.run(prompt)
         ctx.resource.raw_content = resp.output.encode(ctx.resource.content_encoding)
         ctx.resource.content_uri = None
         return StepResult(status=StepStatus.SUCCESS)

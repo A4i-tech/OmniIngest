@@ -75,10 +75,8 @@ class TextAgent(BaseModel, Step, AgentMixin):
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):
-            result = await self._agent(ctx).run(
-                [BinaryContent(data=stream.read(), media_type=content_type)],
-                instructions=self.image_conversion_prompt,
-            )
+            async with self._agent(ctx) as agent:
+                result = await agent.run([BinaryContent(data=stream.read(), media_type=content_type)], instructions=self.image_conversion_prompt)
             return result.output, {"selected_parser": "image"}
 
         raise ValueError(f"Unsupported data URI MIME type: {content_type!r}")
