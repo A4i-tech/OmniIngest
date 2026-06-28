@@ -123,6 +123,17 @@ async def test_pipeline_before_validation_prevents_step_execution(metadata_store
 
 
 @pytest.mark.asyncio
+async def test_pipeline_condition_skips_step(metadata_store, tmp_path):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "condition", "expr": "false", "message": "not requested"}]}]}))
+
+    results = await create_pipeline_from_config(path).run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+
+    assert results[0].status == StepStatus.SKIPPED
+    assert results[0].error == "not requested"
+
+
+@pytest.mark.asyncio
 async def test_pipeline_after_validation_fails_with_interpolated_message(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
     path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "after", "expr": "false", "message": "bad chunk size ${.result.metadata.chunk_size}"}]}]}))

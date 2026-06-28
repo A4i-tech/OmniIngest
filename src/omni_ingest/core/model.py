@@ -135,16 +135,17 @@ class AgentMixin:
         return Agent(model=model, toolsets=toolsets, retries=self.retries, deps_type=deps_type, output_type=output_type, capabilities=capabilities)
 
 
-type ValidationMode = Literal["before", "plain", "after"]
+type ValidationMode = Literal["condition", "before", "plain", "after"]
 
 
 class ValidationCheck(BaseModel):
     """
     A jq validation attached to a pipeline step.
 
-    `before` checks run before the step. `after` checks run after a successful step
-    and can inspect `.result`. `plain` checks run before the step, but when they
-    pass, they stop the remaining validation chain for that step.
+    `condition` checks skip the step when false. `before` checks run before the
+    step. `after` checks run after a successful step and can inspect `.result`.
+    `plain` checks run before the step, but when they pass, they stop the remaining
+    validation chain for that step.
     """
 
     mode: ValidationMode = Field(..., description="When the validation runs relative to the step")

@@ -251,6 +251,8 @@ class PipelineRunner:
     async def _run_step(self, ctx: IngestionContext[ResolvedResource], step_name: str, step: Step, validation: list[ValidationCheck]) -> StepResult:
         token = _CURRENT_STEP.set((step_name, step))
         try:
+            if skipped := self._validate(ctx, validation, {"condition"})[0]:
+                return skipped.model_copy(update={"status": StepStatus.SKIPPED})
             failed, stop_validation = self._validate(ctx, validation, {"before", "plain"})
             if failed:
                 return failed
