@@ -154,6 +154,8 @@ class PipelineRunner:
             raise ValueError("Metadata store required in context")
 
         ctx = await self._resolve_resource_single(ctx)
+        if not ctx.items:
+            ctx.items = [KnowledgeItem(raw_content=ctx.resource.raw_content, content_uri=ctx.resource.content_uri, content_encoding=ctx.resource.content_encoding, metadata=ctx.resource.metadata.copy(), tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)]
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
         await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, 0))
         return await self._execute(ctx, output, 0)

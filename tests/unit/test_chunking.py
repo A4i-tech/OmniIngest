@@ -10,6 +10,11 @@ from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 
 
+def create_ctx(content: bytes) -> IngestionContext[ResolvedResource]:
+    resource = ResolvedResource(uri="", raw_content=content)
+    return IngestionContext(resource=resource, items=[KnowledgeItem(raw_content=content)])
+
+
 @pytest.mark.asyncio
 async def test_chunking_with_default_params():
     agent = SentenceChunkingAgent()
@@ -17,7 +22,7 @@ async def test_chunking_with_default_params():
     assert agent.chunk_size == 512
     assert agent.overlap == 50
 
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b"Hello world. This is a test. Another sentence."))
+    ctx = create_ctx(b"Hello world. This is a test. Another sentence.")
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -51,7 +56,7 @@ async def test_chunking_with_custom_params():
     assert agent.overlap == 20
 
     long_text = "This is a sentence. " * 20
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=long_text.encode()))
+    ctx = create_ctx(long_text.encode())
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -63,7 +68,7 @@ async def test_chunking_respects_sentence_boundaries():
     agent = SentenceChunkingAgent(chunk_size=50, overlap=10)
 
     text = "First sentence here. Second sentence follows. Third one too."
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=text.encode()))
+    ctx = create_ctx(text.encode())
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -76,7 +81,7 @@ async def test_chunking_short_text():
     agent = SentenceChunkingAgent(chunk_size=500, overlap=50)
 
     short_text = "This is a short text."
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=short_text.encode()))
+    ctx = create_ctx(short_text.encode())
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -89,7 +94,7 @@ async def test_chunking_includes_position_metadata():
     agent = SentenceChunkingAgent(chunk_size=50, overlap=0)
 
     text = "First part. Second part. Third part."
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=text.encode()))
+    ctx = create_ctx(text.encode())
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -102,7 +107,7 @@ async def test_chunking_includes_position_metadata():
 async def test_chunking_empty_text():
     agent = SentenceChunkingAgent()
 
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
+    ctx = create_ctx(b"")
     result = await agent.run(ctx)
     assert result.status == StepStatus.SKIPPED
 
@@ -112,7 +117,7 @@ async def test_chunking_whitespace_normalization():
     agent = SentenceChunkingAgent()
 
     text = "Hello    world.\n\n\nThis   has   extra    spaces."
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=text.encode()))
+    ctx = create_ctx(text.encode())
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
@@ -126,7 +131,7 @@ async def test_page_chunking_pdf_mode_emits_virtual_page_items():
         writer.add_blank_page(width=72, height=72)
         writer.add_blank_page(width=72, height=72)
         writer.write(pdf)
-        ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=pdf.getvalue()))
+        ctx = create_ctx(pdf.getvalue())
 
     result = await PageChunkingAgent(mode="pdf").run(ctx)
 
@@ -170,7 +175,7 @@ async def test_page_stitching_agent_combines_virtual_page_items():
         writer.add_blank_page(width=72, height=72)
         writer.add_blank_page(width=72, height=72)
         writer.write(pdf)
-        ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=pdf.getvalue()))
+        ctx = create_ctx(pdf.getvalue())
 
     await PageChunkingAgent(mode="pdf").run(ctx)
     ids = [str(item.id) for item in ctx.items]
@@ -195,7 +200,7 @@ async def test_page_stitching_agent_chains_virtual_stitches():
         for _ in range(4):
             writer.add_blank_page(width=72, height=72)
         writer.write(pdf)
-        ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=pdf.getvalue()))
+        ctx = create_ctx(pdf.getvalue())
 
     await PageChunkingAgent(mode="pdf").run(ctx)
     ids = [str(item.id) for item in ctx.items]

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from omni_ingest.agent.chunking import TimedChunkingAgent
-from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.parser import read_resources
 
@@ -12,7 +12,7 @@ from omni_ingest.parser import read_resources
 async def test_timed_chunking_from_word_timestamps():
     ctx = IngestionContext(
         resource=ResolvedResource(uri="", raw_content=b""),
-        metadata={
+        items=[KnowledgeItem(metadata={
             "word_timestamps": [
                 {"Word": "Hello", "Offset": 10000000, "Duration": 2000000},
                 {"Word": "world", "Offset": 15000000, "Duration": 2000000},
@@ -20,7 +20,7 @@ async def test_timed_chunking_from_word_timestamps():
                 {"Word": "is", "Offset": 410000000, "Duration": 2000000},
                 {"Word": "audio", "Offset": 420000000, "Duration": 2000000},
             ]
-        }
+        })]
     )
 
     chunker = TimedChunkingAgent(segment_duration="00:00:10")

@@ -360,6 +360,7 @@ async def test_data_lineage_agent(vector_store):
 async def test_page_chunking_agent(vector_store, resources_dir):
     with (resources_dir / "when-tomorrow-was-yesterday.pdf").open(mode="rb") as f:
         ctx = create_ctx(vector_store, f.read())
+    ctx.items = [KnowledgeItem(raw_content=ctx.resource.raw_content)]
     result = await PageChunkingAgent().run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert len(ctx.items) == 12
@@ -456,7 +457,7 @@ async def test_timed_chunking_agent(vector_store):
     agent = TimedChunkingAgent(segment_duration="00:00:00.100000")
 
     ctx = create_ctx(vector_store, "test")
-    ctx.metadata["word_timestamps"] = [{"Word": "test", "Offset": 0, "Duration": 2000000}]
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"word_timestamps": [{"Word": "test", "Offset": 0, "Duration": 2000000}]})]
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
 

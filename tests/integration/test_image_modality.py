@@ -12,7 +12,7 @@ async def test_text_agent_converts_image_to_text(metadata_store, resources_dir):
 
     result = (await PipelineRunner([TextAgent()]).run(ctx))[0]
 
-    text = (await ctx.resource.decode(ctx)).lower()
+    text = (await ctx.items[0].decode(ctx)).lower()
     assert result.status == StepStatus.SUCCESS
-    assert ctx.resource.metadata["selected_parser"] == "image"
+    assert ctx.items[0].metadata["selected_parser"] == "image"
     assert any(word in text for word in ["shelf", "store", "supermarket", "product", "package"])

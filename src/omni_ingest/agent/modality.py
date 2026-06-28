@@ -41,10 +41,9 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        await self.convert(ctx, ctx.resource, ctx.resource.uri)
         for item in ctx.items:
             await self.convert(ctx, item, item.source_uri or ctx.resource.uri)
-        return StepResult(status=StepStatus.SUCCESS, metadata={"content_type": await ctx.resource.content_type(ctx)})
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"content_types": [await item.content_type(ctx) for item in ctx.items]})
 
 
     async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:

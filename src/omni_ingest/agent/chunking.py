@@ -30,10 +30,13 @@ class SentenceChunkingAgent(BaseModel, Step):
     overlap: NonNegativeInt = Field(default=50, description="Character overlap between adjacent chunks")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if not await ctx.resource.content(ctx):
+        if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
-        encoding = ctx.resource.content_encoding
-        text, chunks, pos = " ".join((await ctx.resource.decode(ctx)).split()), [], 0
+        source = ctx.items[0]
+        if not await source.content(ctx):
+            return StepResult(status=StepStatus.SKIPPED, error="No text")
+        encoding = source.content_encoding
+        text, chunks, pos = " ".join((await source.decode(ctx)).split()), [], 0
         while pos < len(text):
             end = min(pos + self.chunk_size, len(text))
             if end < len(text):
@@ -43,7 +46,7 @@ class SentenceChunkingAgent(BaseModel, Step):
                     end = pos + max(breaks) + 1
             chunks.append((text[pos:end].strip(), pos))
             pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
-        ctx.items = [KnowledgeItem(raw_content=c.encode(encoding), tenant_id=ctx.tenant_id, content_encoding=encoding, metadata={"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
+        ctx.items = [KnowledgeItem(raw_content=c.encode(encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, content_encoding=encoding, metadata=source.metadata | {"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
         return StepResult(
             status=StepStatus.SUCCESS,
             items=ctx.items,
@@ -63,23 +66,24 @@ class PageChunkingAgent(BaseModel, Step):
     mode: Literal["text", "pdf"] = Field(default="text", description="Whether to emit extracted page text or single-page PDFs")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if (ct := await ctx.resource.content_type(ctx)) != "application/pdf":
+        if not ctx.items:
+            return StepResult(status=StepStatus.SKIPPED, error="No document")
+        source = ctx.items[0]
+        if (ct := await source.content_type(ctx)) != "application/pdf":
             raise ValueError(f"Expected a document, got {ct}")
 
-        enc = ctx.resource.content_encoding
+        enc = source.content_encoding
         items = []
-        with io.BytesIO(await ctx.resource.content(ctx)) as s, PdfReader(stream=s) as reader:
+        with io.BytesIO(await source.content(ctx)) as s, PdfReader(stream=s) as reader:
             total = len(reader.pages)
             ctx.progress(0, total, "reading pages")
-            if self.mode == "pdf":
-                for i, _ in enumerate(reader.pages):
-                    items.append(KnowledgeItem(raw_content=b"", content_uri=resource_pages_uri([i + 1]), content_encoding=enc, metadata={"page": i + 1, "content_type": ct}))
-                    ctx.progress(i + 1, total, f"page {i + 1}/{total}")
-            else:
-                for i, p in enumerate(reader.pages):
-                    if (text := p.extract_text()).strip():
-                        items.append(KnowledgeItem(raw_content=text.encode(enc), content_encoding=enc, metadata={"page": i + 1, "content_type": "text/plain"}))
-                    ctx.progress(i + 1, total, f"page {i + 1}/{total}")
+            for i, page in enumerate(reader.pages, 1):
+                metadata = source.metadata | {"page": i, "content_type": "application/pdf" if self.mode == "pdf" else "text/plain"}
+                if self.mode == "pdf":
+                    items.append(KnowledgeItem(content_uri=resource_pages_uri([i]), content_encoding=enc, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+                elif text := page.extract_text().strip():
+                    items.append(KnowledgeItem(raw_content=text.encode(enc), content_encoding=enc, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+                ctx.progress(i, total, f"page {i}/{total}")
         ctx.items = items
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items), "mode": self.mode})
 
@@ -180,9 +184,9 @@ class TimedChunkingAgent(BaseModel, Step):
         return int(self.pause_threshold.total_seconds() * 10_000_000) if self.pause_threshold else None
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        words = ctx.metadata.get("word_timestamps")
-        if not words:
-            return StepResult(status=StepStatus.SKIPPED, error="No word_timestamps found in metadata")
+        if not ctx.items or not (words := ctx.items[0].metadata.get("word_timestamps")):
+            return StepResult(status=StepStatus.SKIPPED, error="No word_timestamps found in items")
+        source = ctx.items[0]
 
         chunks: list[KnowledgeItem] = []
         current_chunk_words: list[dict[str, Any]] = []
@@ -196,7 +200,7 @@ class TimedChunkingAgent(BaseModel, Step):
             if (offset + duration - start_tick) > self.segment_duration_ticks and current_chunk_words:
                 text = " ".join([cw["Word"] for cw in current_chunk_words])
                 metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
-                chunks.append(KnowledgeItem(raw_content=text.encode(ctx.resource.content_encoding), content_encoding=ctx.resource.content_encoding, metadata=metadata))
+                chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
                 current_chunk_words = [w]
                 start_tick = offset
             else:
@@ -205,7 +209,7 @@ class TimedChunkingAgent(BaseModel, Step):
         if current_chunk_words:
             text = " ".join([cw["Word"] for cw in current_chunk_words])
             metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
-            chunks.append(KnowledgeItem(raw_content=text.encode(ctx.resource.content_encoding), content_encoding=ctx.resource.content_encoding, metadata=metadata))
+            chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
 
         ctx.items = chunks
         return StepResult(status=StepStatus.SUCCESS, items=chunks, metadata={"chunk_count": len(chunks)})
