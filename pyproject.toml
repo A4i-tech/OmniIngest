@@ -32,6 +32,7 @@ dependencies = [
     "logfire>=4.37.0",
     "rich>=15.0.0",
     "pymupdf>=1.27.2.3",
+    "sqlmodel>=0.0.39",
 ]
 
 [project.scripts]

@@ -9,8 +9,7 @@ from uuid import UUID
 
 from pydantic import PositiveInt
 
-from ..db import PipelineVersion, Tenant
-from .model import KnowledgeItem, PipelineCheckpoint, ResolvedResource
+from .model import KnowledgeItem, PipelineCheckpoint, PipelineVersion, ResolvedResource, Tenant
 
 if TYPE_CHECKING:
     from .pipeline import IngestionContext

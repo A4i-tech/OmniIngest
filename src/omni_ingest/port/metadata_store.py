@@ -7,11 +7,11 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlmodel import SQLModel, col
 
 from ..core.config import settings
-from ..core.model import KnowledgeItem, PipelineCheckpoint
+from ..core.model import KnowledgeItem, KnowledgeItemRecord, Pipeline, PipelineCheckpoint, PipelineCheckpointRecord, PipelineRunRecord, PipelineStepRunRecord, PipelineVersion, Tenant
 from ..core.protocol import JsonObject, MetadataStore
-from ..db import Base, KnowledgeItemRecord, Pipeline, PipelineCheckpointRecord, PipelineRun, PipelineStepRun, PipelineVersion, Tenant
 
 
 class SQLAlchemyMetadataStore(MetadataStore):
@@ -35,7 +35,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             if self._init:
                 return
             async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(SQLModel.metadata.create_all)
             self._init = True
 
     async def close(self):
@@ -53,7 +53,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def get_tenant(self, slug: str) -> Tenant | None:
         await self._init_db()
         async with self.session_factory() as s:
-            return (await s.execute(select(Tenant).where(Tenant.slug == slug))).scalar_one_or_none()
+            return (await s.execute(select(Tenant).where(col(Tenant.slug) == slug))).scalar_one_or_none()
 
     async def create_tenant(self, slug: str, display_name: str) -> Tenant:
         await self._init_db()
@@ -66,7 +66,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def create_pipeline_run(self, tenant_id: UUID, pipeline_version_id: UUID, source_uri: str, id: UUID | None = None) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
-            r = PipelineRun(
+            r = PipelineRunRecord(
                 id=id or uuid4(),
                 tenant_id=tenant_id,
                 pipeline_version_id=pipeline_version_id,
@@ -81,7 +81,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def update_pipeline_run(self, run_id: UUID, status: str, completed_at: datetime | None = None, error: str | None = None) -> None:
         await self._init_db()
         async with self.session_factory() as s:
-            r = await s.get(PipelineRun, run_id)
+            r = await s.get(PipelineRunRecord, run_id)
             if r:
                 r.status, r.completed_at, r.error_message = status, completed_at, error
                 await s.commit()
@@ -111,7 +111,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def create_step_run(self, run_id: UUID, step_name: str) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
-            st = PipelineStepRun(pipeline_run_id=run_id, step_name=step_name, status="running", started_at=datetime.now(UTC))
+            st = PipelineStepRunRecord(pipeline_run_id=run_id, step_name=step_name, status="running", started_at=datetime.now(UTC))
             s.add(st)
             await s.commit()
             return st.id
@@ -119,7 +119,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def update_step_run(self, step_id: UUID, status: str, metadata: JsonObject | None = None, error: str | None = None) -> None:
         await self._init_db()
         async with self.session_factory() as s:
-            st = await s.get(PipelineStepRun, step_id)
+            st = await s.get(PipelineStepRunRecord, step_id)
             if st:
                 st.status, st.metadata_ = status, metadata or st.metadata_
                 if error:
@@ -148,13 +148,13 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 domain_profile=domain_profile,
                 modality=modality,
                 source_uri=source_uri,
-                content=content,
+                content=content or b"",
                 pipeline_version_id=pipeline_version_id,
                 title=title,
                 description=description,
                 structured_views=structured_views,
                 lineage=lineage,
-                metadata_=metadata,
+                metadata_=metadata or {},
             )
             s.add(i)
             await s.commit()
@@ -164,49 +164,34 @@ class SQLAlchemyMetadataStore(MetadataStore):
         await self._init_db()
         async with self.session_factory() as s:
             if r := await s.get(KnowledgeItemRecord, item_id):
-                return KnowledgeItem(
-                    id=r.id,
-                    tenant_id=r.tenant_id,
-                    source_uri=r.source_uri,
-                    raw_content=r.content or b"",
-                    metadata=r.metadata_ or {},
-                )
+                return KnowledgeItem.model_validate(r)
             return None
 
     async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
         await self._init_db()
         async with self.session_factory() as s:
-            q = select(KnowledgeItemRecord).where(KnowledgeItemRecord.tenant_id == tenant_id)
+            q = select(KnowledgeItemRecord).where(col(KnowledgeItemRecord.tenant_id) == tenant_id)
             if domain_profile:
-                q = q.where(KnowledgeItemRecord.domain_profile == domain_profile)
+                q = q.where(col(KnowledgeItemRecord.domain_profile) == domain_profile)
             for k, v in filters.items():
                 q = q.where(getattr(KnowledgeItemRecord, k) == v)
             records = (await s.execute(q)).scalars().all()
-            return [
-                KnowledgeItem(
-                    id=r.id,
-                    tenant_id=r.tenant_id,
-                    source_uri=r.source_uri,
-                    raw_content=r.content or b"",
-                    metadata=r.metadata_ or {},
-                )
-                for r in records
-            ]
+            return [KnowledgeItem.model_validate(r) for r in records]
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         await self._init_db()
         async with self.session_factory() as s:
-            return (await s.execute(select(PipelineVersion).join(Pipeline).where(Pipeline.name == pipeline_name, PipelineVersion.version == version))).scalar_one_or_none()
+            return (await s.execute(select(PipelineVersion).join(Pipeline).where(col(Pipeline.name) == pipeline_name, col(PipelineVersion.version) == version))).scalar_one_or_none()
 
     async def get_default_pipeline_version(self, pipeline_name: str) -> PipelineVersion | None:
         await self._init_db()
         async with self.session_factory() as s:
-            return (await s.execute(select(PipelineVersion).join(Pipeline).where(Pipeline.name == pipeline_name, PipelineVersion.is_default))).scalar_one_or_none()
+            return (await s.execute(select(PipelineVersion).join(Pipeline).where(col(Pipeline.name) == pipeline_name, col(PipelineVersion.is_default)))).scalar_one_or_none()
 
     async def upsert_pipeline(self, name: str, domain_profile: str) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
-            p = (await s.execute(select(Pipeline).where(Pipeline.name == name))).scalar_one_or_none()
+            p = (await s.execute(select(Pipeline).where(col(Pipeline.name) == name))).scalar_one_or_none()
             if not p:
                 p = Pipeline(name=name, domain_profile=domain_profile)
                 s.add(p)
@@ -218,7 +203,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
     async def upsert_pipeline_version(self, pipeline_id: UUID, version: str, yaml_profile_name: str, is_default: bool = False) -> UUID:
         await self._init_db()
         async with self.session_factory() as s:
-            pv = (await s.execute(select(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.version == version))).scalar_one_or_none()
+            pv = (await s.execute(select(PipelineVersion).where(col(PipelineVersion.pipeline_id) == pipeline_id, col(PipelineVersion.version) == version))).scalar_one_or_none()
             if not pv:
                 pv = PipelineVersion(pipeline_id=pipeline_id, version=version, yaml_profile_name=yaml_profile_name, is_default=is_default)
                 s.add(pv)
@@ -226,7 +211,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
                 pv.yaml_profile_name, pv.is_default = yaml_profile_name, is_default
             await s.flush()
             if is_default:
-                await s.execute(update(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline_id, PipelineVersion.id != pv.id).values(is_default=False))
+                await s.execute(update(PipelineVersion).where(col(PipelineVersion.pipeline_id) == pipeline_id, col(PipelineVersion.id) != pv.id).values(is_default=False))
             await s.commit()
             return pv.id
 

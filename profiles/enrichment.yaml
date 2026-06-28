@@ -7,6 +7,7 @@ parameters:
 steps:
   - agent: extract
     config:
+      foreach: '.items[] | select(.text != null)'
       path: ".metadata"
       prompt: "${.config.prompt}"
       schema:

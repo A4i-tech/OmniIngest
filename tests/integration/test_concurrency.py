@@ -52,9 +52,9 @@ async def test_parallel_pipeline_execution(metadata_store, tenant):
     async with metadata_store.session_factory() as s:
         from sqlalchemy import func, select
 
-        from omni_ingest.port.metadata_store import PipelineStepRun
+        from omni_ingest.core.model import PipelineStepRunRecord
 
-        res = await s.execute(select(func.count(PipelineStepRun.id)))
+        res = await s.execute(select(func.count(PipelineStepRunRecord.id)))
         count = res.scalar()
         assert count == num_runs
 

@@ -489,13 +489,7 @@ class KnowledgeBaseAdapter:
     async def get(self, item_id: UUID) -> KnowledgeItem | None:
         return await self.metadata_store.get_knowledge_item(item_id)
 
-    async def query_text(
-        self,
-        tenant_id: UUID,
-        query: str,
-        k: PositiveInt = 5,
-        domain_profile: str | None = None,
-    ) -> list[KnowledgeItem]:
+    async def query_text(self, tenant_id: UUID, query: str, k: PositiveInt = 5, domain_profile: str | None = None) -> list[KnowledgeItem]:
         try:
             res = await self.embedder.embed_query(query)
             emb = list(res.embeddings[0])

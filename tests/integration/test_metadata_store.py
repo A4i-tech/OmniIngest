@@ -6,10 +6,9 @@ import pytest
 from sqlalchemy import update
 
 from omni_ingest.agent.governance import IngestionLoggerAgent
-from omni_ingest.core.model import KnowledgeItem, PipelineCheckpoint, ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, PipelineCheckpoint, PipelineCheckpointRecord, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
-from omni_ingest.db import PipelineCheckpointRecord
 from omni_ingest.port.metadata_store import NullMetadataStore
 
 
@@ -155,9 +154,9 @@ async def test_db_registry_logging(metadata_store):
     async with metadata_store.session_factory() as s:
         from sqlalchemy import select
 
-        from omni_ingest.port.metadata_store import PipelineStepRun
+        from omni_ingest.core.model import PipelineStepRunRecord
 
-        res = await s.execute(select(PipelineStepRun).where(PipelineStepRun.pipeline_run_id == ctx.run_id))
+        res = await s.execute(select(PipelineStepRunRecord).where(PipelineStepRunRecord.pipeline_run_id == ctx.run_id))
         rows = res.scalars().all()
         assert len(rows) == 1
         assert rows[0].status == "success"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal, final, overload
@@ -16,6 +17,9 @@ from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, Field, Stric
 from pydantic_ai import Agent, AgentCapability
 from pydantic_ai.models import KnownModelName
 from pydantic_ai.output import OutputSpec
+from sqlalchemy import JSON, Column, LargeBinary
+from sqlmodel import Field as SQLField
+from sqlmodel import SQLModel
 
 from .config import settings
 
@@ -78,10 +82,87 @@ class KnowledgeItem(ByteContent):
     """
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    raw_content: StrictBytes = Field(default=b"", alias="content")
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the knowledge item")
     tenant_id: UUID | None = Field(default=None, description="Identifier for the associated tenant or organization")
     source_uri: str | None = Field(default=None, description="Origin URI of the raw data")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary key-value pairs for additional contextual information")
+    metadata: dict[str, Any] = Field(default_factory=dict, alias="metadata_", description="Arbitrary key-value pairs for additional contextual information")
+
+
+class Tenant(SQLModel, table=True):
+    __tablename__ = "tenants"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    slug: str
+    display_name: str
+    created_at: datetime = SQLField(default_factory=datetime.now)
+
+
+class Pipeline(SQLModel, table=True):
+    __tablename__ = "pipelines"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    name: str
+    domain_profile: str
+    created_at: datetime = SQLField(default_factory=datetime.now)
+
+
+class PipelineVersion(SQLModel, table=True):
+    __tablename__ = "pipeline_versions"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    pipeline_id: UUID = SQLField(foreign_key="pipelines.id")
+    version: str
+    yaml_profile_name: str
+    is_default: bool = False
+    created_at: datetime = SQLField(default_factory=datetime.now)
+
+
+class PipelineRunRecord(SQLModel, table=True):
+    __tablename__ = "pipeline_runs"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    tenant_id: UUID = SQLField(foreign_key="tenants.id")
+    pipeline_version_id: UUID = SQLField(foreign_key="pipeline_versions.id")
+    source_uri: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
+
+
+class PipelineCheckpointRecord(SQLModel, table=True):
+    __tablename__ = "pipeline_checkpoints"  # pyright: ignore[reportAssignmentType]
+    pipeline_run_id: UUID = SQLField(foreign_key="pipeline_runs.id", primary_key=True)
+    checkpoint: bytes = SQLField(sa_column=Column(LargeBinary, nullable=False))
+
+
+class PipelineStepRunRecord(SQLModel, table=True):
+    __tablename__ = "pipeline_step_runs"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    pipeline_run_id: UUID = SQLField(foreign_key="pipeline_runs.id")
+    step_name: str
+    status: str
+    output_paths: dict[str, Any] | None = SQLField(default=None, sa_column=Column(JSON))
+    metadata_: dict[str, Any] | None = SQLField(default=None, sa_column=Column("metadata", JSON))
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class KnowledgeItemRecord(SQLModel, table=True):
+    __tablename__ = "knowledge_items"  # pyright: ignore[reportAssignmentType]
+    id: UUID = SQLField(default_factory=uuid4, primary_key=True)
+    tenant_id: UUID = SQLField(foreign_key="tenants.id")
+    domain_profile: str
+    modality: str
+    source_uri: str
+    content: bytes = SQLField(default=b"", sa_column=Column(LargeBinary, nullable=False))
+    embeddings: list[dict[str, Any]] | None = SQLField(default=None, sa_column=Column(JSON))
+    pipeline_version_id: UUID | None = SQLField(default=None, foreign_key="pipeline_versions.id")
+    title: str | None = None
+    description: str | None = None
+    structured_views: dict[str, Any] | None = SQLField(default=None, sa_column=Column(JSON))
+    lineage: dict[str, Any] | None = SQLField(default=None, sa_column=Column(JSON))
+    metadata_: dict[str, Any] = SQLField(default_factory=dict, sa_column=Column("metadata", JSON))
+    created_at: datetime = SQLField(default_factory=datetime.now)
+    updated_at: datetime = SQLField(default_factory=datetime.now)
 
 
 class PipelineCheckpoint(BaseModel):

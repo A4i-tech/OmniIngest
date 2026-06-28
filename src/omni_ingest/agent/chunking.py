@@ -185,6 +185,7 @@ class TimedChunkingAgent(BaseModel, Step):
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         if not ctx.items or not (words := ctx.items[0].metadata.get("word_timestamps")):
+            ctx.items = []
             return StepResult(status=StepStatus.SKIPPED, error="No word_timestamps found in items")
         source = ctx.items[0]
 
