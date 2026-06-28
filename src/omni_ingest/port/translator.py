@@ -84,11 +84,20 @@ class AzureTranslator:
         if not strings:
             return data
 
-        html = ElementTree.Element("div")
+        batches = [ElementTree.Element("div")]
+        size = 11
         for key, value in strings.items():
-            ElementTree.SubElement(html, "div", id=key).text = value
-        root = ElementTree.fromstring(await self._translate(src, dst, ElementTree.tostring(html, encoding="unicode"), "Html"))
-        flat.update({element.attrib["id"]: "".join(element.itertext()) for element in root})
+            element = ElementTree.Element("div", id=key)
+            element.text = value
+            length = len(ElementTree.tostring(element, encoding="unicode"))
+            if size + length > 49_000:
+                batches.append(ElementTree.Element("div"))
+                size = 11
+            batches[-1].append(element)
+            size += length
+        for html in batches:
+            root = ElementTree.fromstring(await self._translate(src, dst, ElementTree.tostring(html, encoding="unicode"), "Html"))
+            flat.update({element.attrib["id"]: "".join(element.itertext()) for element in root})
         return unflatten(flat, mapping)
 
     async def _translate(self, src: str | None, dst: str, text: str, text_type: str) -> str:

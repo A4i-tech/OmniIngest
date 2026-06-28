@@ -55,6 +55,14 @@ async def test_azure_translator_preserves_root_list(translator):
     assert result == [{"title": "Bonjour"}, {"title": "Merci"}]
 
 
+async def test_azure_translator_batches_large_structured_input(translator):
+    data = {"first": "a" * 25_000, "second": "b" * 25_000}
+
+    result = await translator.translate("en", "fr", data)
+
+    assert result.keys() == data.keys()
+
+
 async def test_translate_agent_translates_metadata_in_place():
     ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), metadata={"lesson": {"title": "Hello", "count": 2}})
 
