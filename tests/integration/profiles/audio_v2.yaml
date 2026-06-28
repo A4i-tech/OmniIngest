@@ -4,7 +4,11 @@ input_modality: audio
 description: "Advanced audio pipeline with transcription post-processing"
 steps:
   - agent: text
-  - agent: transcription_post_processor
+  - agent: prompt
+    config:
+      prompt: "Improve this transcript by fixing punctuation and common speech-to-text errors. Output only improved text."
+      input: .items | map(.text) | join("\n")
+      path: .metadata.transcript
   - agent: timed_chunking
     config:
       segment_duration: 60

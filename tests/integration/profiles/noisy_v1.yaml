@@ -4,9 +4,11 @@ input_modality: document
 description: "Pipeline optimized for noisy/boilerplate HTML and poor formatting"
 steps:
   - agent: text
-  - agent: markdown_cleaning
+  - agent: prompt
     config:
-      prompt_template: "Extract only the core lesson content from this noisy data. Remove all navigation, footers, and ads. Output cleaned markdown.\n\n{text}"
+      prompt: "Extract only core lesson content. Remove navigation, footers, and adverts. Output only cleaned Markdown."
+      input: .items | map(.text) | join("\n")
+      path: .metadata.cleaned_markdown
   - agent: quality
     config:
       prompt_template: "Verify if this cleaned content is readable and coherent. Return JSON with 'overall_score' and 'issues'."

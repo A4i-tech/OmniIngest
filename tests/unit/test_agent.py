@@ -10,11 +10,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai.capabilities import Hooks
 
 from omni_ingest.agent.chunking import PageChunkingAgent
-from omni_ingest.agent.cleaning import (
-    MarkdownCleaningAgent,
-    TranscriptionPostProcessorAgent,
-)
-from omni_ingest.agent.enrichment import ExtractAgent, TransformAgent
+from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAgent
 from omni_ingest.agent.governance import DataLineageAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
@@ -28,28 +24,16 @@ def create_ctx(store, content):
 
 
 @pytest.mark.asyncio
-async def test_markdown_cleaning_agent(vector_store):
+async def test_prompt_agent(vector_store):
     from pydantic_ai import Agent as PydanticAgent
-    agent = MarkdownCleaningAgent()
+    agent = PromptAgent(prompt="Clean this Markdown. Output only cleaned Markdown.", input=".metadata.text", path=".metadata.cleaned")
 
     ctx = create_ctx(vector_store, "## Raw")
+    ctx.metadata["text"] = "## Raw"
     with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["## Clean"])):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
-        assert await ctx.resource.content(ctx) == b"## Clean"
-
-
-@pytest.mark.asyncio
-async def test_transcription_post_processor_agent(vector_store):
-    from pydantic_ai import Agent as PydanticAgent
-    agent = TranscriptionPostProcessorAgent()
-
-    ctx = create_ctx(vector_store, "hello")
-    with patch.object(agent, "_agent", return_value=PydanticAgent("test", output_type=Literal["Hello"])):
-        result = await agent.run(ctx)
-
-        assert result.status == StepStatus.SUCCESS
-        assert await ctx.resource.content(ctx) == b"Hello"
+        assert ctx.metadata["cleaned"] == "## Clean"
 
 
 @pytest.mark.asyncio

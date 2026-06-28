@@ -100,8 +100,7 @@ _STEP_FACTORY: StepFactory = {
     "page_stitching": agent.chunking.PageStitchingAgent,
     "timed_chunking": agent.chunking.TimedChunkingAgent,
 
-    "markdown_cleaning": agent.cleaning.MarkdownCleaningAgent,
-    "transcription_post_processor": agent.cleaning.TranscriptionPostProcessorAgent,
+    "prompt": agent.enrichment.PromptAgent,
 
     "extract": agent.enrichment.ExtractAgent,
     "transform": agent.enrichment.TransformAgent,

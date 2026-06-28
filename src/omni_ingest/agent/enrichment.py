@@ -172,6 +172,22 @@ class TransformAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
 
 
+class PromptAgent(BaseModel, Step, AgentMixin):
+    """Write model output to pipeline metadata."""
+
+    prompt: str = Field(description="Instructions for rewriting content")
+    input: JqExpression = Field(..., description="jq expression selecting prompt input")
+    path: JqExpression = Field(..., description="jq path where model output is written")
+
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        doc = await _doc(ctx, text=True)
+        value = jq.compile(self.input).input_value(doc).first()
+        async with self._agent(ctx) as agent:
+            result = await agent.run([self.prompt, value])
+        ctx.metadata = _assign(doc, self.path, result.output)["metadata"]
+        return StepResult(status=StepStatus.SUCCESS)
+
+
 class TranslateAgent(BaseModel, Step):
     """Translates text or structured metadata in place."""
 

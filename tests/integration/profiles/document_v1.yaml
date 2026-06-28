@@ -4,7 +4,11 @@ input_modality: document
 description: "Standard pipeline with markdown cleaning and page-based chunking"
 steps:
   - agent: text
-  - agent: markdown_cleaning
+  - agent: prompt
+    config:
+      prompt: "Clean Markdown formatting and remove boilerplate. Output only cleaned Markdown."
+      input: .items | map(.text) | join("\n")
+      path: .metadata.cleaned_markdown
   - agent: page_chunking
   - agent: enrichment
   - agent: embedding
