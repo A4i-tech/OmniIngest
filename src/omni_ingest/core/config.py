@@ -88,7 +88,7 @@ class AzureVectorSearchStoreConfig(BaseModel):
 class ChromaVectorStoreConfig(BaseModel):
     type: Literal["chroma"] = "chroma"
     collection_name: str = "default"
-    path: DirectoryPath | NewPath = DirectoryPath("./chroma_data")
+    path: DirectoryPath | NewPath = Path("./chroma_data")
 
     def build(self):
         from ..port.vector_store import ChromaVectorStore
