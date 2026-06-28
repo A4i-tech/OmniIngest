@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, overload, runtime_checkable
 from uuid import UUID
 
 from pydantic import PositiveInt
@@ -16,6 +17,26 @@ if TYPE_CHECKING:
 
 type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 type JsonObject = dict[str, JsonValue]
+
+
+@runtime_checkable
+class Translator(Protocol):
+    """Translate text or string values in a nested dictionary."""
+
+    async def __aenter__(self) -> Translator: ...
+
+    async def __aexit__(self, exc_type, exc, tb) -> None: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: str) -> str: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: dict[str, Any], skip_fields: Iterable[str] = ()) -> dict[str, Any]: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: list[Any], skip_fields: Iterable[str] = ()) -> list[Any]: ...
+
+    async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]: ...
 
 
 @runtime_checkable

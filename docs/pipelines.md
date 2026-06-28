@@ -251,7 +251,7 @@ Notice where validation sits. It belongs to step that produces `quality_report`.
 
 ## Step validation
 
-Validation is a guard around a step. It is not another agent. It runs inside pipeline runner and returns a failed `StepResult` when a jq expression is false.
+Validation controls whether a step may run and whether its result is good enough to keep. Most false checks fail pipeline. A false `condition` check skips its step instead.
 
 ```yaml
 validation:
@@ -262,7 +262,7 @@ validation:
 
 Every check has:
 
-- `mode`: `before`, `after`, or `plain`.
+- `mode`: `condition`, `before`, `after`, or `plain`.
 - `expr`: jq expression that must be truthy.
 - `message`: error text. `${...}` runs jq against validation document.
 
@@ -273,6 +273,30 @@ metadata: root metadata
 items: current items with id, source_uri, and metadata
 result: step result for after checks only
 ```
+
+`condition` runs first. Use it for optional work rather than making an agent understand pipeline parameters it does not need.
+
+```yaml
+parameters:
+  properties:
+    translate_to:
+      type: [string, "null"]
+      default: null
+
+steps:
+  - agent: translate
+    validation:
+      - mode: condition
+        expr: '${if .config.translate_to == null then "false" else "true" end}'
+        message: Translation not requested
+    config:
+      src: en
+      dst: '${.config.translate_to // ""}'
+      input: ".metadata.publication"
+      path: ".metadata.publication_translated"
+```
+
+With no target language this step is recorded as skipped and pipeline carries on. A configured language runs translation as normal. Skip reason comes from `message`.
 
 `before` runs before step. Use it when later work makes no sense without some existing state.
 
@@ -324,6 +348,24 @@ steps:
 This is ideal after item-level extraction. Let model extract key terms per chunk. Let jq fold them into one clean list.
 
 Implementation detail: transform uses same assignment helper as extract. If existing target and new value are both objects, fields merge. Otherwise target is replaced.
+
+## Translating structured output
+
+`translate` reads text, an object, or an ordered list from `input`. Translated data is written to `path`, so source metadata can remain available for later steps.
+
+```yaml
+- agent: translate
+  config:
+    src: null
+    dst: cy
+    input: ".metadata.publication"
+    path: ".metadata.publication_welsh"
+    skip_fields:
+      - "*.record_id"
+      - "*.sections.*.section_id"
+```
+
+`src: null` asks provider to detect source language. `skip_fields` uses shell-style patterns against paths such as `0.record_id` or `0.sections.2.section_id`. Matching values are not sent for translation. This is useful for identifiers, enum values, URLs, and other strings that must stay put.
 
 ## Stages
 

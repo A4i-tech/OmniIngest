@@ -17,7 +17,9 @@ from pydantic_ai.capabilities import Hooks
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
+from ..core.config import KnownTranslationModelName, settings
 from ..core.model import AgentMixin, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
+from ..port.translator import create_translator
 
 
 def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
@@ -167,4 +169,22 @@ class TransformAgent(BaseModel, Step):
     async def run(self, ctx: IngestionContext) -> StepResult:
         doc = await _doc(ctx)
         ctx.metadata = _assign(doc, self.path, jq.compile(self.value).input_value(doc).first())["metadata"]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
+
+
+class TranslateAgent(BaseModel, Step):
+    """Translates text or structured metadata in place."""
+
+    src: str | None = Field(..., description="Source language or null for automatic detection")
+    dst: str = Field(..., description="Destination language")
+    input: JqExpression = Field(..., description="jq expression selecting data to translate")
+    path: JqExpression = Field(..., description="jq path where translated data is written")
+    skip_fields: list[str] = Field(default_factory=list, description="Field path patterns excluded from translation")
+    model: KnownTranslationModelName = Field(default=settings.default_translation_model, description="Translation model")
+
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        doc = await _doc(ctx)
+        async with create_translator(self.model) as translator:
+            output = await translator.translate(self.src, self.dst, jq.compile(self.input).input_value(doc).first(), self.skip_fields)
+        ctx.metadata = _assign(doc, self.path, output)["metadata"]
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})

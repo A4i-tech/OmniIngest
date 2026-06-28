@@ -275,6 +275,20 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-ai-translation-text"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/10/ea00242bd7483e8a34ae58557f422d3c35088a7b3315493f269903bbdbf7/azure_ai_translation_text-2.0.0.tar.gz", hash = "sha256:a467c87a7c7a2602447fbc882b7ca8a93471b2957ec15b9b6c2b76dbed7dcc72", size = 103907, upload-time = "2026-05-29T01:17:12.538Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/c3/06ca8c3bb18cd666e4eadf05dcb5950ffce574068c60521366bacbbacc6b/azure_ai_translation_text-2.0.0-py3-none-any.whl", hash = "sha256:e07d0c90c11606b4f94f430b1ae75dc2f69e8fb4dfa06b666ec0a803db5c323f", size = 105231, upload-time = "2026-05-29T01:17:13.881Z" },
+]
+
+[[package]]
 name = "azure-cognitiveservices-speech"
 version = "1.50.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3052,6 +3066,7 @@ source = { editable = "." }
 dependencies = [
     { name = "adlfs" },
     { name = "aiosqlite" },
+    { name = "azure-ai-translation-text" },
     { name = "azure-cognitiveservices-speech" },
     { name = "datamodel-code-generator" },
     { name = "fastmcp" },
@@ -3137,6 +3152,7 @@ dev = [
 requires-dist = [
     { name = "adlfs", specifier = ">=2026.5.0" },
     { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "azure-ai-translation-text", specifier = ">=2.0.0" },
     { name = "azure-cognitiveservices-speech", specifier = ">=1.50.0" },
     { name = "azure-search-documents", marker = "extra == 'storage'", specifier = ">=12.0.0" },
     { name = "chromadb", marker = "extra == 'storage'", specifier = ">=1.5.9" },

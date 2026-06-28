@@ -11,6 +11,8 @@ from pydantic_ai.embeddings import KnownEmbeddingModelName
 from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+type KnownTranslationModelName = Literal["azure"]
+
 
 class InMemoryVectorStoreConfig(BaseModel):
     type: Literal["in_memory"] = "in_memory"
@@ -135,6 +137,9 @@ class Settings(BaseSettings):
     default_embedding_model: KnownEmbeddingModelName | str = "openai:text-embedding-3-small"
     """Default embedding completion model to use during pipeline execution"""
 
+    default_translation_model: KnownTranslationModelName = "azure"
+    """Default translation model to use during pipeline execution"""
+
     metadata_store: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
@@ -149,6 +154,12 @@ class Settings(BaseSettings):
 
     azure_speech_region: str | None = None
     """Azure Speech SDK service region"""
+
+    azure_translation_key: SecretStr | None = None
+    """Azure Translator subscription key"""
+
+    azure_translation_region: str | None = None
+    """Azure Translator service region"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
