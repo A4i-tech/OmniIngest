@@ -126,6 +126,19 @@ async def test_chunking_whitespace_normalization():
 
 
 @pytest.mark.asyncio
+async def test_sentence_chunking_selects_items_and_custom_boundaries():
+    selected = KnowledgeItem(raw_content=b"Section one; Section two; Section three", metadata={"kind": "paragraph"})
+    ignored = KnowledgeItem(raw_content=b"Ignore this", metadata={"kind": "caption"})
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), items=[selected, ignored])
+
+    result = await SentenceChunkingAgent(chunk_size=20, overlap=0, foreach='.items[] | select(.metadata.kind == "paragraph")', separators=["; "]).run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert all(item.metadata["kind"] == "paragraph" for item in result.items)
+    assert b"Ignore" not in b" ".join([await item.content(ctx) for item in result.items])
+
+
+@pytest.mark.asyncio
 async def test_page_chunking_pdf_mode_emits_virtual_page_items():
     with PdfWriter() as writer, io.BytesIO() as pdf:
         writer.add_blank_page(width=72, height=72)

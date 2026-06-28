@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 from uuid import NAMESPACE_URL, uuid5
 
+import jq
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import KnowledgeItem, ResolvedResource
+from ..core.model import JqExpression, KnowledgeItem, ResolvedResource
 from ..core.protocol import MetadataStore
 
 type DeduplicationScope = Literal["source", "tenant"]
@@ -26,7 +28,7 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 
 class DeduplicationResult(BaseModel):
-    """Outcome of applying deduplication to a batch of chunks."""
+    """Outcome of applying deduplication to a batch of items."""
 
     kept_items: list[KnowledgeItem]
     input_count: int
@@ -36,7 +38,7 @@ class DeduplicationResult(BaseModel):
 
 
 class DeduplicationStrategy(BaseModel, ABC):
-    """Base class for chunk deduplication strategies."""
+    """Base class for item deduplication strategies."""
 
     model_config = ConfigDict(extra="forbid")
     kind: str
@@ -49,28 +51,21 @@ class DeduplicationStrategy(BaseModel, ABC):
 class ScopedDeduplicationStrategy(DeduplicationStrategy, ABC):
     """Deduplication strategy that can operate within a tenant or a source."""
 
-    scope: DeduplicationScope = Field(default="source", description="Scope used to compare a chunk against previously indexed chunks")
+    scope: DeduplicationScope = Field(default="source", description="Scope used to compare an item against previously indexed items")
+    existing: JqExpression = Field(default='.items[] | select(.metadata.vector_store != null)', description="jq expression selecting stored items for comparison")
 
-    async def _existing_chunks(self, ctx: IngestionContext[ResolvedResource]) -> list[KnowledgeItem]:
+    async def _existing_items(self, ctx: IngestionContext[ResolvedResource]) -> list[KnowledgeItem]:
         store = ctx.store
         if not isinstance(store, MetadataStore):
             return []
 
         if self.scope == "tenant":
             items = await store.list_knowledge_items(ctx.tenant_id)
-            return [item for item in items if item.metadata.get("kind") == "chunk"]
-
-        source_uri = ctx.resource.uri
-        if source_uri:
-            items = await store.list_knowledge_items(tenant_id=ctx.tenant_id, source_uri=source_uri)
-            return [item for item in items if item.metadata.get("kind") == "chunk"]
-
-        if knowledge_item_id := ctx.metadata.get("knowledge_item_id"):
-            parent_id = str(knowledge_item_id)
-            items = await store.list_knowledge_items(ctx.tenant_id)
-            return [item for item in items if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == parent_id]
-
-        return []
+        else:
+            items = await store.list_knowledge_items(tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)
+        item_by_id = {str(item.id): item for item in items}
+        selected = jq.compile(self.existing).input_value(await _item_document(items, ctx)).all()
+        return [item_by_id[item["id"]] for item in selected]
 
 
 class NoDeduplicationStrategy(DeduplicationStrategy):
@@ -84,16 +79,17 @@ class NoDeduplicationStrategy(DeduplicationStrategy):
 
 
 class DeterministicIdDeduplicationStrategy(ScopedDeduplicationStrategy):
-    """Assigns stable IDs to chunks and skips IDs that already exist."""
+    """Assigns stable IDs to items and skips IDs that already exist."""
 
     kind: Literal["deterministic_id"] = "deterministic_id"
+    identity: JqExpression = Field(default="[.tenant_id, .source_uri, .text]", description="jq expression producing stable item identity")
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
-        seen_ids = {v for chunk in await self._existing_chunks(ctx) if isinstance(v := chunk.metadata.get(_DETERMINISTIC_ID_KEY), str)}
+        seen_ids = {v for item in await self._existing_items(ctx) if isinstance(v := item.metadata.get(_DETERMINISTIC_ID_KEY), str)}
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            identity = await _deterministic_identity(item, ctx)
+            identity = json.dumps(jq.compile(self.identity).input_value((await _item_document([item], ctx))["items"][0]).first(), sort_keys=True, separators=(",", ":"))
             deterministic_id = str(uuid5(NAMESPACE_URL, identity))
             item.id = uuid5(NAMESPACE_URL, identity)
             item.metadata[_DETERMINISTIC_ID_KEY] = deterministic_id
@@ -112,14 +108,14 @@ class DeterministicIdDeduplicationStrategy(ScopedDeduplicationStrategy):
 
 
 class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
-    """Deduplicates chunks using a hash of normalized text."""
+    """Deduplicates text items using a hash of normalized text."""
 
     kind: Literal["normalized_text_hash"] = "normalized_text_hash"
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
         seen_hashes = {
-            _normalized_text_hash(await chunk.decode(ctx), cast(str | None, chunk.metadata.get(_NORMALIZED_TEXT_HASH_KEY)))
-            for chunk in await self._existing_chunks(ctx)
+            _normalized_text_hash(await item.decode(ctx), cast(str | None, item.metadata.get(_NORMALIZED_TEXT_HASH_KEY)))
+            for item in await self._existing_items(ctx)
         }
         kept_items: list[KnowledgeItem] = []
 
@@ -141,14 +137,14 @@ class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
 
 
 class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
-    """Deduplicates chunks using Jaccard similarity over token shingles."""
+    """Deduplicates text items using Jaccard similarity over token shingles."""
 
     kind: Literal["shingle_jaccard"] = "shingle_jaccard"
     threshold: float = Field(default=0.9, ge=0.0, le=1.0, description="Minimum Jaccard similarity that counts as a duplicate")
     shingle_size: PositiveInt = Field(default=3, description="Token shingle size used for near-duplicate detection")
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
-        seen_shingles = [_shingles(await chunk.decode(ctx), self.shingle_size) for chunk in await self._existing_chunks(ctx)]
+        seen_shingles = [_shingles(await item.decode(ctx), self.shingle_size) for item in await self._existing_items(ctx)]
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
@@ -174,12 +170,8 @@ type DeduplicationStrategyConfig = Annotated[
 ]
 
 
-async def _deterministic_identity(item: KnowledgeItem, ctx: IngestionContext[ResolvedResource]) -> str:
-    source_uri = item.source_uri or ctx.resource.uri or ""
-    position_keys = ("char_start", "source_idx", "page", "start_offset_ms", "end_offset_ms")
-    position = "|".join(f"{k}={item.metadata[k]}" for k in position_keys if k in item.metadata)
-    normalized = _normalize_text(await item.decode(ctx))
-    return "|".join((str(ctx.tenant_id), source_uri, ctx.domain_profile, position, normalized))
+async def _item_document(items: list[KnowledgeItem], ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
+    return {"items": [{"id": str(item.id), "tenant_id": str(ctx.tenant_id), "source_uri": item.source_uri or ctx.resource.uri, "metadata": item.metadata, "text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} for item in items]}
 
 
 def _normalize_text(text: str) -> str:

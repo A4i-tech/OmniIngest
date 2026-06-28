@@ -174,18 +174,18 @@ async def test_pipeline_registration(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_vector_store_output_registers_chunks(metadata_store, vector_store, tenant):
+async def test_vector_store_output_registers_items(metadata_store, vector_store, tenant):
     ki_id = await metadata_store.create_knowledge_item(tenant_id=tenant.id, domain_profile="default", modality="text", source_uri="file://test.txt")
     output = VectorStoreOutput(store=vector_store)
     item = KnowledgeItem(raw_content=b"Chunk 1", metadata={"embedding": [0.1] * 1536})
     ctx = IngestionContext(tenant_id=tenant.id, items=[item], store=metadata_store, metadata={"knowledge_item_id": ki_id}, resource=ResolvedResource(uri="", raw_content=b""))
     res = await output.write(ctx)
     assert res.status == StepStatus.SUCCESS, f"Output failed: {res.error}"
-    chunks = [
+    indexed_items = [
         item
         for item in await metadata_store.list_knowledge_items(tenant.id, source_uri="")
-        if item.metadata.get("kind") == "chunk" and item.metadata.get("parent_knowledge_item_id") == str(ki_id)
+        if item.metadata.get("kind") == "indexed" and item.metadata.get("parent_knowledge_item_id") == str(ki_id)
     ]
-    assert len(chunks) == 1
-    assert chunks[0].raw_content == b"Chunk 1"
-    assert chunks[0].metadata["vector_store"]["kind"] == vector_store.kind
+    assert len(indexed_items) == 1
+    assert indexed_items[0].raw_content == b"Chunk 1"
+    assert indexed_items[0].metadata["vector_store"]["kind"] == vector_store.kind

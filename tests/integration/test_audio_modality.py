@@ -35,6 +35,21 @@ async def test_timed_chunking_from_word_timestamps():
 
 
 @pytest.mark.asyncio
+async def test_timed_chunking_accepts_custom_token_schema():
+    ctx = IngestionContext(
+        resource=ResolvedResource(uri="", raw_content=b""),
+        items=[KnowledgeItem(metadata={"tokens": [{"value": "Hello", "start": 1.0, "length": 0.2}, {"value": "world", "start": 1.5, "length": 0.2}]})],
+    )
+    agent = TimedChunkingAgent(tokens=".metadata.tokens[]", text=".value", start=".start", duration=".length", units_per_second=1)
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert await result.items[0].decode(ctx) == "Hello world"
+    assert result.items[0].metadata["start_offset_ms"] == 1000
+
+
+@pytest.mark.asyncio
 async def test_audio_parser_with_real_azure(tmp_path):
     import struct
     import wave

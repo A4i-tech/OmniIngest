@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 from ..core.content import content_chain_uri, resource_pages_uri
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from .enrichment import _doc
 
 
 class SentenceChunkingAgent(BaseModel, Step):
@@ -28,25 +29,37 @@ class SentenceChunkingAgent(BaseModel, Step):
 
     chunk_size: PositiveInt = Field(default=512, description="Maximum number of characters per chunk")
     overlap: NonNegativeInt = Field(default=50, description="Character overlap between adjacent chunks")
+    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items to chunk")
+    input: JqExpression = Field(default=".text", description="jq expression selecting text to chunk")
+    separators: list[str] = Field(default=[". ", "! ", "? ", ".\n", "!\n", "?\n"], description="Preferred sentence boundaries")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
-        source = ctx.items[0]
-        if not await source.content(ctx):
+        doc = await _doc(ctx, text=True)
+        item_by_id = {str(item.id): item for item in ctx.items}
+        chunks = []
+        for source_idx, item_doc in enumerate(jq.compile(self.foreach).input_value(doc).all()):
+            source = item_by_id[item_doc["id"]]
+            text = jq.compile(self.input).input_value(item_doc).first()
+            if text is None:
+                continue
+            if not isinstance(text, str):
+                raise ValueError("Sentence chunking input must resolve to text")
+            text, pos = " ".join(text.split()), 0
+            while pos < len(text):
+                end = min(pos + self.chunk_size, len(text))
+                if end < len(text):
+                    chunk = text[pos:end]
+                    breaks = [chunk.rfind(separator) + len(separator) - 1 for separator in self.separators if chunk.rfind(separator) > self.chunk_size // 2]
+                    if breaks:
+                        end = pos + max(breaks) + 1
+                if content := text[pos:end].strip():
+                    chunks.append(KnowledgeItem(raw_content=content.encode(source.content_encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, content_encoding=source.content_encoding, metadata=source.metadata | {"source_idx": source_idx, "char_start": pos}))
+                pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
+        ctx.items = chunks
+        if not chunks:
             return StepResult(status=StepStatus.SKIPPED, error="No text")
-        encoding = source.content_encoding
-        text, chunks, pos = " ".join((await source.decode(ctx)).split()), [], 0
-        while pos < len(text):
-            end = min(pos + self.chunk_size, len(text))
-            if end < len(text):
-                chunk = text[pos:end]
-                breaks = [chunk.rfind(p) + len(p) - 1 for p in [". ", "! ", "? ", ".\n", "!\n", "?\n"] if chunk.rfind(p) > self.chunk_size // 2]
-                if breaks:
-                    end = pos + max(breaks) + 1
-            chunks.append((text[pos:end].strip(), pos))
-            pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
-        ctx.items = [KnowledgeItem(raw_content=c.encode(encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, content_encoding=encoding, metadata=source.metadata | {"source_idx": i, "char_start": p}) for i, (c, p) in enumerate(chunks) if c]
         return StepResult(
             status=StepStatus.SUCCESS,
             items=ctx.items,
@@ -152,6 +165,11 @@ class TimedChunkingAgent(BaseModel, Step):
     segment_duration: timedelta = Field(default=timedelta(seconds=30), description="Target duration of each time block")
     overlap: timedelta = Field(default=timedelta(0), description="Overlap between adjacent time blocks")
     pause_threshold: timedelta | None = Field(default=None, description="Silence threshold to split blocks")
+    tokens: JqExpression = Field(default=".metadata.word_timestamps[]?", description="jq expression selecting timed tokens")
+    text: JqExpression = Field(default=".Word", description="jq expression selecting token text")
+    start: JqExpression = Field(default=".Offset", description="jq expression selecting token start")
+    duration: JqExpression = Field(default=".Duration", description="jq expression selecting token duration")
+    units_per_second: PositiveInt = Field(default=10_000_000, description="Timestamp units per second")
 
     @field_validator("segment_duration")
     def _validate_segment_duration(cls, value: timedelta) -> timedelta:
@@ -172,44 +190,55 @@ class TimedChunkingAgent(BaseModel, Step):
         return value
 
     @property
-    def segment_duration_ticks(self) -> int:
-        return int(self.segment_duration.total_seconds() * 10_000_000)
+    def segment_duration_units(self) -> int:
+        return int(self.segment_duration.total_seconds() * self.units_per_second)
 
     @property
-    def overlap_ticks(self) -> int:
-        return int(self.overlap.total_seconds() * 10_000_000)
+    def overlap_units(self) -> int:
+        return int(self.overlap.total_seconds() * self.units_per_second)
 
     @property
-    def pause_threshold_ticks(self) -> int | None:
-        return int(self.pause_threshold.total_seconds() * 10_000_000) if self.pause_threshold else None
+    def pause_threshold_units(self) -> int | None:
+        return int(self.pause_threshold.total_seconds() * self.units_per_second) if self.pause_threshold else None
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if not ctx.items or not (words := ctx.items[0].metadata.get("word_timestamps")):
+        if not ctx.items:
             ctx.items = []
-            return StepResult(status=StepStatus.SKIPPED, error="No word_timestamps found in items")
+            return StepResult(status=StepStatus.SKIPPED, error="No timed tokens found in items")
         source = ctx.items[0]
+        item_doc = {"id": str(source.id), "source_uri": source.source_uri, "metadata": source.metadata}
+        words = jq.compile(self.tokens).input_value(item_doc).all()
+        if not words:
+            ctx.items = []
+            return StepResult(status=StepStatus.SKIPPED, error="No timed tokens found in items")
 
         chunks: list[KnowledgeItem] = []
-        current_chunk_words: list[dict[str, Any]] = []
-        start_tick = 0
+        current_chunk_words: list[Any] = []
+        start_unit = 0
+        text_expr, start_expr, duration_expr = map(jq.compile, (self.text, self.start, self.duration))
 
         for w in words:
-            offset, duration = w["Offset"], w["Duration"]
+            offset = start_expr.input_value(w).first()
+            duration = duration_expr.input_value(w).first()
             if not current_chunk_words:
-                start_tick = offset
+                start_unit = offset
 
-            if (offset + duration - start_tick) > self.segment_duration_ticks and current_chunk_words:
-                text = " ".join([cw["Word"] for cw in current_chunk_words])
-                metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
+            if (offset + duration - start_unit) > self.segment_duration_units and current_chunk_words:
+                text = " ".join(text_expr.input_value(cw).first() for cw in current_chunk_words)
+                last = current_chunk_words[-1]
+                end = start_expr.input_value(last).first() + duration_expr.input_value(last).first()
+                metadata = {"start_offset_ms": int(start_unit * 1000 / self.units_per_second), "end_offset_ms": int(end * 1000 / self.units_per_second), "word_count": len(current_chunk_words)}
                 chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
                 current_chunk_words = [w]
-                start_tick = offset
+                start_unit = offset
             else:
                 current_chunk_words.append(w)
 
         if current_chunk_words:
-            text = " ".join([cw["Word"] for cw in current_chunk_words])
-            metadata = {"start_offset_ms": start_tick // 10000, "end_offset_ms": (current_chunk_words[-1]["Offset"] + current_chunk_words[-1]["Duration"]) // 10000, "word_count": len(current_chunk_words)}
+            text = " ".join(text_expr.input_value(cw).first() for cw in current_chunk_words)
+            last = current_chunk_words[-1]
+            end = start_expr.input_value(last).first() + duration_expr.input_value(last).first()
+            metadata = {"start_offset_ms": int(start_unit * 1000 / self.units_per_second), "end_offset_ms": int(end * 1000 / self.units_per_second), "word_count": len(current_chunk_words)}
             chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
 
         ctx.items = chunks

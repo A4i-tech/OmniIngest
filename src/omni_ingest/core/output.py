@@ -106,7 +106,7 @@ class VectorStoreOutput(Output):
 
     Attributes:
         store: The physical database where data will be saved
-        deduplication_strategy: Strategy used to skip duplicate chunks before indexing
+        deduplication_strategy: Strategy used to skip duplicate items before indexing
     """
 
     def __init__(self, store: VectorStore, deduplication_strategy: DeduplicationStrategyConfig | None = None) -> None:
@@ -126,7 +126,7 @@ class VectorStoreOutput(Output):
                 for item in items:
                     metadata = {
                         **item.metadata,
-                        "kind": "chunk",
+                        "kind": "indexed",
                         "parent_knowledge_item_id": str(pid),
                         "vector_store": {
                             "kind": self.store.kind,

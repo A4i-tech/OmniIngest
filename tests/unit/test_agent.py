@@ -12,6 +12,7 @@ from pydantic_ai.capabilities import Hooks
 from omni_ingest.agent.chunking import PageChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAgent
 from omni_ingest.agent.governance import DataLineageAgent
+from omni_ingest.agent.indexing import EmbeddingAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
@@ -34,6 +35,23 @@ async def test_prompt_agent(vector_store):
         result = await agent.run(ctx)
         assert result.status == StepStatus.SUCCESS
         assert ctx.metadata["cleaned"] == "## Clean"
+
+
+@pytest.mark.asyncio
+async def test_embedding_agent_uses_jq_selection_input_and_path(vector_store):
+    ctx = create_ctx(vector_store, "")
+    ctx.items = [KnowledgeItem(raw_content=b"keep", metadata={"kind": "paragraph"}), KnowledgeItem(raw_content=b"skip", metadata={"kind": "image"})]
+    agent = EmbeddingAgent(foreach='.items[] | select(.metadata.kind == "paragraph")', input=".text", path=".metadata.vector")
+
+    with patch("omni_ingest.agent.indexing.Embedder") as embedder:
+        embedder.return_value.embed_documents = AsyncMock()
+        embedder.return_value.embed_documents.return_value.embeddings = [[1.0, 2.0]]
+        result = await agent.run(ctx)
+
+    embedder.return_value.embed_documents.assert_awaited_once_with(["keep"])
+    assert result.metadata == {"embedded_count": 1, "path": ".metadata.vector"}
+    assert ctx.items[0].metadata["vector"] == [1.0, 2.0]
+    assert "vector" not in ctx.items[1].metadata
 
 
 @pytest.mark.asyncio
