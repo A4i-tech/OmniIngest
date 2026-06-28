@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol, overload, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, overload, runtime_checkable
 from uuid import UUID
 
 from pydantic import PositiveInt
@@ -14,8 +14,8 @@ from .model import KnowledgeItem, PipelineCheckpoint, PipelineVersion, ResolvedR
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
-type JsonObject = dict[str, JsonValue]
+JsonValue: TypeAlias = "None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]"
+JsonObject: TypeAlias = dict[str, JsonValue]
 
 
 @runtime_checkable

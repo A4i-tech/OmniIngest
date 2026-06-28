@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev
       - name: Run ruff
@@ -51,7 +51,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev --extra storage
       - name: Run mypy
@@ -69,7 +69,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev
       - name: Run unit tests
@@ -89,7 +89,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev
       - name: Run mkdocs build
@@ -118,7 +118,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev
       - name: Install ffmpeg
@@ -170,7 +170,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
       - name: Install dependencies
         run: uv sync --dev
       - name: Deploy to GitHub Pages

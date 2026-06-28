@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from fnmatch import fnmatch
 from random import sample
-from typing import TYPE_CHECKING, Any, cast, overload
+from typing import TYPE_CHECKING, Any, TypeAlias, cast, overload
 from xml.etree import ElementTree
 
 from azure.ai.translation.text.aio import TextTranslationClient
@@ -17,7 +17,7 @@ from ..core.config import KnownTranslationModelName, settings
 if TYPE_CHECKING:
     from ..core.protocol import Translator
 
-type Path = tuple[str | int, ...]
+Path: TypeAlias = tuple[str | int, ...]
 
 
 def flatten(data: dict[str, Any] | list[Any]) -> tuple[dict[str, Any], dict[str, Path]]:

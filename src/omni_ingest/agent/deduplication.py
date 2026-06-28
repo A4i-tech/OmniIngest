@@ -7,7 +7,7 @@ import json
 import re
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias, cast
 from uuid import NAMESPACE_URL, uuid5
 
 import jq
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource
 from ..core.protocol import MetadataStore
 
-type DeduplicationScope = Literal["source", "tenant"]
+DeduplicationScope: TypeAlias = Literal["source", "tenant"]
 
 _NORMALIZED_TEXT_HASH_KEY = "dedup_normalized_text_hash"
 _DETERMINISTIC_ID_KEY = "dedup_deterministic_id"
@@ -164,7 +164,7 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
         )
 
 
-type DeduplicationStrategyConfig = Annotated[
+DeduplicationStrategyConfig: TypeAlias = Annotated[
     NoDeduplicationStrategy | DeterministicIdDeduplicationStrategy | NormalizedTextHashDeduplicationStrategy | ShingleJaccardDeduplicationStrategy,
     Field(discriminator="kind"),
 ]

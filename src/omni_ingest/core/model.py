@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal, final, overload
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias, TypeVar, final, overload
 from uuid import UUID, uuid4
 
 import jq
@@ -27,12 +27,16 @@ if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
 
+DepsT = TypeVar("DepsT")
+OutputT = TypeVar("OutputT")
+
+
 def _validate_jq_expression(value: str) -> str:
     jq.compile(value, args={"output": None, "item": None, "ids": None})
     return value
 
 
-type JqExpression = Annotated[str, AfterValidator(_validate_jq_expression)]
+JqExpression: TypeAlias = Annotated[str, AfterValidator(_validate_jq_expression)]
 
 
 class StepStatus(StrEnum):
@@ -69,7 +73,7 @@ class ByteContent(BaseModel):
 class ResolvedResource(ByteContent):
     uri: str = Field(...)
 
-type Resource = ResolvedResource | AnyUrl | Path
+Resource: TypeAlias = ResolvedResource | AnyUrl | Path
 
 
 class KnowledgeItem(ByteContent):
@@ -202,7 +206,7 @@ class AgentMixin:
     def _agent(self, ctx: IngestionContext[Any], deps_type: type[object] = object, output_type: OutputSpec[str] = str, capabilities: Sequence[AgentCapability[object]] | None = None) -> Agent[object, str]: ...
 
     @overload
-    def _agent[DepsT, OutputT](self, ctx: IngestionContext[Any], deps_type: type[DepsT], output_type: OutputSpec[OutputT], capabilities: Sequence[AgentCapability[DepsT]] | None = None) -> Agent[DepsT, OutputT]: ...
+    def _agent(self, ctx: IngestionContext[Any], deps_type: type[DepsT], output_type: OutputSpec[OutputT], capabilities: Sequence[AgentCapability[DepsT]] | None = None) -> Agent[DepsT, OutputT]: ...
 
     @final
     def _agent(self, ctx: IngestionContext[Any], deps_type: type[Any] = object, output_type: OutputSpec[Any] = str, capabilities: Sequence[AgentCapability[Any]] | None = None) -> Agent[Any, Any]:
@@ -216,7 +220,7 @@ class AgentMixin:
         return Agent(model=model, toolsets=toolsets, retries=self.retries, deps_type=deps_type, output_type=output_type, capabilities=capabilities)
 
 
-type ValidationMode = Literal["condition", "before", "plain", "after"]
+ValidationMode: TypeAlias = Literal["condition", "before", "plain", "after"]
 
 
 class ValidationCheck(BaseModel):

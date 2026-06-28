@@ -7,7 +7,7 @@ authors = [
     {name = "A4i-tech"}
 ]
 license = "MIT"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
@@ -92,14 +92,14 @@ dev = [
 
 [tool.ruff]
 line-length = 240
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true

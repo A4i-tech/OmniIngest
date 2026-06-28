@@ -1,14 +1,14 @@
 """Configuration management and environment variable loading for the framework."""
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import AnyHttpUrl, BaseModel, DirectoryPath, Field, NewPath, PositiveInt, SecretStr
 from pydantic_ai.embeddings import KnownEmbeddingModelName
 from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-type KnownTranslationModelName = Literal["azure"]
+KnownTranslationModelName: TypeAlias = Literal["azure"]
 
 
 class InMemoryVectorStoreConfig(BaseModel):
@@ -115,11 +115,11 @@ class Neo4jGraphStoreConfig(BaseModel):
         return Neo4jGraphStore(uri=self.uri, user=self.user, password=self.password.get_secret_value())
 
 
-type VectorStoreConfig = Annotated[
+VectorStoreConfig: TypeAlias = Annotated[
     InMemoryVectorStoreConfig | LanceDBVectorStoreConfig | QdrantVectorStoreConfig | MongoVectorStoreConfig | AzureVectorSearchStoreConfig | ChromaVectorStoreConfig,
     Field(discriminator="type"),
 ]
-type GraphStoreConfig = Annotated[
+GraphStoreConfig: TypeAlias = Annotated[
     InMemoryGraphStoreConfig | Neo4jGraphStoreConfig,
     Field(discriminator="type"),
 ]

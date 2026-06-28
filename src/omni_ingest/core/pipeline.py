@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 from uuid import UUID, uuid4
 
 import jq
@@ -89,7 +89,7 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
             event.publish(event.PipelineStepProgressEvent(run_id=self.run_id, tenant_id=self.tenant_id, step_name=step_name, step=step, completed=completed, total=total, message=message))
 
 
-type StepFactory = dict[str, type[Step]]
+StepFactory: TypeAlias = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
     "text": agent.modality.TextAgent,
 
