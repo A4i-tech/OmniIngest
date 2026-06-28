@@ -429,9 +429,9 @@ steps:
   - agent: embedding
 ```
 
-When runner sees `agent: quality`, it first looks for a registered Python step. If none exists, it tries `quality.yaml` near current file, then `profiles/quality.yaml`. Found YAML gets flattened into leaf steps.
+When runner sees `agent: quality`, it first looks for a registered Python step. If none exists, it tries `quality.yaml` near current file, then configured profile directory. `PROFILES_DIR` changes that directory from its `profiles` default. Found YAML gets flattened into leaf steps.
 
-Config on component reference becomes parameter overrides for component YAML. That is why `min_quality_score` reaches `profiles/quality.yaml`.
+Config on component reference becomes parameter overrides for component YAML. That is why `min_quality_score` reaches `quality.yaml` in profile directory.
 
 Component reference cannot have `stage` or `validation`. Put those inside component YAML. Otherwise it is unclear whether wrapper or inner steps should own execution behaviour.
 

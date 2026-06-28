@@ -227,6 +227,17 @@ def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
     assert isinstance(runner.steps[0], TextAgent)
 
 
+def test_pipeline_resolves_configured_profiles_dir(tmp_path, monkeypatch):
+    profiles = tmp_path / "components"
+    profiles.mkdir()
+    (profiles / "shared.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
+    root = tmp_path / "root.yaml"
+    root.write_text(yaml.dump({"steps": [{"agent": "shared"}]}))
+    monkeypatch.setattr(pipeline_module.settings, "profiles_dir", profiles)
+
+    assert isinstance(create_pipeline_from_config(root).steps[0], TextAgent)
+
+
 def test_pipeline_detects_component_cycles(tmp_path):
     (tmp_path / "a.yaml").write_text(yaml.dump({"steps": [{"agent": "b"}]}))
     (tmp_path / "b.yaml").write_text(yaml.dump({"steps": [{"agent": "a"}]}))

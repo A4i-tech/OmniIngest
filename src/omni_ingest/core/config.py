@@ -1,11 +1,8 @@
 """Configuration management and environment variable loading for the framework."""
 
-import os
-import re
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
-import yaml
 from pydantic import AnyHttpUrl, BaseModel, DirectoryPath, Field, NewPath, PositiveInt, SecretStr
 from pydantic_ai.embeddings import KnownEmbeddingModelName
 from pydantic_ai.models import KnownModelName
@@ -143,6 +140,9 @@ class Settings(BaseSettings):
     metadata_store: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
+    profiles_dir: Path = Path("profiles")
+    """Directory containing reusable pipeline components"""
+
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)
     """Vector store configuration selected entirely through environment configuration"""
 
@@ -165,27 +165,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-
-class ProfileManager:
-    """
-    Manages loading and parsing of pipeline profile YAML files.
-
-    Supports environment variable substitution in the format ${env.VAR_NAME}.
-    """
-
-    def __init__(self, profiles_dir: str = "profiles"):
-        self.profiles_dir = Path(profiles_dir)
-
-    def _substitute_env_vars(self, content: str) -> str:
-        pattern = re.compile(r"\$\{env\.(\w+)\}")
-        return pattern.sub(lambda match: os.environ.get(match.group(1), match.group(0)), content)
-
-    def load_profile(self, profile_name: str) -> dict[str, Any]:
-        profile_path = self.profiles_dir / f"{profile_name}.yaml"
-        raw_content = profile_path.read_text()
-        substituted_content = self._substitute_env_vars(raw_content)
-        config = yaml.safe_load(substituted_content)
-        if not isinstance(config, dict):
-            raise ValueError(f"Profile {profile_name} invalid")
-        return config

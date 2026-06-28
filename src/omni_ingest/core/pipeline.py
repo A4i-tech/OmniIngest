@@ -403,7 +403,7 @@ def _resolve_step_pipeline_path(agent_id: str, base_dir: Path, factory: StepFact
     if local.is_file():
         return local
 
-    profile = Path("profiles") / path
+    profile = settings.profiles_dir / path
     if profile.is_file():
         return profile
 
