@@ -146,13 +146,13 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             @agent.tool(prepare=prepare_see_next, sequential=True)
             async def see_next(ctx: RunContext[ExtractAgentDeps]) -> list[Any]:
                 if ctx.deps.cursor >= len(ctx.deps.buffered_ids):
-                    return ["No pages remain. Return the structured output now."]
+                    return ["No items remain. Return the structured output now."]
                 item = item_by_id[ctx.deps.buffered_ids[ctx.deps.cursor]]
                 ctx.deps.cursor += 1
                 advance(f"read {ctx.deps.cursor}/{len(ctx.deps.buffered_ids)}")
-                content = [f"Physical page {item.metadata['page']}"]
+                content = [f"Item {ctx.deps.cursor} of {len(ctx.deps.buffered_ids)}"]
                 if ctx.deps.cursor >= len(ctx.deps.buffered_ids):
-                    content.append("This is the final page, you can no longer call this tool.")
+                    content.append("This is the final item. You can no longer call this tool.")
                 return [*content, await _content(item, ingestion_ctx)]
 
             async with agent:

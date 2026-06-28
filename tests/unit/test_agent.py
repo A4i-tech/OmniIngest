@@ -298,7 +298,7 @@ async def test_extract_agent_serializes_pydantic_output():
 
 
 @pytest.mark.asyncio
-async def test_extract_agent_buffered_mode_registers_page_reader():
+async def test_extract_agent_buffered_mode_registers_item_reader():
     from pydantic_ai import Agent as PydanticAgent
     agent = ExtractAgent(
         foreach=".",
@@ -309,7 +309,7 @@ async def test_extract_agent_buffered_mode_registers_page_reader():
         schema={"type": "object", "properties": {"found": {"type": "boolean"}}, "required": ["found"]},
     )
     ctx = create_ctx(None, "")
-    ctx.items = [KnowledgeItem(raw_content=b"%PDF-1.4\npage", metadata={"page": 1})]
+    ctx.items = [KnowledgeItem(raw_content=b"content")]
     pydantic_agent = PydanticAgent("test")
 
     with patch.object(agent, "_agent", return_value=pydantic_agent):
