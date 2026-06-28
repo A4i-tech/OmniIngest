@@ -42,13 +42,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--format", choices=["json"], help="Output format, overrides filename extension")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
     for name, schema in properties.items():
+        value_type = schema.get("type", "VALUE")
+        value_type = next(value for value in value_type if value != "null") if isinstance(value_type, list) else value_type
         kwargs = {"default": schema.get("default", argparse.SUPPRESS), "help": schema.get("description"), "required": name in parameters.get("required", [])}
         if "enum" in schema:
             kwargs["choices"] = schema["enum"]
-        if schema.get("type") == "boolean":
+        if value_type == "boolean":
             kwargs["action"] = argparse.BooleanOptionalAction
         else:
-            kwargs.update(metavar=schema.get("type", "VALUE").upper(), type={"integer": int, "number": float, "string": str}.get(schema.get("type"), json.loads))
+            kwargs.update(metavar=value_type.upper(), type={"integer": int, "number": float, "string": str}.get(value_type, json.loads))
         parser.add_argument(f"--{name.replace('_', '-')}", **kwargs)
     args = parser.parse_args()
     stdin = args.input and any(str(resource) == "-" for resource in args.input)
