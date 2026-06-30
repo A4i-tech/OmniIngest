@@ -91,7 +91,7 @@ class PickleFileOutput(FileOutput):
     """Writes finalized ingestion output to a pickle file."""
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        runs = [{
+        runs: list[dict[str, Any]] = [{
             "resource": {**ctx.resource.model_dump(mode="python", exclude={"raw_content"}), "content": await ctx.resource.content(ctx)},
             "metadata": ctx.metadata,
             "items": [{**item.model_dump(mode="python", exclude={"raw_content"}), "content": await item.content(ctx)} for item in ctx.items],

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import mimetypes
 from typing import TYPE_CHECKING, Any, BinaryIO
 
 from pydantic import BaseModel, Field
@@ -47,9 +46,10 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
 
     async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        if not (await obj.content_type(ctx)).startswith("text/"):
-            text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding)
+        if not (content_type := await obj.content_type(ctx)).startswith("text/"):
+            text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
             obj.metadata.update(metadata)
+            obj.metadata["content_type"] = "text/plain"
             obj.raw_content = text.encode(self.encoding)
             obj.content_uri = None
             if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
@@ -57,10 +57,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
         obj.content_encoding = self.encoding
 
 
-    async def parse(self, ctx: IngestionContext[ResolvedResource], path: str, stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
-        content_type, _ = mimetypes.guess_type(path)
-        content_type = content_type or "application/octet-stream"
-
+    async def parse(self, ctx: IngestionContext[ResolvedResource], path: str, stream: BinaryIO, *, content_type: str, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
         if content_type.startswith("audio/"):
             content, metadata = await parse_audio(path, stream)
             metadata["selected_parser"] = "audio"
