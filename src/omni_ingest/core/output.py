@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import pickle
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
@@ -84,6 +85,23 @@ class JsonFileOutput(FileOutput):
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         await asyncio.to_thread(self._write, await self.dump(ctxs), mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
+
+
+class PickleFileOutput(FileOutput):
+    """Writes finalized ingestion output to a pickle file."""
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        runs = [{
+            "resource": {**ctx.resource.model_dump(mode="python", exclude={"raw_content"}), "content": await ctx.resource.content(ctx)},
+            "metadata": ctx.metadata,
+            "items": [{**item.model_dump(mode="python", exclude={"raw_content"}), "content": await item.content(ctx)} for item in ctx.items],
+        } for ctx in ctxs]
+        data = runs[0] if len(runs) == 1 else {"runs": runs}
+        await asyncio.to_thread(self._write, pickle.dumps(data), mode="wb")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"pkl": self.path})
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
 
 
 class StdoutOutput(Output):
@@ -191,4 +209,6 @@ def parse(value: str, format: str | None = None) -> Output:
         return GraphStoreOutput(settings.graph_store.build())
     if format == "json":
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
+    if format == "pkl":
+        return PickleFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")

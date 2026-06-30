@@ -1,5 +1,6 @@
 import asyncio
 import json
+import pickle
 from typing import Literal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -403,6 +404,20 @@ async def test_json_file_output(vector_store, tmp_path):
     assert data["items"][0]["metadata"] == {"tag": "x"}
     assert data["items"][1]["content"] == "/w=="
     assert data["items"][1]["content_encoding"] == "base64"
+
+
+@pytest.mark.asyncio
+async def test_pickle_file_output(vector_store, tmp_path):
+    path = tmp_path / "items.pkl"
+    ctx = create_ctx(vector_store, "resource")
+    ctx.items = [KnowledgeItem(raw_content=b"\xff", content_encoding="binary")]
+
+    result = await parse(str(path)).write(ctx)
+    data = pickle.loads(path.read_bytes())
+
+    assert result.output_paths == {"pkl": str(path)}
+    assert data["resource"]["content"] == b"resource"
+    assert data["items"][0]["content"] == b"\xff"
 
 
 @pytest.mark.asyncio
