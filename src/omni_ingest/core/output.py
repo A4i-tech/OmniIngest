@@ -173,6 +173,53 @@ class VectorStoreOutput(Output):
         )
 
 
+class MongoDocumentOutput(Output):
+    """Writes KnowledgeItems as flat BSON documents to a plain MongoDB collection.
+
+    URI format:
+      mongodb://host:port/database/collection
+    """
+
+    def __init__(self, uri: str) -> None:
+        from urllib.parse import urlparse, urlunparse
+        parsed = urlparse(uri)
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if len(path_parts) < 2:
+            raise ValueError(
+                f"MongoDB output URI must include database and collection in the path: "
+                f"mongodb://host/database/collection — got: {uri}"
+            )
+        client_uri = urlunparse(parsed._replace(path=f"/{path_parts[0]}"))
+
+        try:
+            from pymongo import AsyncMongoClient, ReplaceOne
+            from pymongo.uri_parser import parse_uri
+            self._ReplaceOne = ReplaceOne
+        except ModuleNotFoundError as exc:
+            raise ImportError(
+                "MongoDocumentOutput requires pymongo. Install omni-ingest[storage] or add pymongo to the environment."
+            ) from exc
+
+        if parse_uri(client_uri)["database"] is None:
+            raise ValueError(f"MongoDB output URI must include a database name — got: {uri}")
+        self._collection: Any = AsyncMongoClient(client_uri).get_default_database()[path_parts[1]]
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        if not ctx.items:
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+        ops = [
+            self._ReplaceOne(
+                {"_id": str(item.id)},
+                {"_id": str(item.id), "source_uri": item.source_uri or "", "content": await item.decode(ctx), "metadata": item.metadata},
+                upsert=True,
+            )
+            for item in ctx.items
+        ]
+        await self._collection.bulk_write(ops, ordered=False)
+        return OutputResult(status=StepStatus.SUCCESS, metadata={"count": len(ctx.items)})
+
+
 class GraphStoreOutput(Output):
     """Writes finalized graph data to a graph store.
 
@@ -197,6 +244,9 @@ class GraphStoreOutput(Output):
 
 
 def parse(value: str, format: str | None = None) -> Output:
+    if value.startswith(("mongodb://", "mongodb+srv://")):
+        return MongoDocumentOutput(value)
+
     format = format or {
         "-": "json",
         "vector:default": "vector",
