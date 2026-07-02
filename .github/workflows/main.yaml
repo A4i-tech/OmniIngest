@@ -60,7 +60,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && (github.base_ref == 'refs/heads/a4i/main' || github.base_ref == 'refs/heads/a4i/staging')
+    if: github.event_name == 'pull_request' && (github.base_ref == 'a4i/main' || github.base_ref == 'a4i/staging')
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
