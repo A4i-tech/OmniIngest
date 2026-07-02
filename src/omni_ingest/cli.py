@@ -14,7 +14,7 @@ from pydantic import TypeAdapter
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
-load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings
+load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings !!!
 
 from omni_ingest.core import event  # noqa: E402
 from omni_ingest.core.model import PipelineConfig, ResolvedResource, Resource, StepStatus  # noqa: E402
