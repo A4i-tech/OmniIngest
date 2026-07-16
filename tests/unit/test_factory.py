@@ -11,7 +11,7 @@ import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.config import LanceDBVectorStoreConfig
+from omni_ingest.core.config import LanceDBVectorStoreConfig, LlamaCppOcrConfig
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, _resolve_step_kwargs, create_pipeline_from_config
 from omni_ingest.port.vector_store import LanceDBVectorStore
@@ -338,6 +338,31 @@ def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):
     assert isinstance(store, LanceDBVectorStore)
     assert store.table_name == "env_vectors"
     assert store.vector_size == 256
+
+
+def test_create_ocr_engine_uses_env_backed_settings(monkeypatch):
+    from omni_ingest.port.ocr import LlamaCppOcrEngine
+
+    monkeypatch.setattr(pipeline_module.settings, "ocr_engine", LlamaCppOcrConfig(base_url="http://localhost:9090", model="qwen-vl"))
+
+    engine = pipeline_module.settings.ocr_engine.build()
+
+    assert isinstance(engine, LlamaCppOcrEngine)
+    assert engine.model == "qwen-vl"
+    assert str(engine.client.base_url) == "http://localhost:9090"
+
+
+def test_pdf_ocr_step_resolves_from_yaml(tmp_path):
+    from omni_ingest.agent.document import OcrAgent
+
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": [{"agent": "pdf_ocr", "config": {"dpi": 150, "workers": 2}}]}))
+
+    runner = create_pipeline_from_config(path)
+
+    assert isinstance(runner.steps[0], OcrAgent)
+    assert runner.steps[0].dpi == 150
+    assert runner.steps[0].workers == 2
 
 
 @pytest.mark.asyncio

@@ -115,6 +115,56 @@ class Neo4jGraphStoreConfig(BaseModel):
         return Neo4jGraphStore(uri=self.uri, user=self.user, password=self.password.get_secret_value())
 
 
+class SarvamOcrConfig(BaseModel):
+    type: Literal["sarvam"] = "sarvam"
+    api_key: SecretStr
+    base_url: AnyHttpUrl = AnyHttpUrl("https://api.sarvam.ai")
+
+    def build(self):
+        from ..port.ocr import SarvamOcrEngine
+        return SarvamOcrEngine(api_key=self.api_key.get_secret_value(), base_url=str(self.base_url))
+
+
+class AzureCvOcrConfig(BaseModel):
+    """Azure AI Vision (Computer Vision) Read OCR."""
+
+    type: Literal["azure_cv"] = "azure_cv"
+    endpoint: AnyHttpUrl
+    api_key: SecretStr
+
+    def build(self):
+        from ..port.ocr import AzureCvOcrEngine
+        return AzureCvOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value())
+
+
+class AzureMlOcrConfig(BaseModel):
+    """A custom OCR model deployed as an Azure ML online endpoint."""
+
+    type: Literal["azure_ml"] = "azure_ml"
+    endpoint: AnyHttpUrl
+    api_key: SecretStr
+
+    def build(self):
+        from ..port.ocr import AzureMlOcrEngine
+        return AzureMlOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value())
+
+
+class LlamaCppOcrConfig(BaseModel):
+    """A local vision model served by llama.cpp's OpenAI-compatible server."""
+
+    type: Literal["llama_cpp"] = "llama_cpp"
+    base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8080")
+    model: str | None = None
+
+    def build(self):
+        from ..port.ocr import LlamaCppOcrEngine
+        return LlamaCppOcrEngine(base_url=str(self.base_url), model=self.model)
+
+
+OcrEngineConfig: TypeAlias = Annotated[
+    SarvamOcrConfig | AzureCvOcrConfig | AzureMlOcrConfig | LlamaCppOcrConfig,
+    Field(discriminator="type"),
+]
 VectorStoreConfig: TypeAlias = Annotated[
     InMemoryVectorStoreConfig | LanceDBVectorStoreConfig | QdrantVectorStoreConfig | MongoVectorStoreConfig | AzureVectorSearchStoreConfig | ChromaVectorStoreConfig,
     Field(discriminator="type"),
@@ -148,6 +198,9 @@ class Settings(BaseSettings):
 
     graph_store: GraphStoreConfig = Field(default_factory=InMemoryGraphStoreConfig)
     """Graph store configuration selected entirely through environment configuration"""
+
+    ocr_engine: OcrEngineConfig | None = Field(default=None)
+    """OCR engine used by the pdf_ocr step, selected entirely through environment configuration"""
 
     azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""

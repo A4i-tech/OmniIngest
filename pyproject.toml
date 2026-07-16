@@ -24,6 +24,7 @@ dependencies = [
     "lancedb>=0.33.0",
     "azure-cognitiveservices-speech>=1.50.0",
     "azure-ai-translation-text>=2.0.0",
+    "httpx>=0.28.1",
     "pydantic-ai-slim[openai]>=2.0.0",
     "python-magic>=0.4.27",
     "datamodel-code-generator>=0.63.0",

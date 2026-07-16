@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field, NonNegativeFloat, PositiveInt
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
+from ..core.config import OcrEngineConfig, settings
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.protocol import OcrEngine
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -153,3 +155,76 @@ class RasterizeAgent(BaseModel, Step):
                 target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
             item.raw_content = output.tobytes(deflate=True)
             item.content_uri = None
+
+
+class OcrAgent(BaseModel, Step):
+    """Extracts PDF items into Markdown, OCRing pages with no usable text layer."""
+
+    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting PDF items")
+    input: JqExpression = Field(default="[.id]", description="jq expression selecting PDF item ids")
+    engine: OcrEngineConfig | None = Field(default=None, description="OCR engine override; defaults to settings.ocr_engine")
+    dpi: PositiveInt = Field(default=200, description="DPI used to render pages that require OCR")
+    ocr_scanned: bool = Field(default=True, description="OCR pages whose extractable text is below text_layer_threshold")
+    text_layer_threshold: PositiveInt = Field(default=20, description="Minimum extractable characters on a page before OCR is skipped")
+    workers: PositiveInt = Field(default=4, description="Maximum number of pages OCR'd concurrently")
+
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
+        item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
+        specs = jq.compile(self.foreach).input_value({"metadata": ctx.metadata, "items": item_docs}).all()
+        input_expr = jq.compile(self.input)
+        items: list[KnowledgeItem] = []
+
+        for spec in specs:
+            item_ids = input_expr.input_value(spec).first()
+            if not isinstance(item_ids, list) or not item_ids or any(item_id not in item_by_id for item_id in item_ids):
+                raise ValueError("OcrAgent input must resolve to known item ids")
+            items.extend(item_by_id[item_id] for item_id in item_ids)
+
+        if any([await item.content_type(ctx) != "application/pdf" for item in items]):
+            raise ValueError("OcrAgent only supports application/pdf items")
+
+        config = self.engine or settings.ocr_engine
+        if config is None:
+            raise ValueError("No OCR engine configured; set OcrAgent.engine or settings.ocr_engine")
+
+        sem = asyncio.Semaphore(self.workers)
+        ctx.progress(0, len(items), "extracting text")
+        pages_total = chars_total = ocr_pages = 0
+        async with config.build() as engine:
+            for i, item in enumerate(items, 1):
+                pages, chars, used = await self._extract(item, await item.content(ctx), engine, sem)
+                pages_total += pages
+                chars_total += chars
+                ocr_pages += used
+                ctx.progress(i, len(items), f"extracted {i}/{len(items)}")
+
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "pages": pages_total, "chars": chars_total, "ocr_used": ocr_pages > 0, "ocr_pages": ocr_pages})
+
+    async def _extract(self, item: KnowledgeItem, content: bytes, engine: OcrEngine, sem: asyncio.Semaphore) -> tuple[int, int, int]:
+        pages = await asyncio.to_thread(self._render_pages, content)
+
+        async def resolve(text: str, needs_ocr: bool, image: bytes | None) -> str:
+            if not needs_ocr or image is None:
+                return text
+            async with sem:
+                return await engine.extract(image)
+
+        markdown_pages = await asyncio.gather(*(resolve(text, needs_ocr, image) for text, needs_ocr, image in pages))
+        markdown = "\n\n".join(markdown_pages)
+        item.raw_content = markdown.encode("utf-8")
+        item.content_uri = None
+        item.content_encoding = "utf-8"
+        item.metadata["content_type"] = "text/markdown"
+        return len(pages), len(markdown), sum(1 for _, needs_ocr, _ in pages if needs_ocr)
+
+    def _render_pages(self, content: bytes) -> list[tuple[str, bool, bytes | None]]:
+        pages = []
+        with pymupdf.open(stream=content, filetype="pdf") as pdf:
+            for page in pdf.pages():
+                assert isinstance(page, pymupdf.Page)
+                text = page.get_text().strip()
+                needs_ocr = self.ocr_scanned and len(text) < self.text_layer_threshold
+                image = page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png") if needs_ocr else None
+                pages.append((text, needs_ocr, image))
+        return pages

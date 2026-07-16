@@ -96,6 +96,7 @@ _STEP_FACTORY: StepFactory = {
     "chunking": agent.chunking.SentenceChunkingAgent,
     "image_extraction": agent.document.ImageExtractionAgent,
     "rasterize": agent.document.RasterizeAgent,
+    "pdf_ocr": agent.document.OcrAgent,
     "page_chunking": agent.chunking.PageChunkingAgent,
     "page_stitching": agent.chunking.PageStitchingAgent,
     "timed_chunking": agent.chunking.TimedChunkingAgent,
