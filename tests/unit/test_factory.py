@@ -349,7 +349,9 @@ def test_create_ocr_engine_uses_env_backed_settings(monkeypatch):
 
     assert isinstance(engine, LlamaCppOcrEngine)
     assert engine.model == "qwen-vl"
-    assert str(engine.client.base_url) == "http://localhost:9090"
+    # assert on stable URL components, not str(base_url) — httpx renders the
+    # trailing slash differently across versions.
+    assert (engine.client.base_url.scheme, engine.client.base_url.host, engine.client.base_url.port) == ("http", "localhost", 9090)
 
 
 def test_pdf_ocr_step_resolves_from_yaml(tmp_path):

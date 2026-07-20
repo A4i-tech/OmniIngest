@@ -50,9 +50,10 @@ def test_render_pages_flags_scanned_page():
 
 @pytest.mark.asyncio
 async def test_extract_uses_ocr_engine_only_for_scanned_pages():
+    native_text = "Native text long enough to exceed the text-layer threshold"
     with pymupdf.open() as source, pymupdf.open() as pdf:
         native = source.new_page(width=400, height=200)
-        native.insert_text((20, 20), "Native text")
+        native.insert_text((20, 20), native_text)
         pdf.insert_pdf(source)
         pdf.new_page(width=400, height=200)
         content = bytes(pdf.tobytes())
@@ -65,7 +66,7 @@ async def test_extract_uses_ocr_engine_only_for_scanned_pages():
     assert pages == 2
     assert ocr_pages == 1
     assert engine.calls == 1
-    assert "Native text" in item.raw_content.decode("utf-8")
+    assert native_text in item.raw_content.decode("utf-8")
     assert "# OCR page" in item.raw_content.decode("utf-8")
     assert item.content_encoding == "utf-8"
     assert item.metadata["content_type"] == "text/markdown"
