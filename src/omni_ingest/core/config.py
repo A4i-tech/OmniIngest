@@ -116,53 +116,85 @@ class Neo4jGraphStoreConfig(BaseModel):
 
 
 class SarvamOcrConfig(BaseModel):
+    """Sarvam document-intelligence OCR, submitted as one job per page."""
+
     type: Literal["sarvam"] = "sarvam"
     api_key: SecretStr
-    base_url: AnyHttpUrl = AnyHttpUrl("https://api.sarvam.ai")
+    language: str = "hi-IN"
+    timeout: PositiveInt = 300
 
     def build(self):
         from ..port.ocr import SarvamOcrEngine
-        return SarvamOcrEngine(api_key=self.api_key.get_secret_value(), base_url=str(self.base_url))
+        return SarvamOcrEngine(api_key=self.api_key.get_secret_value(), language=self.language, timeout=self.timeout)
 
 
-class AzureCvOcrConfig(BaseModel):
-    """Azure AI Vision (Computer Vision) Read OCR."""
+class AzureDocIntelOcrConfig(BaseModel):
+    """Azure Document Intelligence OCR (prebuilt-layout, Markdown output)."""
 
-    type: Literal["azure_cv"] = "azure_cv"
+    type: Literal["azure_di"] = "azure_di"
     endpoint: AnyHttpUrl
     api_key: SecretStr
+    model: str = "prebuilt-layout"
+    api_version: str = "2024-11-30"
+    timeout: PositiveInt = 300
 
     def build(self):
-        from ..port.ocr import AzureCvOcrEngine
-        return AzureCvOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value())
+        from ..port.ocr import AzureDocIntelOcrEngine
+        return AzureDocIntelOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value(), model=self.model, api_version=self.api_version, timeout=self.timeout)
 
 
-class AzureMlOcrConfig(BaseModel):
-    """A custom OCR model deployed as an Azure ML online endpoint."""
+class AzureOpenAIOcrConfig(BaseModel):
+    """A vision model hosted on Azure OpenAI (chat-completions OCR)."""
 
-    type: Literal["azure_ml"] = "azure_ml"
+    type: Literal["azure_openai"] = "azure_openai"
     endpoint: AnyHttpUrl
     api_key: SecretStr
+    deployment: str
+    api_version: str = "2025-03-01-preview"
+    prompt: str | None = Field(default=None, description="OCR instruction; defaults to a general Markdown-transcription prompt")
+    timeout: PositiveInt = 120
 
     def build(self):
-        from ..port.ocr import AzureMlOcrEngine
-        return AzureMlOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value())
+        from ..port.ocr import DEFAULT_VISION_OCR_PROMPT, AzureOpenAIOcrEngine
+        return AzureOpenAIOcrEngine(
+            endpoint=str(self.endpoint),
+            api_key=self.api_key.get_secret_value(),
+            deployment=self.deployment,
+            api_version=self.api_version,
+            prompt=self.prompt or DEFAULT_VISION_OCR_PROMPT,
+            timeout=self.timeout,
+        )
 
 
 class LlamaCppOcrConfig(BaseModel):
-    """A local vision model served by llama.cpp's OpenAI-compatible server."""
+    """A vision model served by llama.cpp's OpenAI-compatible server."""
 
     type: Literal["llama_cpp"] = "llama_cpp"
     base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8080")
     model: str | None = None
+    prompt: str | None = Field(default=None, description="Model-specific OCR instruction; defaults to a general Markdown-transcription prompt")
 
     def build(self):
-        from ..port.ocr import LlamaCppOcrEngine
-        return LlamaCppOcrEngine(base_url=str(self.base_url), model=self.model)
+        from ..port.ocr import DEFAULT_LLAMA_CPP_PROMPT, LlamaCppOcrEngine
+        return LlamaCppOcrEngine(base_url=str(self.base_url), model=self.model, prompt=self.prompt or DEFAULT_LLAMA_CPP_PROMPT)
+
+
+class AzureMlOcrConfig(BaseModel):
+    """A custom OCR container deployed to an Azure ML managed online endpoint (BYOC)."""
+
+    type: Literal["azure_ml"] = "azure_ml"
+    scoring_uri: AnyHttpUrl
+    api_key: SecretStr
+    deployment: str | None = None
+    timeout: PositiveInt = 120
+
+    def build(self):
+        from ..port.ocr import AzureMlOcrEngine
+        return AzureMlOcrEngine(scoring_uri=str(self.scoring_uri), api_key=self.api_key.get_secret_value(), deployment=self.deployment, timeout=self.timeout)
 
 
 OcrEngineConfig: TypeAlias = Annotated[
-    SarvamOcrConfig | AzureCvOcrConfig | AzureMlOcrConfig | LlamaCppOcrConfig,
+    SarvamOcrConfig | AzureDocIntelOcrConfig | AzureOpenAIOcrConfig | AzureMlOcrConfig | LlamaCppOcrConfig,
     Field(discriminator="type"),
 ]
 VectorStoreConfig: TypeAlias = Annotated[
