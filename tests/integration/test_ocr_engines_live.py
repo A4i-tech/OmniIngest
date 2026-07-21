@@ -1,101 +1,56 @@
 """Live OCR-engine tests against real services.
 
-llama_cpp: requires a running OpenAI-compatible server (LLAMA_CPP_OCR_TEST_URL,
-default http://127.0.0.1:8123 — see offlineOcrBench/start_surya_server.ps1).
-sarvam: requires SARVAM_API_KEY.
-azure_di: requires AZURE_DI_OCR_ENDPOINT + AZURE_DI_OCR_KEY.
-azure_openai: requires AZURE_OPENAI_OCR_ENDPOINT + AZURE_OPENAI_OCR_KEY + AZURE_OPENAI_OCR_DEPLOYMENT.
-azure_ml: requires AZURE_ML_OCR_SCORING_URI + AZURE_ML_OCR_KEY (custom-container BYOC endpoint).
+Credentials come from settings/.env (see .env.example): SARVAM_API_KEY,
+AZURE_DI_OCR_ENDPOINT/KEY, AZURE_ML_OCR_SCORING_URI/KEY, and OPENAI_API_KEY for
+the LLM engine.
 """
 
-import os
+from pathlib import Path
 
-import httpx
 import pymupdf
-import pytest
 
-from omni_ingest.port.ocr import AzureDocIntelOcrEngine, AzureMlOcrEngine, AzureOpenAIOcrEngine, LlamaCppOcrEngine, SarvamOcrEngine
+from omni_ingest.agent.document import OcrAgent
+from omni_ingest.core.config import AzureDocIntelOcrConfig, AzureMlOcrConfig, LLMOcrConfig, SarvamOcrConfig, settings
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
-SURYA_HIGH_ACCURACY_BBOX_PROMPT = (
-    "OCR this image to HTML. Each block is a div with data-label and data-bbox (x0 y0 x1 y1, normalized 0-1000)."
-)
+SCANNED_PDF = Path("tests/resources/textbook-scan-middle-pages.pdf")
 
 
-@pytest.fixture
-def middle_page_image():
-    with pymupdf.open("tests/resources/textbook-scan-middle-pages.pdf") as pdf:
+def middle_page_image() -> bytes:
+    with pymupdf.open(SCANNED_PDF) as pdf:
         return pdf[0].get_pixmap(dpi=200, alpha=False).tobytes("png")
 
 
-async def test_llama_cpp_ocr_engine_extracts_real_page(middle_page_image):
-    base_url = os.environ.get("LLAMA_CPP_OCR_TEST_URL", "http://127.0.0.1:8123")
-    try:
-        async with httpx.AsyncClient(timeout=2) as probe:
-            await probe.get(f"{base_url}/health")
-    except httpx.HTTPError:
-        pytest.skip(f"No llama.cpp server reachable at {base_url}")
-
-    engine = LlamaCppOcrEngine(base_url=base_url, model="datalab-to/surya-ocr-2", prompt=SURYA_HIGH_ACCURACY_BBOX_PROMPT)
-
-    async with engine:
-        markdown = await engine.extract(middle_page_image)
-
-    assert len(markdown) > 100
-    assert "data-bbox" in markdown
-
-
-async def test_sarvam_ocr_engine_extracts_real_page(middle_page_image):
-    key = os.environ.get("SARVAM_API_KEY")
-    if not key:
-        pytest.skip("SARVAM_API_KEY not configured")
-
-    engine = SarvamOcrEngine(api_key=key, language="hi-IN", poll_interval=3, timeout=180)
-
-    async with engine:
-        markdown = await engine.extract(middle_page_image)
+async def test_sarvam_ocr_engine_extracts_real_page():
+    async with SarvamOcrConfig(api_key=settings.sarvam_api_key, language="hi-IN").build() as engine:
+        markdown = await engine.extract(middle_page_image())
 
     assert len(markdown) > 0
 
 
-async def test_azure_di_ocr_engine_extracts_real_page(middle_page_image):
-    endpoint = os.environ.get("AZURE_DI_OCR_ENDPOINT")
-    key = os.environ.get("AZURE_DI_OCR_KEY")
-    if not endpoint or not key:
-        pytest.skip("AZURE_DI_OCR_ENDPOINT / AZURE_DI_OCR_KEY not configured")
+async def test_azure_di_ocr_engine_extracts_real_page():
+    config = AzureDocIntelOcrConfig(endpoint=settings.azure_di_ocr_endpoint, api_key=settings.azure_di_ocr_key)
+    async with config.build() as engine:
+        markdown = await engine.extract(middle_page_image())
 
-    engine = AzureDocIntelOcrEngine(endpoint=endpoint, api_key=key, poll_interval=2, timeout=180)
-
-    async with engine:
-        markdown = await engine.extract(middle_page_image)
-
-    assert len(markdown) > 0
     assert "<table>" in markdown
 
 
-async def test_azure_openai_ocr_engine_extracts_real_page(middle_page_image):
-    endpoint = os.environ.get("AZURE_OPENAI_OCR_ENDPOINT")
-    key = os.environ.get("AZURE_OPENAI_OCR_KEY")
-    deployment = os.environ.get("AZURE_OPENAI_OCR_DEPLOYMENT")
-    if not endpoint or not key or not deployment:
-        pytest.skip("AZURE_OPENAI_OCR_ENDPOINT / AZURE_OPENAI_OCR_KEY / AZURE_OPENAI_OCR_DEPLOYMENT not configured")
-
-    engine = AzureOpenAIOcrEngine(endpoint=endpoint, api_key=key, deployment=deployment, timeout=180)
-
-    async with engine:
-        markdown = await engine.extract(middle_page_image)
+async def test_azure_ml_ocr_engine_extracts_real_page():
+    config = AzureMlOcrConfig(scoring_uri=settings.azure_ml_ocr_scoring_uri, api_key=settings.azure_ml_ocr_key)
+    async with config.build() as engine:
+        markdown = await engine.extract(middle_page_image())
 
     assert len(markdown) > 0
 
 
-async def test_azure_ml_ocr_engine_extracts_real_page(middle_page_image):
-    scoring_uri = os.environ.get("AZURE_ML_OCR_SCORING_URI")
-    key = os.environ.get("AZURE_ML_OCR_KEY")
-    if not scoring_uri or not key:
-        pytest.skip("AZURE_ML_OCR_SCORING_URI / AZURE_ML_OCR_KEY not configured")
+async def test_llm_ocr_engine_extracts_real_page(metadata_store):
+    item = KnowledgeItem(raw_content=SCANNED_PDF.read_bytes(), metadata={"content_type": "application/pdf"})
+    ctx = IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
 
-    engine = AzureMlOcrEngine(scoring_uri=scoring_uri, api_key=key, deployment=os.environ.get("AZURE_ML_OCR_DEPLOYMENT"), timeout=180)
+    result = (await PipelineRunner([OcrAgent(engine=LLMOcrConfig(), workers=2)]).run(ctx))[0]
 
-    async with engine:
-        markdown = await engine.extract(middle_page_image)
-
-    assert len(markdown) > 0
+    assert result.status == StepStatus.SUCCESS, f"Step failed: {result.error}"
+    assert item.metadata["content_type"] == "text/markdown"
+    assert len(item.raw_content) > 0

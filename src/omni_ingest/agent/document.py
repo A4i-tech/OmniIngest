@@ -13,9 +13,10 @@ from pydantic import BaseModel, Field, NonNegativeFloat, PositiveInt
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.config import OcrEngineConfig, settings
-from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.config import LLMOcrConfig, OcrEngineConfig, settings
+from ..core.model import AgentMixin, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from ..core.protocol import OcrEngine
+from ..port.ocr import LLMOcrEngine
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -157,7 +158,7 @@ class RasterizeAgent(BaseModel, Step):
             item.content_uri = None
 
 
-class OcrAgent(BaseModel, Step):
+class OcrAgent(BaseModel, Step, AgentMixin):
     """Extracts PDF items into Markdown, OCRing pages with no usable text layer."""
 
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting PDF items")
@@ -188,10 +189,12 @@ class OcrAgent(BaseModel, Step):
         if config is None:
             raise ValueError("No OCR engine configured; set OcrAgent.engine or settings.ocr_engine")
 
+        engine_cm = LLMOcrEngine(self._agent(ctx)) if isinstance(config, LLMOcrConfig) else config.build()
+
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "extracting text")
         pages_total = chars_total = ocr_pages = 0
-        async with config.build() as engine:
+        async with engine_cm as engine:
             for i, item in enumerate(items, 1):
                 pages, chars, used = await self._extract(item, await item.content(ctx), engine, sem)
                 pages_total += pages

@@ -8,8 +8,10 @@ import glob
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import httpx
+from pydantic_ai import Agent, BinaryContent
 from sarvamai import AsyncSarvamAI
 
 
@@ -111,34 +113,6 @@ class AzureDocIntelOcrEngine(_HttpOcrEngine):
 DEFAULT_VISION_OCR_PROMPT = "Transcribe this page to Markdown, preserving headings, lists, and tables. Return only the Markdown."
 
 
-class AzureOpenAIOcrEngine(_HttpOcrEngine):
-    """A vision model hosted on Azure OpenAI, used for OCR via chat completions.
-
-    Calls the deployment's chat-completions endpoint with the page image inline,
-    the same request shape as any Azure OpenAI vision model (gpt-4o, gpt-5.x).
-    """
-
-    def __init__(self, endpoint: str, api_key: str, deployment: str, api_version: str = "2025-03-01-preview", prompt: str = DEFAULT_VISION_OCR_PROMPT, timeout: float = 120):
-        base_url = endpoint.rstrip("/") + f"/openai/deployments/{deployment}"
-        super().__init__(httpx.AsyncClient(base_url=base_url, headers={"api-key": api_key}, timeout=timeout))
-        self.api_version = api_version
-        self.prompt = prompt
-
-    async def extract(self, image: bytes) -> str:
-        payload = {
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": self.prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(image).decode()}"}},
-                ],
-            }],
-        }
-        response = await self.client.post("/chat/completions", params={"api-version": self.api_version}, json=payload)
-        response.raise_for_status()
-        return str(response.json()["choices"][0]["message"]["content"])
-
-
 class AzureMlOcrEngine(_HttpOcrEngine):
     """A custom OCR container deployed to an Azure ML managed online endpoint (BYOC).
 
@@ -169,34 +143,25 @@ class AzureMlOcrEngine(_HttpOcrEngine):
         return str(response.json()["markdown"])
 
 
-# Retained for backwards compatibility with existing configs/tests.
-DEFAULT_LLAMA_CPP_PROMPT = DEFAULT_VISION_OCR_PROMPT
+class LLMOcrEngine:
+    """OCR via a vision LLM, driven by a pydantic-ai agent vended by OcrAgent.
 
-
-class LlamaCppOcrEngine(_HttpOcrEngine):
-    """A vision model served by llama.cpp's OpenAI-compatible chat endpoint.
-
-    `prompt` is model-specific: general-purpose VLMs follow the default
-    freeform instruction, but task-tuned checkpoints (e.g. surya-ocr-2) only
-    respond correctly to their own training-time prompt strings.
+    Works with any OpenAI-compatible vision model (Azure OpenAI, a llama.cpp
+    server, gpt-4o, etc.) — the model and credentials are whatever the agent was
+    built with, so this engine adds no transport or auth of its own.
     """
 
-    def __init__(self, base_url: str, model: str | None = None, prompt: str = DEFAULT_LLAMA_CPP_PROMPT):
-        super().__init__(httpx.AsyncClient(base_url=base_url, timeout=120))
-        self.model = model
+    def __init__(self, agent: Agent[Any, str], prompt: str = DEFAULT_VISION_OCR_PROMPT):
+        self.agent = agent
         self.prompt = prompt
 
+    async def __aenter__(self) -> LLMOcrEngine:
+        await self.agent.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.agent.__aexit__(exc_type, exc, tb)
+
     async def extract(self, image: bytes) -> str:
-        payload = {
-            "model": self.model or "default",
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(image).decode()}"}},
-                    {"type": "text", "text": self.prompt},
-                ],
-            }],
-        }
-        response = await self.client.post("/v1/chat/completions", json=payload)
-        response.raise_for_status()
-        return str(response.json()["choices"][0]["message"]["content"])
+        result = await self.agent.run([self.prompt, BinaryContent(data=image, media_type="image/png")])
+        return result.output

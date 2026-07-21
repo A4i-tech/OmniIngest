@@ -143,40 +143,17 @@ class AzureDocIntelOcrConfig(BaseModel):
         return AzureDocIntelOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value(), model=self.model, api_version=self.api_version, timeout=self.timeout)
 
 
-class AzureOpenAIOcrConfig(BaseModel):
-    """A vision model hosted on Azure OpenAI (chat-completions OCR)."""
+class LLMOcrConfig(BaseModel):
+    """OCR via a vision LLM, using the pipeline's configured chat model (AgentMixin).
 
-    type: Literal["azure_openai"] = "azure_openai"
-    endpoint: AnyHttpUrl
-    api_key: SecretStr
-    deployment: str
-    api_version: str = "2025-03-01-preview"
-    prompt: str | None = Field(default=None, description="OCR instruction; defaults to a general Markdown-transcription prompt")
-    timeout: PositiveInt = 120
+    Any OpenAI-compatible vision model works here (Azure OpenAI, a llama.cpp
+    server, etc.) — the model and its credentials come from OcrAgent's
+    AgentMixin config / settings, so this config takes no connection args. The
+    engine is built by OcrAgent rather than here, since agent vending needs the
+    ingestion context.
+    """
 
-    def build(self):
-        from ..port.ocr import DEFAULT_VISION_OCR_PROMPT, AzureOpenAIOcrEngine
-        return AzureOpenAIOcrEngine(
-            endpoint=str(self.endpoint),
-            api_key=self.api_key.get_secret_value(),
-            deployment=self.deployment,
-            api_version=self.api_version,
-            prompt=self.prompt or DEFAULT_VISION_OCR_PROMPT,
-            timeout=self.timeout,
-        )
-
-
-class LlamaCppOcrConfig(BaseModel):
-    """A vision model served by llama.cpp's OpenAI-compatible server."""
-
-    type: Literal["llama_cpp"] = "llama_cpp"
-    base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8080")
-    model: str | None = None
-    prompt: str | None = Field(default=None, description="Model-specific OCR instruction; defaults to a general Markdown-transcription prompt")
-
-    def build(self):
-        from ..port.ocr import DEFAULT_LLAMA_CPP_PROMPT, LlamaCppOcrEngine
-        return LlamaCppOcrEngine(base_url=str(self.base_url), model=self.model, prompt=self.prompt or DEFAULT_LLAMA_CPP_PROMPT)
+    type: Literal["llm"] = "llm"
 
 
 class AzureMlOcrConfig(BaseModel):
@@ -194,7 +171,7 @@ class AzureMlOcrConfig(BaseModel):
 
 
 OcrEngineConfig: TypeAlias = Annotated[
-    SarvamOcrConfig | AzureDocIntelOcrConfig | AzureOpenAIOcrConfig | AzureMlOcrConfig | LlamaCppOcrConfig,
+    SarvamOcrConfig | AzureDocIntelOcrConfig | AzureMlOcrConfig | LLMOcrConfig,
     Field(discriminator="type"),
 ]
 VectorStoreConfig: TypeAlias = Annotated[
@@ -245,6 +222,21 @@ class Settings(BaseSettings):
 
     azure_translation_region: str | None = None
     """Azure Translator service region"""
+
+    sarvam_api_key: SecretStr | None = None
+    """Sarvam document-intelligence OCR subscription key"""
+
+    azure_di_ocr_endpoint: AnyHttpUrl | None = None
+    """Azure Document Intelligence OCR endpoint"""
+
+    azure_di_ocr_key: SecretStr | None = None
+    """Azure Document Intelligence OCR key"""
+
+    azure_ml_ocr_scoring_uri: AnyHttpUrl | None = None
+    """Azure ML custom-container OCR scoring URI"""
+
+    azure_ml_ocr_key: SecretStr | None = None
+    """Azure ML custom-container OCR endpoint key"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
