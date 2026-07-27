@@ -14,9 +14,9 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.config import settings
-from ..core.model import AgentMixin, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import OcrEngine
-from ..port.ocr import LLMOcrEngine
+from ..core.model import AgentMixin, ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.ocr import Ocr
+from ..port.ocr import llm_ocr
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -159,15 +159,20 @@ class RasterizeAgent(BaseModel, Step):
 
 
 class OcrAgent(BaseModel, Step, AgentMixin):
-    """Extracts PDF items into Markdown, OCRing pages with no usable text layer."""
+    """Extracts PDF and image items into Markdown, OCRing content with no usable text layer.
 
-    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting PDF items")
-    input: JqExpression = Field(default="[.id]", description="jq expression selecting PDF item ids")
+    Mime handling (PDF-to-image rasterization, text-layer skip, image
+    passthrough) lives entirely inside the OCR engine — this agent calls the
+    engine on every selected item with no content-type filtering, since some
+    engines (e.g. the `llm` engine) natively read PDF input directly.
+    """
+
+    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items")
+    input: JqExpression = Field(default="[.id]", description="jq expression selecting item ids")
     engine: str | None = Field(default=None, description="OCR engine name override; defaults to settings.default_ocr_engine")
-    dpi: PositiveInt = Field(default=200, description="DPI used to render pages that require OCR")
-    ocr_scanned: bool = Field(default=True, description="OCR pages whose extractable text is below text_layer_threshold")
-    text_layer_threshold: PositiveInt = Field(default=20, description="Minimum extractable characters on a page before OCR is skipped")
-    workers: PositiveInt = Field(default=4, description="Maximum number of pages OCR'd concurrently")
+    src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
+    dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
+    workers: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
@@ -182,49 +187,30 @@ class OcrAgent(BaseModel, Step, AgentMixin):
                 raise ValueError("OcrAgent input must resolve to known item ids")
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
-        if any([await item.content_type(ctx) != "application/pdf" for item in items]):
-            raise ValueError("OcrAgent only supports application/pdf items")
-
         engine_name = self.engine or settings.default_ocr_engine
-        engine_cm = LLMOcrEngine(self._agent(ctx)) if engine_name == "llm" else ctx.ocr_factory(engine_name, ctx)
-
-        sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "extracting text")
-        pages_total = chars_total = ocr_pages = 0
-        async with engine_cm as engine:
-            for i, item in enumerate(items, 1):
-                pages, chars, used = await self._extract(item, await item.content(ctx), engine, sem)
-                pages_total += pages
-                chars_total += chars
-                ocr_pages += used
-                ctx.progress(i, len(items), f"extracted {i}/{len(items)}")
 
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "pages": pages_total, "chars": chars_total, "ocr_used": ocr_pages > 0, "ocr_pages": ocr_pages})
+        if engine_name == "llm":
+            async with self._agent(ctx) as agent:
+                await self._extract_all(items, ctx, llm_ocr(agent))
+        else:
+            await self._extract_all(items, ctx, ctx.ocr_factory(engine_name, ctx, self.src_lang, self.dst_lang))
 
-    async def _extract(self, item: KnowledgeItem, content: bytes, engine: OcrEngine, sem: asyncio.Semaphore) -> tuple[int, int, int]:
-        pages = await asyncio.to_thread(self._render_pages, content)
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
 
-        async def resolve(text: str, needs_ocr: bool, image: bytes | None) -> str:
-            if not needs_ocr or image is None:
-                return text
+    async def _extract_all(self, items: list[KnowledgeItem], ctx: IngestionContext[ResolvedResource], engine: Ocr) -> None:
+        sem = asyncio.Semaphore(self.workers)
+
+        async def process(item: KnowledgeItem) -> None:
             async with sem:
-                return await engine.extract(image)
+                content_type = await item.content_type(ctx)
+                document = ByteContent(raw_content=await item.content(ctx), content_encoding=item.content_encoding, metadata={**item.metadata, "content_type": content_type})
+                result = await engine(document)
+            item.raw_content = result.raw_content
+            item.content_uri = None
+            item.content_encoding = result.content_encoding
+            item.metadata["content_type"] = result.metadata.get("content_type", "text/markdown")
 
-        markdown_pages = await asyncio.gather(*(resolve(text, needs_ocr, image) for text, needs_ocr, image in pages))
-        markdown = "\n\n".join(markdown_pages)
-        item.raw_content = markdown.encode("utf-8")
-        item.content_uri = None
-        item.content_encoding = "utf-8"
-        item.metadata["content_type"] = "text/markdown"
-        return len(pages), len(markdown), sum(1 for _, needs_ocr, _ in pages if needs_ocr)
-
-    def _render_pages(self, content: bytes) -> list[tuple[str, bool, bytes | None]]:
-        pages = []
-        with pymupdf.open(stream=content, filetype="pdf") as pdf:
-            for page in pdf.pages():
-                assert isinstance(page, pymupdf.Page)
-                text = page.get_text().strip()
-                needs_ocr = self.ocr_scanned and len(text) < self.text_layer_threshold
-                image = page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png") if needs_ocr else None
-                pages.append((text, needs_ocr, image))
-        return pages
+        for i, task in enumerate(asyncio.as_completed([process(item) for item in items]), 1):
+            await task
+            ctx.progress(i, len(items), f"extracted {i}/{len(items)}")

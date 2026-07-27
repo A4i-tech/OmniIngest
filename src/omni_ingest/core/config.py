@@ -150,7 +150,7 @@ class Settings(BaseSettings):
     """Graph store configuration selected entirely through environment configuration"""
 
     default_ocr_engine: str = "llm"
-    """Default OCR engine used by the pdf_ocr step, selected entirely through environment configuration"""
+    """Default OCR engine used by the ocr step, selected entirely through environment configuration"""
 
     azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""

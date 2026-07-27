@@ -1,4 +1,4 @@
-"""OCR engine implementations for PDF page image to Markdown extraction."""
+"""OCR engine implementations for document/page-image to Markdown extraction."""
 
 from __future__ import annotations
 
@@ -7,16 +7,18 @@ import base64
 import glob
 import tempfile
 import zipfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import httpx
+import pymupdf
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import AsyncSarvamAI
 
 from ..core.config import settings
-from ..core.model import ResolvedResource
-from ..core.ocr import OcrEngine, OcrFactory, build_simple_factory
+from ..core.model import ByteContent, ResolvedResource
+from ..core.ocr import Ocr, OcrFactory, build_simple_factory
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
@@ -46,12 +48,6 @@ class SarvamOcrEngine:
         self.language = language
         self.poll_interval = poll_interval
         self.timeout = timeout
-
-    async def __aenter__(self) -> SarvamOcrEngine:
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        pass
 
     async def extract(self, image: bytes) -> str:
         with tempfile.TemporaryDirectory() as tmp:
@@ -117,7 +113,7 @@ class AzureDocIntelOcrEngine(_HttpOcrEngine):
             elapsed += self.poll_interval
 
 
-DEFAULT_VISION_OCR_PROMPT = "Transcribe this page to Markdown, preserving headings, lists, and tables. Return only the Markdown."
+DEFAULT_VISION_OCR_PROMPT = "Transcribe this document to Markdown, preserving headings, lists, and tables. Return only the Markdown."
 
 
 class AzureMlOcrEngine(_HttpOcrEngine):
@@ -150,46 +146,79 @@ class AzureMlOcrEngine(_HttpOcrEngine):
         return str(response.json()["markdown"])
 
 
-class LLMOcrEngine:
-    """OCR via a vision LLM, driven by a pydantic-ai agent vended by OcrAgent.
+def by_page(extract_image: Callable[[bytes], Awaitable[str]], dpi: int = 200, ocr_scanned: bool = True, text_layer_threshold: int = 20) -> Ocr:
+    """Wrap a page-image extractor (`extract(png_bytes) -> markdown`) into a full `Ocr`.
 
-    Works with any OpenAI-compatible vision model (Azure OpenAI, a llama.cpp
-    server, gpt-4o, etc.) — the model and credentials are whatever the agent was
-    built with, so this engine adds no transport or auth of its own.
+    PDFs are rendered page-by-page, skipping pages whose extractable text is
+    already above `text_layer_threshold`; images are passed straight through.
+    Used by engines (Sarvam, Azure DI, Azure ML) that only OCR single images.
     """
 
-    def __init__(self, agent: Agent[Any, str], prompt: str = DEFAULT_VISION_OCR_PROMPT):
-        self.agent = agent
-        self.prompt = prompt
+    def render_pdf_pages(content: bytes) -> list[tuple[str, bool, bytes | None]]:
+        pages = []
+        with pymupdf.open(stream=content, filetype="pdf") as pdf:
+            for page in pdf.pages():
+                assert isinstance(page, pymupdf.Page)
+                text = page.get_text().strip()
+                needs_ocr = ocr_scanned and len(text) < text_layer_threshold
+                image = page.get_pixmap(dpi=dpi, alpha=False).tobytes("png") if needs_ocr else None
+                pages.append((text, needs_ocr, image))
+        return pages
 
-    async def __aenter__(self) -> LLMOcrEngine:
-        await self.agent.__aenter__()
-        return self
+    async def ocr(item: ByteContent) -> ByteContent:
+        content_type = item.metadata.get("content_type", "")
+        if content_type == "application/pdf":
+            pages = await asyncio.to_thread(render_pdf_pages, item.raw_content)
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        await self.agent.__aexit__(exc_type, exc, tb)
+            async def resolve(text: str, needs_ocr: bool, image: bytes | None) -> str:
+                return await extract_image(image) if needs_ocr and image is not None else text
 
-    async def extract(self, image: bytes) -> str:
-        result = await self.agent.run([self.prompt, BinaryContent(data=image, media_type="image/png")])
-        return result.output
+            markdown = "\n\n".join(await asyncio.gather(*(resolve(*page) for page in pages)))
+        elif content_type.startswith("image/"):
+            markdown = await extract_image(item.raw_content)
+        else:
+            raise ValueError(f"Unsupported OCR input content type: {content_type!r}")
+
+        return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
+
+    return ocr
 
 
-def sarvam_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+def llm_ocr(agent: Agent[Any, str], prompt: str = DEFAULT_VISION_OCR_PROMPT) -> Ocr:
+    """OCR via a vision LLM, driven by a pydantic-ai agent vended by OcrAgent.
+
+    Sends the document as-is (PDF or image) in one call — any OpenAI-compatible
+    vision model (Azure OpenAI, a llama.cpp server, gpt-4o, etc.) natively reads
+    PDF input, so no page-rendering preprocessing is needed here.
+    """
+
+    async def ocr(item: ByteContent) -> ByteContent:
+        content_type = item.metadata.get("content_type", "application/octet-stream")
+        result = await agent.run([prompt, BinaryContent(data=item.raw_content, media_type=content_type)])
+        return ByteContent(raw_content=result.output.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
+
+    return ocr
+
+
+def sarvam_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
     if settings.sarvam_api_key is None:
         raise ValueError("SARVAM_API_KEY is not configured")
-    return SarvamOcrEngine(api_key=settings.sarvam_api_key.get_secret_value())
+    engine = SarvamOcrEngine(api_key=settings.sarvam_api_key.get_secret_value(), language=src_lang or "hi-IN")
+    return by_page(engine.extract)
 
 
-def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
     if settings.azure_di_ocr_endpoint is None or settings.azure_di_ocr_key is None:
         raise ValueError("AZURE_DI_OCR_ENDPOINT/AZURE_DI_OCR_KEY are not configured")
-    return AzureDocIntelOcrEngine(endpoint=str(settings.azure_di_ocr_endpoint), api_key=settings.azure_di_ocr_key.get_secret_value())
+    engine = AzureDocIntelOcrEngine(endpoint=str(settings.azure_di_ocr_endpoint), api_key=settings.azure_di_ocr_key.get_secret_value())
+    return by_page(engine.extract)
 
 
-def azure_ml_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+def azure_ml_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
     if settings.azure_ml_ocr_scoring_uri is None or settings.azure_ml_ocr_key is None:
         raise ValueError("AZURE_ML_OCR_SCORING_URI/AZURE_ML_OCR_KEY are not configured")
-    return AzureMlOcrEngine(scoring_uri=str(settings.azure_ml_ocr_scoring_uri), api_key=settings.azure_ml_ocr_key.get_secret_value())
+    engine = AzureMlOcrEngine(scoring_uri=str(settings.azure_ml_ocr_scoring_uri), api_key=settings.azure_ml_ocr_key.get_secret_value())
+    return by_page(engine.extract)
 
 
 def default_factory() -> OcrFactory:

@@ -10,16 +10,17 @@ from pathlib import Path
 import pymupdf
 
 from omni_ingest.agent.document import OcrAgent
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 from omni_ingest.port.ocr import azure_di_ocr_builder, azure_ml_ocr_builder, sarvam_ocr_builder
 
 SCANNED_PDF = Path("tests/resources/textbook-scan-middle-pages.pdf")
 
 
-def middle_page_image() -> bytes:
+def middle_page_image() -> ByteContent:
     with pymupdf.open(SCANNED_PDF) as pdf:
-        return pdf[0].get_pixmap(dpi=200, alpha=False).tobytes("png")
+        png = pdf[0].get_pixmap(dpi=200, alpha=False).tobytes("png")
+    return ByteContent(raw_content=png, metadata={"content_type": "image/png"})
 
 
 def dummy_ctx(metadata_store) -> IngestionContext:
@@ -27,24 +28,24 @@ def dummy_ctx(metadata_store) -> IngestionContext:
 
 
 async def test_sarvam_ocr_engine_extracts_real_page(metadata_store):
-    async with sarvam_ocr_builder(dummy_ctx(metadata_store)) as engine:
-        markdown = await engine.extract(middle_page_image())
+    engine = sarvam_ocr_builder(dummy_ctx(metadata_store), src_lang=None, dst_lang=None)
+    result = await engine(middle_page_image())
 
-    assert len(markdown) > 0
+    assert len(result.raw_content) > 0
 
 
 async def test_azure_di_ocr_engine_extracts_real_page(metadata_store):
-    async with azure_di_ocr_builder(dummy_ctx(metadata_store)) as engine:
-        markdown = await engine.extract(middle_page_image())
+    engine = azure_di_ocr_builder(dummy_ctx(metadata_store), src_lang=None, dst_lang=None)
+    result = await engine(middle_page_image())
 
-    assert "<table>" in markdown
+    assert "<table>" in result.raw_content.decode("utf-8")
 
 
 async def test_azure_ml_ocr_engine_extracts_real_page(metadata_store):
-    async with azure_ml_ocr_builder(dummy_ctx(metadata_store)) as engine:
-        markdown = await engine.extract(middle_page_image())
+    engine = azure_ml_ocr_builder(dummy_ctx(metadata_store), src_lang=None, dst_lang=None)
+    result = await engine(middle_page_image())
 
-    assert len(markdown) > 0
+    assert len(result.raw_content) > 0
 
 
 async def test_llm_ocr_engine_extracts_real_page(metadata_store):
