@@ -8,18 +8,25 @@ import glob
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 import httpx
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import AsyncSarvamAI
+
+from ..core.config import settings
+from ..core.model import ResolvedResource
+from ..core.ocr import OcrEngine, OcrFactory, build_simple_factory
+
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
 
 
 class _HttpOcrEngine:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
-    async def __aenter__(self) -> _HttpOcrEngine:
+    async def __aenter__(self) -> Self:
         await self.client.__aenter__()
         return self
 
@@ -165,3 +172,30 @@ class LLMOcrEngine:
     async def extract(self, image: bytes) -> str:
         result = await self.agent.run([self.prompt, BinaryContent(data=image, media_type="image/png")])
         return result.output
+
+
+def sarvam_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+    if settings.sarvam_api_key is None:
+        raise ValueError("SARVAM_API_KEY is not configured")
+    return SarvamOcrEngine(api_key=settings.sarvam_api_key.get_secret_value())
+
+
+def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+    if settings.azure_di_ocr_endpoint is None or settings.azure_di_ocr_key is None:
+        raise ValueError("AZURE_DI_OCR_ENDPOINT/AZURE_DI_OCR_KEY are not configured")
+    return AzureDocIntelOcrEngine(endpoint=str(settings.azure_di_ocr_endpoint), api_key=settings.azure_di_ocr_key.get_secret_value())
+
+
+def azure_ml_ocr_builder(ctx: IngestionContext[ResolvedResource]) -> OcrEngine:
+    if settings.azure_ml_ocr_scoring_uri is None or settings.azure_ml_ocr_key is None:
+        raise ValueError("AZURE_ML_OCR_SCORING_URI/AZURE_ML_OCR_KEY are not configured")
+    return AzureMlOcrEngine(scoring_uri=str(settings.azure_ml_ocr_scoring_uri), api_key=settings.azure_ml_ocr_key.get_secret_value())
+
+
+def default_factory() -> OcrFactory:
+    """Default OCR factory. `llm` is vended by `OcrAgent` itself since it needs agent construction."""
+    return build_simple_factory({
+        "sarvam": sarvam_ocr_builder,
+        "azure_di": azure_di_ocr_builder,
+        "azure_ml": azure_ml_ocr_builder,
+    })

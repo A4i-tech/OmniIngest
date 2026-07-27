@@ -39,19 +39,6 @@ class Translator(Protocol):
 
 
 @runtime_checkable
-class OcrEngine(Protocol):
-    """Extract Markdown text from a single rendered page image."""
-
-    async def __aenter__(self) -> OcrEngine: ...
-
-    async def __aexit__(self, exc_type, exc, tb) -> None: ...
-
-    async def extract(self, image: bytes) -> str:
-        """Return Markdown transcribed from a PNG-encoded page image."""
-        ...
-
-
-@runtime_checkable
 class ContentResolver(Protocol):
     """Resolve virtual content URIs into bytes during ingestion.
 

@@ -31,7 +31,9 @@ from ..core import event
 from ..core.config import settings
 from ..parser import read_resources
 from ..port.content import default_content_resolver
+from ..port.ocr import default_factory as default_ocr_factory
 from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
+from .ocr import OcrFactory
 from .output import Output, OutputResult
 from .protocol import ContentResolver, MetadataStore, VectorStore
 
@@ -67,6 +69,9 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
 
     content_resolver: ContentResolver = field(default_factory=default_content_resolver)
     """Reference to a storage engine or backend"""
+
+    ocr_factory: OcrFactory = field(default_factory=default_ocr_factory)
+    """OCR factory to vend OCR engines from, keyed by engine name"""
 
     run_id: UUID = field(default_factory=uuid4)
     """Unique identifier for the current pipeline run"""

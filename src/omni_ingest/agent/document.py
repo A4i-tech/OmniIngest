@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field, NonNegativeFloat, PositiveInt
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.config import LLMOcrConfig, OcrEngineConfig, settings
+from ..core.config import settings
 from ..core.model import AgentMixin, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.protocol import OcrEngine
+from ..core.ocr import OcrEngine
 from ..port.ocr import LLMOcrEngine
 
 
@@ -163,7 +163,7 @@ class OcrAgent(BaseModel, Step, AgentMixin):
 
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting PDF items")
     input: JqExpression = Field(default="[.id]", description="jq expression selecting PDF item ids")
-    engine: OcrEngineConfig | None = Field(default=None, description="OCR engine override; defaults to settings.ocr_engine")
+    engine: str | None = Field(default=None, description="OCR engine name override; defaults to settings.default_ocr_engine")
     dpi: PositiveInt = Field(default=200, description="DPI used to render pages that require OCR")
     ocr_scanned: bool = Field(default=True, description="OCR pages whose extractable text is below text_layer_threshold")
     text_layer_threshold: PositiveInt = Field(default=20, description="Minimum extractable characters on a page before OCR is skipped")
@@ -185,11 +185,8 @@ class OcrAgent(BaseModel, Step, AgentMixin):
         if any([await item.content_type(ctx) != "application/pdf" for item in items]):
             raise ValueError("OcrAgent only supports application/pdf items")
 
-        config = self.engine or settings.ocr_engine
-        if config is None:
-            raise ValueError("No OCR engine configured; set OcrAgent.engine or settings.ocr_engine")
-
-        engine_cm = LLMOcrEngine(self._agent(ctx)) if isinstance(config, LLMOcrConfig) else config.build()
+        engine_name = self.engine or settings.default_ocr_engine
+        engine_cm = LLMOcrEngine(self._agent(ctx)) if engine_name == "llm" else ctx.ocr_factory(engine_name, ctx)
 
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "extracting text")

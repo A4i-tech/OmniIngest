@@ -115,65 +115,6 @@ class Neo4jGraphStoreConfig(BaseModel):
         return Neo4jGraphStore(uri=self.uri, user=self.user, password=self.password.get_secret_value())
 
 
-class SarvamOcrConfig(BaseModel):
-    """Sarvam document-intelligence OCR, submitted as one job per page."""
-
-    type: Literal["sarvam"] = "sarvam"
-    api_key: SecretStr
-    language: str = "hi-IN"
-    timeout: PositiveInt = 300
-
-    def build(self):
-        from ..port.ocr import SarvamOcrEngine
-        return SarvamOcrEngine(api_key=self.api_key.get_secret_value(), language=self.language, timeout=self.timeout)
-
-
-class AzureDocIntelOcrConfig(BaseModel):
-    """Azure Document Intelligence OCR (prebuilt-layout, Markdown output)."""
-
-    type: Literal["azure_di"] = "azure_di"
-    endpoint: AnyHttpUrl
-    api_key: SecretStr
-    model: str = "prebuilt-layout"
-    api_version: str = "2024-11-30"
-    timeout: PositiveInt = 300
-
-    def build(self):
-        from ..port.ocr import AzureDocIntelOcrEngine
-        return AzureDocIntelOcrEngine(endpoint=str(self.endpoint), api_key=self.api_key.get_secret_value(), model=self.model, api_version=self.api_version, timeout=self.timeout)
-
-
-class LLMOcrConfig(BaseModel):
-    """OCR via a vision LLM, using the pipeline's configured chat model (AgentMixin).
-
-    Any OpenAI-compatible vision model works here (Azure OpenAI, a llama.cpp
-    server, etc.) — the model and its credentials come from OcrAgent's
-    AgentMixin config / settings, so this config takes no connection args. The
-    engine is built by OcrAgent rather than here, since agent vending needs the
-    ingestion context.
-    """
-
-    type: Literal["llm"] = "llm"
-
-
-class AzureMlOcrConfig(BaseModel):
-    """A custom OCR container deployed to an Azure ML managed online endpoint (BYOC)."""
-
-    type: Literal["azure_ml"] = "azure_ml"
-    scoring_uri: AnyHttpUrl
-    api_key: SecretStr
-    deployment: str | None = None
-    timeout: PositiveInt = 120
-
-    def build(self):
-        from ..port.ocr import AzureMlOcrEngine
-        return AzureMlOcrEngine(scoring_uri=str(self.scoring_uri), api_key=self.api_key.get_secret_value(), deployment=self.deployment, timeout=self.timeout)
-
-
-OcrEngineConfig: TypeAlias = Annotated[
-    SarvamOcrConfig | AzureDocIntelOcrConfig | AzureMlOcrConfig | LLMOcrConfig,
-    Field(discriminator="type"),
-]
 VectorStoreConfig: TypeAlias = Annotated[
     InMemoryVectorStoreConfig | LanceDBVectorStoreConfig | QdrantVectorStoreConfig | MongoVectorStoreConfig | AzureVectorSearchStoreConfig | ChromaVectorStoreConfig,
     Field(discriminator="type"),
@@ -208,8 +149,8 @@ class Settings(BaseSettings):
     graph_store: GraphStoreConfig = Field(default_factory=InMemoryGraphStoreConfig)
     """Graph store configuration selected entirely through environment configuration"""
 
-    ocr_engine: OcrEngineConfig | None = Field(default=None)
-    """OCR engine used by the pdf_ocr step, selected entirely through environment configuration"""
+    default_ocr_engine: str = "llm"
+    """Default OCR engine used by the pdf_ocr step, selected entirely through environment configuration"""
 
     azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""
