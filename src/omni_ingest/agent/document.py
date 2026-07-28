@@ -14,9 +14,8 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.config import settings
-from ..core.model import AgentMixin, ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from ..core.ocr import Ocr
-from ..port.ocr import llm_ocr
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -158,18 +157,12 @@ class RasterizeAgent(BaseModel, Step):
             item.content_uri = None
 
 
-class OcrAgent(BaseModel, Step, AgentMixin):
-    """Extracts PDF and image items into Markdown, OCRing content with no usable text layer.
-
-    Mime handling (PDF-to-image rasterization, text-layer skip, image
-    passthrough) lives entirely inside the OCR engine — this agent calls the
-    engine on every selected item with no content-type filtering, since some
-    engines (e.g. the `llm` engine) natively read PDF input directly.
-    """
+class OcrAgent(BaseModel, Step):
+    """Extracts items into Markdown using a configured OCR engine."""
 
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items")
     input: JqExpression = Field(default="[.id]", description="jq expression selecting item ids")
-    engine: str | None = Field(default=None, description="OCR engine name override; defaults to settings.default_ocr_engine")
+    engine: str = Field(default=settings.default_ocr_engine, description="OCR engine name")
     src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
     dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
     workers: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
@@ -187,14 +180,8 @@ class OcrAgent(BaseModel, Step, AgentMixin):
                 raise ValueError("OcrAgent input must resolve to known item ids")
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
-        engine_name = self.engine or settings.default_ocr_engine
         ctx.progress(0, len(items), "extracting text")
-
-        if engine_name == "llm":
-            async with self._agent(ctx) as agent:
-                await self._extract_all(items, ctx, llm_ocr(agent))
-        else:
-            await self._extract_all(items, ctx, ctx.ocr_factory(engine_name, ctx, self.src_lang, self.dst_lang))
+        await self._extract_all(items, ctx, ctx.ocr_factory(self.engine, ctx, self.src_lang, self.dst_lang))
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
 
