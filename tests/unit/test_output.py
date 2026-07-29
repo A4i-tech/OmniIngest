@@ -34,6 +34,7 @@ def test_parse_raises_import_error_when_pymongo_missing():
 
 
 def test_parse_detects_mongodb_scheme():
+    pytest.importorskip("pymongo")
     output = parse("mongodb://localhost:27017/db/col")
     assert isinstance(output, MongoDocumentOutput)
 
