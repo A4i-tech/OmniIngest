@@ -77,8 +77,8 @@ def llm_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | Non
     agent = _DefaultAgentMixin()._agent(ctx)
 
     async def ocr(item: ByteContent) -> ByteContent:
-        content_type = item.metadata.get("content_type", "application/octet-stream")
-        result = await agent.run([DEFAULT_VISION_OCR_PROMPT, BinaryContent(data=item.raw_content, media_type=content_type)])
+        content_type = await item.content_type(ctx)
+        result = await agent.run([DEFAULT_VISION_OCR_PROMPT, BinaryContent(data=await item.content(ctx), media_type=content_type)])
         return ByteContent(raw_content=result.output.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
 
     return ocr
@@ -98,7 +98,7 @@ def sarvam_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | 
     async def extract_page(image: ByteContent) -> ByteContent:
         with tempfile.TemporaryDirectory() as tmp:
             image_path = Path(tmp) / "page.png"
-            image_path.write_bytes(image.raw_content)
+            image_path.write_bytes(await image.content(ctx))
 
             job = await client.document_intelligence.create_job(language=language, output_format="md")
             await job.upload_file(str(image_path))
@@ -136,7 +136,7 @@ def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str 
         submit = await client.post(
             "/documentintelligence/documentModels/prebuilt-layout:analyze",
             params={"api-version": "2024-11-30", "outputContentFormat": "markdown"},
-            content=image.raw_content,
+            content=await image.content(ctx),
             headers={"Content-Type": "application/octet-stream"},
         )
         submit.raise_for_status()
@@ -180,7 +180,7 @@ def azure_ml_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str 
     scoring_uri = str(settings.azure_ml_ocr_scoring_uri)
 
     async def extract_page(image: ByteContent) -> ByteContent:
-        response = await client.post(scoring_uri, json={"image": base64.b64encode(image.raw_content).decode()})
+        response = await client.post(scoring_uri, json={"image": base64.b64encode(await image.content(ctx)).decode()})
         response.raise_for_status()
         markdown = str(response.json()["markdown"])
         return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})

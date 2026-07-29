@@ -193,10 +193,10 @@ class OcrAgent(BaseModel, Step):
                 content_type = await item.content_type(ctx)
                 document = ByteContent(raw_content=await item.content(ctx), content_encoding=item.content_encoding, metadata={**item.metadata, "content_type": content_type})
                 result = await engine(document)
-            item.raw_content = result.raw_content
+            item.raw_content = await result.content(ctx)
             item.content_uri = None
             item.content_encoding = result.content_encoding
-            item.metadata["content_type"] = result.metadata.get("content_type", "text/markdown")
+            item.metadata["content_type"] = await result.content_type(ctx)
 
         for i, task in enumerate(asyncio.as_completed([process(item) for item in items]), 1):
             await task
