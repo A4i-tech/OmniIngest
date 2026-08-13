@@ -4,17 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import glob
-import tempfile
-import zipfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
 import pymupdf
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic_ai import BinaryContent
-from sarvamai import AsyncSarvamAI
 
 from ..core.config import settings
 from ..core.model import AgentMixin, ByteContent, ResolvedResource
@@ -84,38 +80,34 @@ def llm_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | Non
     return ocr
 
 
-def sarvam_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
-    """Sarvam document-intelligence OCR, via the async job API (upload -> poll -> download).
+def openai_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
+    """OCR via any OpenAI-compatible vision/chat-completions endpoint.
 
-    Each page is submitted as its own single-image job; Sarvam has no
-    synchronous single-image OCR endpoint.
+    Collapses the previous Sarvam- and Azure-ML-BYOC-specific builders into a single
+    config-driven client, per review discussion to avoid host-specific implementations
+    in omni-ingest: point `OCR_BASE_URL`/`OCR_API_KEY` at Sarvam, an OpenAI-compatible
+    Azure ML deployment, a self-hosted vLLM/Ollama server, etc.
     """
-    if settings.sarvam_api_key is None:
-        raise ValueError("SARVAM_API_KEY is not configured")
-    client = AsyncSarvamAI(api_subscription_key=settings.sarvam_api_key.get_secret_value())
-    language = src_lang or "hi-IN"
+    if settings.ocr_api_key is None or settings.ocr_base_url is None:
+        raise ValueError("OCR_API_KEY/OCR_BASE_URL are not configured")
+    client = AsyncOpenAI(api_key=settings.ocr_api_key.get_secret_value(), base_url=str(settings.ocr_base_url))
 
     async def extract_page(image: ByteContent) -> ByteContent:
-        with tempfile.TemporaryDirectory() as tmp:
-            image_path = Path(tmp) / "page.png"
-            image_path.write_bytes(await image.content(ctx))
-
-            job = await client.document_intelligence.create_job(language=language, output_format="md")
-            await job.upload_file(str(image_path))
-            await job.start()
-            status = await job.wait_until_complete(poll_interval=2.0, timeout=300.0)
-            if status.job_state not in ("Completed", "PartiallyCompleted"):
-                raise RuntimeError(f"Sarvam OCR job {job.job_id} failed: {status.job_state}")
-
-            zip_path = Path(tmp) / "output.zip"
-            await job.download_output(str(zip_path))
-            extract_dir = Path(tmp) / "output"
-            with zipfile.ZipFile(zip_path) as zf:
-                zf.extractall(extract_dir)
-
-            md_files = sorted(glob.glob(str(extract_dir / "**" / "*.md"), recursive=True))
-            markdown = "\n\n".join(Path(f).read_text(encoding="utf-8") for f in md_files)
-
+        content_type = await image.content_type(ctx)
+        data = await image.content(ctx)
+        response = await client.chat.completions.create(
+            model=settings.ocr_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": DEFAULT_VISION_OCR_PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64.b64encode(data).decode()}"}},
+                    ],
+                }
+            ],
+        )
+        markdown = response.choices[0].message.content or ""
         return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
 
     return by_page(extract_page)
@@ -161,37 +153,9 @@ def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str 
     return by_page(extract_page)
 
 
-def azure_ml_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
-    """A custom OCR container deployed to an Azure ML managed online endpoint (BYOC).
-
-    Azure ML does not fix the request/response shape for a custom container —
-    the deployment's own server defines it. This engine posts to the endpoint's
-    scoring URI (from `az ml online-endpoint show -n <name> --query scoring_uri`)
-    with key-based auth, and assumes the container's scoring route implements:
-
-        POST <scoring_uri>
-        Authorization: Bearer <key>
-        request  body: {"image": "<base64-encoded PNG>"}
-        response body: {"markdown": "<extracted markdown>"}
-    """
-    if settings.azure_ml_ocr_scoring_uri is None or settings.azure_ml_ocr_key is None:
-        raise ValueError("AZURE_ML_OCR_SCORING_URI/AZURE_ML_OCR_KEY are not configured")
-    client = httpx.AsyncClient(headers={"Authorization": f"Bearer {settings.azure_ml_ocr_key.get_secret_value()}"}, timeout=120)
-    scoring_uri = str(settings.azure_ml_ocr_scoring_uri)
-
-    async def extract_page(image: ByteContent) -> ByteContent:
-        response = await client.post(scoring_uri, json={"image": base64.b64encode(await image.content(ctx)).decode()})
-        response.raise_for_status()
-        markdown = str(response.json()["markdown"])
-        return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
-
-    return by_page(extract_page)
-
-
 def default_factory() -> OcrFactory:
     return build_simple_factory({
         "llm": llm_ocr_builder,
-        "sarvam": sarvam_ocr_builder,
+        "openai": openai_ocr_builder,
         "azure_di": azure_di_ocr_builder,
-        "azure_ml": azure_ml_ocr_builder,
     })

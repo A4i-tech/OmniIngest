@@ -164,8 +164,16 @@ class Settings(BaseSettings):
     azure_translation_region: str | None = None
     """Azure Translator service region"""
 
-    sarvam_api_key: SecretStr | None = None
-    """Sarvam document-intelligence OCR subscription key"""
+    ocr_api_key: SecretStr | None = None
+    """API key for the generic OpenAI-compatible OCR vision endpoint (`openai` engine); point this
+    at any OpenAI-compatible vision/chat-completions server (Sarvam, an OpenAI-compatible Azure ML
+    BYOC deployment, a self-hosted vLLM/Ollama server, etc.)"""
+
+    ocr_base_url: AnyHttpUrl | None = None
+    """Base URL for the generic OpenAI-compatible OCR vision endpoint (`openai` engine)"""
+
+    ocr_model: str = "gpt-4o-mini"
+    """Model name to request from the generic OpenAI-compatible OCR vision endpoint (`openai` engine)"""
 
     azure_di_ocr_endpoint: AnyHttpUrl | None = None
     """Azure Document Intelligence OCR endpoint"""
@@ -173,11 +181,62 @@ class Settings(BaseSettings):
     azure_di_ocr_key: SecretStr | None = None
     """Azure Document Intelligence OCR key"""
 
-    azure_ml_ocr_scoring_uri: AnyHttpUrl | None = None
-    """Azure ML custom-container OCR scoring URI"""
+    azure_vm_ocr_subscription_id: str | None = None
+    """Azure subscription id used to provision the ephemeral OCR VM"""
 
-    azure_ml_ocr_key: SecretStr | None = None
-    """Azure ML custom-container OCR endpoint key"""
+    azure_vm_ocr_resource_group: str | None = None
+    """Existing Azure resource group the ephemeral OCR VM (and its NIC/public IP) are created into and deleted from"""
+
+    azure_vm_ocr_location: str = "eastus"
+    """Azure region for the ephemeral OCR VM"""
+
+    azure_vm_ocr_vm_size: str = "Standard_D2s_v3"
+    """Azure VM size for the ephemeral OCR VM"""
+
+    azure_vm_ocr_container_image: str | None = None
+    """Container image reference (e.g. a registry/image:tag) the ephemeral OCR VM pulls and runs via cloud-init/Docker to serve OCR requests"""
+
+    azure_vm_ocr_local_build_path: str | None = None
+    """Optional local path to a Docker build context. If set, OmniIngest will attempt to auto-build and push the container_image to the registry if it does not already exist remotely."""
+
+    azure_vm_ocr_container_port: PositiveInt = 8000
+    """Port the OCR container listens on inside the ephemeral VM"""
+
+    azure_vm_ocr_container_registry_username: str | None = None
+    """Optional registry username for `docker login` before pulling `azure_vm_ocr_container_image` (omit login if unset)"""
+
+    azure_vm_ocr_container_registry_password: SecretStr | None = None
+    """Optional registry password/token for `docker login`"""
+
+    azure_vm_ocr_admin_username: str = "ocrsvc"
+    """Admin username for the ephemeral OCR VM"""
+
+    azure_vm_ocr_ssh_public_key: str | None = None
+    """SSH public key installed on the ephemeral OCR VM (password auth is disabled; this is required to provision)"""
+
+    azure_vm_ocr_gpu_enabled: bool = False
+    """Whether to pass `--gpus all` to the docker run command in the ephemeral OCR VM (container mode only); requires a GPU-capable vm_size and a GPU-ready image (e.g. microsoft-dsvm/ubuntu-hpc)"""
+
+    azure_vm_ocr_bootstrap_script: str | None = None
+    """Raw cloud-init/shell bootstrap script for the ephemeral OCR VM that installs and starts an OCR server directly (no Docker); mutually exclusive with azure_vm_ocr_container_image — if set, this is embedded verbatim into cloud-init instead of the Docker flow; the script is responsible for serving POST /score on azure_vm_ocr_container_port"""
+
+    azure_vm_ocr_image_publisher: str = "Canonical"
+    """VM image publisher for the ephemeral OCR VM (override to e.g. "microsoft-dsvm" for GPU-ready images)"""
+
+    azure_vm_ocr_image_offer: str = "0001-com-ubuntu-server-jammy"
+    """VM image offer for the ephemeral OCR VM (override to e.g. "ubuntu-hpc" for GPU-ready images with NVIDIA driver + nvidia-container-toolkit preinstalled)"""
+
+    azure_vm_ocr_image_sku: str = "22_04-lts-gen2"
+    """VM image SKU for the ephemeral OCR VM"""
+
+    azure_vm_ocr_image_version: str = "latest"
+    """VM image version for the ephemeral OCR VM"""
+
+    azure_vm_ocr_ready_timeout_s: PositiveInt = 900
+    """Seconds to poll the ephemeral OCR VM for readiness before giving up (cold ACR pull of model-weight-baked images + CPU model load can take 10+ min; increase further for GPU/larger models)"""
+
+    azure_vm_ocr_score_timeout_s: PositiveInt = 900
+    """Per-request timeout (seconds) for the /score call to the ephemeral OCR VM. Readiness only confirms the HTTP server is up; the OCR model itself may still lazy-load on the first real request (GGUF download/mmap, CUDA init), so this must be generous — same order as ready_timeout_s."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
