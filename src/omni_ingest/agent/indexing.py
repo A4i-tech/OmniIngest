@@ -47,3 +47,26 @@ class EmbeddingAgent(BaseModel, Step):
             item.metadata = _assign({"metadata": item.metadata}, self.path, embedding)["metadata"]
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"embedded_count": len(selected), "path": self.path})
+
+
+class VectorStoreSinkAgent(BaseModel, Step):
+    """
+    Writes embedded KnowledgeItems to the configured vector store.
+
+    This agent reads the backend from ``Settings.vector_store``. A profile
+    never names a backend, so the same profile writes to whatever backend a
+    deployment configures. This agent writes through the ``VectorStore``
+    port in ``port/vector_store.py``. It never calls a specific backend
+    client directly.
+    """
+
+    async def run(self, ctx: IngestionContext) -> StepResult:
+        if not ctx.items:
+            return StepResult(status=StepStatus.SKIPPED, error="No items to write")
+
+        items = [item for item in ctx.items if item.metadata.get("embedding")]
+        if not items:
+            return StepResult(status=StepStatus.SKIPPED, error="No items carry an embedding")
+
+        await ctx.vector_store.upsert(items, ctx)
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"written_count": len(items)})

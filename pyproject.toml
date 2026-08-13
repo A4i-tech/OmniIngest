@@ -26,6 +26,7 @@ dependencies = [
     "azure-ai-translation-text>=2.0.0",
     "pydantic-ai-slim[openai]>=2.0.0",
     "python-magic>=0.4.27",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
     "datamodel-code-generator>=0.63.0",
     "jq>=1.11.0",
     "jsonschema>=4.26.0",
