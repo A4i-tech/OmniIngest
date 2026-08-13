@@ -1,15 +1,25 @@
-# OmniIngest
+<div align="center">
+  <picture>
+    <img src="https://github.com/user-attachments/assets/ca2db073-715b-479c-a026-baeb3d233ade" alt="Omni Ingest">
+  </picture>
+</div>
+<div align="center">
+  <h3>Multimodal ingestion that does not dictate your stack</h3>
+</div>
+<div align="center">
+ <a href="https://github.com/A4i-tech/OmniIngest/blob/a4i/main/LICENSE"><img src="https://img.shields.io/github/license/A4i-tech/OmniIngest" alt="License"/></a>
+ <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python Version"/></a>
+ <a href="https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml"><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/9f6bf6c997ed2c171aed62e1c1583f2d/raw/omni_ingest.json" alt="Coverage"/></a>
+ <a href="https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml"><img src="https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml/badge.svg?branch=a4i/main" alt="CI"/></a>
+</div>
 
-[![License](https://img.shields.io/github/license/A4i-tech/OmniIngest)](https://github.com/A4i-tech/OmniIngest/blob/a4i/main/LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/9f6bf6c997ed2c171aed62e1c1583f2d/raw/omni_ingest.json)](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml)
-[![CI](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml/badge.svg?branch=a4i/main)](https://github.com/A4i-tech/OmniIngest/actions/workflows/main.yaml)
+---
 
 OmniIngest is a multimodal ingestion framework for building reusable knowledge pipelines. It turns documents, web pages, images, and audio into validated knowledge items without the faff of stitching together one-off preprocessing scripts.
 
 **Documentation:** [omniingest.onrender.com](https://omniingest.onrender.com/)
 
-## Why OmniIngest
+## Why use OmniIngest
 
 - **Multimodal processing.** PDF, DOCX, HTML, images, audio, and plain text use one pipeline model.
 - **Multiple model providers.** Every model-backed step can select its own Pydantic AI model. Chat and embedding models are configured independently.
