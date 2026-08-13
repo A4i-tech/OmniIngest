@@ -40,7 +40,6 @@ def test_parse_detects_mongodb_scheme():
 
 
 def test_parse_detects_mongodb_srv_scheme():
-    # mongodb+srv:// triggers real DNS SRV lookup on client creation; patch to avoid network call
-    with patch("omni_ingest.core.output.MongoDocumentOutput") as mock_cls:
-        parse("mongodb+srv://cluster.example.net/db/col")
-        mock_cls.assert_called_once_with("mongodb+srv://cluster.example.net/db/col")
+    pytest.importorskip("pymongo")
+    output = parse("mongodb+srv://cluster.example.net/db/col")
+    assert isinstance(output, MongoDocumentOutput)

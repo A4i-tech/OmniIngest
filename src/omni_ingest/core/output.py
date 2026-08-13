@@ -211,7 +211,7 @@ class MongoDocumentOutput(Output):
         ops = [
             self._ReplaceOne(
                 {"_id": str(item.id)},
-                {"_id": str(item.id), "source_uri": item.source_uri or "", "content": await item.decode(ctx), "metadata": item.metadata},
+                {"_id": str(item.id), "source_uri": item.source_uri, "content": await item.decode(ctx), "metadata": item.metadata},
                 upsert=True,
             )
             for item in ctx.items

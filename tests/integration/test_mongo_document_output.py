@@ -66,7 +66,7 @@ async def test_write_stores_expected_fields(mongo_collection, metadata_store):
     await out.write(ctx)
 
     doc = await mongo_collection.find_one({"_id": str(item.id)})
-    assert doc == {"_id": str(item.id), "source_uri": "", "content": "hello world", "metadata": {"grade": 6}}
+    assert doc == {"_id": str(item.id), "source_uri": None, "content": "hello world", "metadata": {"grade": 6}}
 
 
 async def test_write_skips_when_no_items(mongo_collection, metadata_store):
