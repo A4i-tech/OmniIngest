@@ -108,6 +108,11 @@ jobs:
     if: |
       (github.event_name == 'workflow_dispatch' && inputs.run_tests) ||
       (github.event_name == 'push' && (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/a4i/staging'))
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
     outputs:
       coverage-pct: ${{ steps.coverage.outputs.coverage-pct }}
     steps:
