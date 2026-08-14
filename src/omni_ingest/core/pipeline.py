@@ -124,6 +124,7 @@ _STEP_FACTORY: StepFactory = {
     "lineage": agent.governance.DataLineageAgent,
 
     "embedding": agent.indexing.EmbeddingAgent,
+    "vector_store_sink": agent.indexing.VectorStoreSinkAgent,
 }
 
 class PipelineRunner:
