@@ -33,6 +33,8 @@ dependencies = [
     "rich>=15.0.0",
     "pymupdf>=1.27.2.3",
     "sqlmodel>=0.0.39",
+    "azure-ai-documentintelligence>=1.0.2",
+    "azure-core[aio]>=1.41.0",
 ]
 
 [project.scripts]

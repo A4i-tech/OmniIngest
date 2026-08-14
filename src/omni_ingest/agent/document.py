@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field, NonNegativeFloat, PositiveInt
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.config import settings
+from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.ocr import Ocr
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -153,3 +155,49 @@ class RasterizeAgent(BaseModel, Step):
                 target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
             item.raw_content = output.tobytes(deflate=True)
             item.content_uri = None
+
+
+class OcrAgent(BaseModel, Step):
+    """Extracts items into Markdown using a configured OCR engine."""
+
+    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items")
+    input: JqExpression = Field(default="[.id]", description="jq expression selecting item ids")
+    engine: str = Field(default=settings.default_ocr_engine, description="OCR engine name")
+    src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
+    dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
+    workers: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
+
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
+        item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
+        specs = jq.compile(self.foreach).input_value({"metadata": ctx.metadata, "items": item_docs}).all()
+        input_expr = jq.compile(self.input)
+        items: list[KnowledgeItem] = []
+
+        for spec in specs:
+            item_ids = input_expr.input_value(spec).first()
+            if not isinstance(item_ids, list) or not item_ids or any(item_id not in item_by_id for item_id in item_ids):
+                raise ValueError("OcrAgent input must resolve to known item ids")
+            items.extend(item_by_id[item_id] for item_id in item_ids)
+
+        ctx.progress(0, len(items), "extracting text")
+        await self._extract_all(items, ctx, ctx.ocr_factory(self.engine, ctx, self.src_lang, self.dst_lang))
+
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
+
+    async def _extract_all(self, items: list[KnowledgeItem], ctx: IngestionContext[ResolvedResource], engine: Ocr) -> None:
+        sem = asyncio.Semaphore(self.workers)
+
+        async def process(item: KnowledgeItem) -> None:
+            async with sem:
+                content_type = await item.content_type(ctx)
+                document = ByteContent(raw_content=await item.content(ctx), content_encoding=item.content_encoding, metadata={**item.metadata, "content_type": content_type})
+                result = await engine(document)
+            item.raw_content = await result.content(ctx)
+            item.content_uri = None
+            item.content_encoding = result.content_encoding
+            item.metadata["content_type"] = await result.content_type(ctx)
+
+        for i, task in enumerate(asyncio.as_completed([process(item) for item in items]), 1):
+            await task
+            ctx.progress(i, len(items), f"extracted {i}/{len(items)}")
