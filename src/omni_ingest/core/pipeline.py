@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar, cast
 from uuid import UUID, uuid4
 
 import jq
@@ -54,7 +54,8 @@ def default_metadata_store() -> MetadataStore:
 
 @cache
 def default_vector_store() -> VectorStore:
-    return settings.vector_store.build()
+    return cast(VectorStore, settings.vector_store.build())
+
 
 
 @dataclass(kw_only=True)

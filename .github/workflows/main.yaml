@@ -5,6 +5,8 @@ on:
     branches:
       - a4i/main
       - a4i/staging
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - a4i/main
@@ -183,12 +185,13 @@ jobs:
       - name: Deploy to GitHub Pages
         run: uv run mkdocs gh-deploy --force
 
-  publish-pages:
-    name: Publish Package Index
+  publish-release:
+    name: Publish Release Package
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/a4i/main' || startsWith(github.ref, 'refs/tags/v')))
     needs: [deploy-docs]
     steps:
       - uses: actions/checkout@v4
@@ -199,25 +202,14 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
         run: uv python install 3.11
-      - name: Build wheel
+      - name: Build package
         run: uv build
-      - name: Build package index
-        run: |
-          mkdir -p simple/omni-ingest
-          cp dist/*.whl simple/omni-ingest/
-          python - <<'PY'
-          import pathlib, html
-          d = pathlib.Path("simple/omni-ingest")
-          links = "".join(f'<a href="{html.escape(f.name)}">{html.escape(f.name)}</a><br/>\n' for f in sorted(d.glob("*.whl")))
-          d.joinpath("index.html").write_text(f"<!DOCTYPE html><html><body>\n{links}</body></html>")
-          pathlib.Path("simple/index.html").write_text(
-              '<!DOCTYPE html><html><body><a href="omni-ingest/">omni-ingest</a></body></html>')
-          PY
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./simple
-          destination_dir: simple
-          force_orphan: true
+          files: dist/*
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Main Build' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          generate_release_notes: true
 
