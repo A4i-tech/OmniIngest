@@ -201,30 +201,23 @@ jobs:
         run: uv python install 3.11
       - name: Build wheel
         run: uv build
-      - name: Checkout gh-pages worktree
+      - name: Build package index
         run: |
-          git fetch origin gh-pages || true
-          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            git worktree add -B gh-pages /tmp/ghp origin/gh-pages
-          else
-            git worktree add --orphan -B gh-pages /tmp/ghp
-          fi
-      - name: Update index
-        run: |
-          mkdir -p /tmp/ghp/simple/omni-ingest
-          cp dist/*.whl /tmp/ghp/simple/omni-ingest/
+          mkdir -p simple/omni-ingest
+          cp dist/*.whl simple/omni-ingest/
           python - <<'PY'
           import pathlib, html
-          d = pathlib.Path("/tmp/ghp/simple/omni-ingest")
+          d = pathlib.Path("simple/omni-ingest")
           links = "".join(f'<a href="{html.escape(f.name)}">{html.escape(f.name)}</a><br/>\n' for f in sorted(d.glob("*.whl")))
           d.joinpath("index.html").write_text(f"<!DOCTYPE html><html><body>\n{links}</body></html>")
-          pathlib.Path("/tmp/ghp/simple/index.html").write_text(
+          pathlib.Path("simple/index.html").write_text(
               '<!DOCTYPE html><html><body><a href="omni-ingest/">omni-ingest</a></body></html>')
           PY
-      - name: Commit and push
-        run: |
-          cd /tmp/ghp
-          git add simple
-          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com \
-            commit -m "Publish omni-ingest ${{ github.sha }}" --no-verify || echo "Nothing to commit"
-          git push origin gh-pages
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./simple
+          destination_dir: simple
+          force_orphan: true
+

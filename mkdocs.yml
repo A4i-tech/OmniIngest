@@ -63,4 +63,5 @@ nav:
   - Pipeline playbook: pipelines.md
   - Advanced pipeline patterns: advanced.md
   - Working with event stream: events.md
+  - Custom output architecture: shiksha_copilot_output.md
   - API Reference: api.md
