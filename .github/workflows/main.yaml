@@ -194,7 +194,7 @@ jobs:
       contents: write
       id-token: write
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/a4i/main' || startsWith(github.ref, 'refs/tags/v')))
+      (github.event_name == 'push' && (github.ref == 'refs/heads/a4i/main' || startsWith(github.ref, 'refs/tags/v')) && !contains(github.event.head_commit.message, '[skip ci]'))
     needs: [deploy-docs]
     steps:
       - uses: actions/checkout@v4
@@ -205,6 +205,24 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
         run: uv python install 3.11
+      - name: Bump version and tag
+        id: bump_version
+        run: |
+          CURRENT=$(python -c "import re; p=open('pyproject.toml').read(); print(re.search(r'^version = \"(.*?)\"', p, flags=re.M).group(1))")
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEWPATCH=$((PATCH + 1))
+          NEWVERSION="$MAJOR.$MINOR.$NEWPATCH"
+          python -c "import re; p=open('pyproject.toml').read(); open('pyproject.toml','w').write(re.sub(r'^version = \".*?\"', f'version = \"$NEWVERSION\"', p, flags=re.M))"
+          echo "version=$NEWVERSION" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version to v$NEWVERSION [skip ci]"
+          git push origin HEAD:a4i/main
+          git tag "v$NEWVERSION"
+          git push origin "v$NEWVERSION"
       - name: Set package version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -213,14 +231,22 @@ jobs:
       - name: Build package
         run: uv build
       - name: Publish package to PyPI
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: pypa/gh-action-pypi-publish@release/v1
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Main Build' }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.bump_version.outputs.version) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.bump_version.outputs.version) }}
+          prerelease: false
+          generate_release_notes: true
+      - name: Create or Update Rolling Latest Main Build Release
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          tag_name: latest
+          name: Latest Main Build
+          prerelease: true
           generate_release_notes: true
 
