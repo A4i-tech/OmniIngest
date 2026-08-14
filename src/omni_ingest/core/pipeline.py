@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeAlias, TypeVar, cast
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 from uuid import UUID, uuid4
 
 import jq
@@ -50,6 +50,7 @@ def default_metadata_store() -> MetadataStore:
     if settings.metadata_store == "null":
         return NullMetadataStore()
     return SQLAlchemyMetadataStore()
+
 
 @dataclass(kw_only=True)
 class IngestionContext(Generic[ResourceT]):  # noqa: UP046
