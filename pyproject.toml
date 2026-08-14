@@ -1,12 +1,17 @@
 [project]
 name = "omni-ingest"
-version = "0.1.0"
+version = "0.1.1"
 description = "Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines."
 readme = "docs/README.md"
 authors = [
     {name = "A4i-tech"}
 ]
 license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.13.4",
@@ -37,6 +42,11 @@ dependencies = [
     "azure-ai-documentintelligence>=1.0.2",
     "azure-core[aio]>=1.41.0",
 ]
+
+[project.urls]
+Homepage = "https://omniingest.onrender.com"
+Source = "https://github.com/A4i-tech/OmniIngest"
+Documentation = "https://omniingest.onrender.com"
 
 [project.scripts]
 omni-ingest = "omni_ingest.cli:main"
