@@ -2,7 +2,7 @@
 name = "omni-ingest"
 version = "0.1.0"
 description = "Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines."
-readme = "README.md"
+readme = "docs/README.md"
 authors = [
     {name = "A4i-tech"}
 ]
