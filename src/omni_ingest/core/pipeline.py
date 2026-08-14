@@ -71,7 +71,7 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     """Reference to a storage engine or backend"""
 
     ocr_factory: OcrFactory = field(default_factory=default_ocr_factory)
-    """OCR factory to vend OCR engines from, keyed by engine name"""
+    """OCR factory to vend OCR engines from"""
 
     run_id: UUID = field(default_factory=uuid4)
     """Unique identifier for the current pipeline run"""

@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
 Ocr: TypeAlias = Callable[[ByteContent], Awaitable[ByteContent]]
-"""Extract Markdown from a document or page image. Input/output mime is carried in `metadata["content_type"]`."""
 
 OcrEngineBuilder: TypeAlias = Callable[["IngestionContext[ResolvedResource]", str | None, str | None], Ocr]
 OcrFactory: TypeAlias = Callable[[str, "IngestionContext[ResolvedResource]", str | None, str | None], Ocr]

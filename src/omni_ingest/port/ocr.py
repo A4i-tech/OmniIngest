@@ -116,12 +116,6 @@ def openai_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | 
 
 
 def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
-    """Azure Document Intelligence OCR via the prebuilt-layout model.
-
-    Uses the official `azure-ai-documentintelligence` async SDK, which owns submission,
-    polling and error handling, and asks for `DocumentContentFormat.MARKDOWN` so the
-    service itself returns structure-preserving Markdown with tables.
-    """
     if settings.documentintelligence_endpoint is None or settings.documentintelligence_api_key is None:
         raise ValueError("DOCUMENTINTELLIGENCE_ENDPOINT/DOCUMENTINTELLIGENCE_API_KEY are not configured")
     endpoint = str(settings.documentintelligence_endpoint)

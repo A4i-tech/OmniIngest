@@ -1,10 +1,3 @@
-"""Live OCR-engine tests against real services.
-
-Credentials come from settings/.env (see .env.example): OPENAI_API_KEY for the
-`llm` engine, OCR_API_KEY/OCR_BASE_URL for the generic `openai` engine, and
-AZURE_DI_OCR_ENDPOINT/KEY for the `azure_di` engine.
-"""
-
 from pathlib import Path
 
 import pymupdf
