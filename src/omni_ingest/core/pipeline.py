@@ -51,13 +51,6 @@ def default_metadata_store() -> MetadataStore:
         return NullMetadataStore()
     return SQLAlchemyMetadataStore()
 
-
-@cache
-def default_vector_store() -> VectorStore:
-    return cast(VectorStore, settings.vector_store.build())
-
-
-
 @dataclass(kw_only=True)
 class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     """
@@ -72,9 +65,6 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
 
     store: MetadataStore = field(default_factory=default_metadata_store)
     """Reference to a storage engine or backend"""
-
-    vector_store: VectorStore = field(default_factory=default_vector_store)
-    """Reference to the configured vector store backend"""
 
     content_resolver: ContentResolver = field(default_factory=default_content_resolver)
     """Reference to a storage engine or backend"""
