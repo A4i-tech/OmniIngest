@@ -23,20 +23,14 @@ if TYPE_CHECKING:
 
 
 class _DefaultAgentMixin(BaseModel, AgentMixin):
-    """Combines with `BaseModel` so `AgentMixin`'s fields resolve to real defaults, for factory
-    contexts that have no bound `Step` instance to vend model/toolset config from."""
+    """Combines with `BaseModel` so `AgentMixin`'s fields resolve to real defaults."""
 
 
 DEFAULT_VISION_OCR_PROMPT = "Transcribe this document to Markdown, preserving headings, lists, and tables. Return only the Markdown."
 
 
 def by_page(extract_page: Ocr, dpi: int = 200, ocr_scanned: bool = True, text_layer_threshold: int = 20) -> Ocr:
-    """Wrap a single-image `Ocr` into a full-document `Ocr`.
-
-    PDFs are rendered page-by-page, skipping pages whose extractable text is
-    already above `text_layer_threshold`; images are passed straight through.
-    Used by engines (Sarvam, Azure DI, Azure ML) that only OCR single images.
-    """
+    """Wrap a single-image `Ocr` into a full-document `Ocr`"""
 
     def render_pdf_pages(content: bytes) -> list[tuple[str, bool, bytes | None]]:
         pages = []
@@ -68,10 +62,7 @@ def by_page(extract_page: Ocr, dpi: int = 200, ocr_scanned: bool = True, text_la
 
 
 def llm_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
-    """OCR via a vision LLM. Sends the document as-is (PDF or image) in one call — any
-    OpenAI-compatible vision model (Azure OpenAI, a llama.cpp server, gpt-4o, etc.)
-    natively reads PDF input, so no page-rendering preprocessing is needed here.
-    """
+    """OCR via a vision LLM. Sends the document as-is (PDF or image) in one call — any"""
     agent = _DefaultAgentMixin()._agent(ctx)
 
     async def ocr(item: ByteContent) -> ByteContent:
@@ -83,13 +74,7 @@ def llm_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | Non
 
 
 def openai_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
-    """OCR via any OpenAI-compatible vision/chat-completions endpoint.
-
-    Collapses the previous Sarvam- and Azure-ML-BYOC-specific builders into a single
-    config-driven client, per review discussion to avoid host-specific implementations
-    in omni-ingest: point `OCR_BASE_URL`/`OCR_API_KEY` at Sarvam, an OpenAI-compatible
-    Azure ML deployment, a self-hosted vLLM/Ollama server, etc.
-    """
+    """OCR via any OpenAI-compatible vision/chat-completions endpoint."""
     if settings.ocr_api_key is None or settings.ocr_base_url is None:
         raise ValueError("OCR_API_KEY/OCR_BASE_URL are not configured")
     client = AsyncOpenAI(api_key=settings.ocr_api_key.get_secret_value(), base_url=str(settings.ocr_base_url))
