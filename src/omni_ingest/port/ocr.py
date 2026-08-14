@@ -6,8 +6,10 @@ import asyncio
 import base64
 from typing import TYPE_CHECKING
 
-import httpx
 import pymupdf
+from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentContentFormat
+from azure.core.credentials import AzureKeyCredential
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic_ai import BinaryContent
@@ -116,39 +118,25 @@ def openai_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | 
 def azure_di_ocr_builder(ctx: IngestionContext[ResolvedResource], src_lang: str | None, dst_lang: str | None) -> Ocr:
     """Azure Document Intelligence OCR via the prebuilt-layout model.
 
-    Uses the async analyze API (submit -> 202 -> poll Operation-Location) and
-    requests `outputContentFormat=markdown`, so the service itself returns
-    structure-preserving Markdown with tables.
+    Uses the official `azure-ai-documentintelligence` async SDK, which owns submission,
+    polling and error handling, and asks for `DocumentContentFormat.MARKDOWN` so the
+    service itself returns structure-preserving Markdown with tables.
     """
-    if settings.azure_di_ocr_endpoint is None or settings.azure_di_ocr_key is None:
-        raise ValueError("AZURE_DI_OCR_ENDPOINT/AZURE_DI_OCR_KEY are not configured")
-    client = httpx.AsyncClient(base_url=str(settings.azure_di_ocr_endpoint), headers={"Ocp-Apim-Subscription-Key": settings.azure_di_ocr_key.get_secret_value()}, timeout=60)
+    if settings.documentintelligence_endpoint is None or settings.documentintelligence_api_key is None:
+        raise ValueError("DOCUMENTINTELLIGENCE_ENDPOINT/DOCUMENTINTELLIGENCE_API_KEY are not configured")
+    endpoint = str(settings.documentintelligence_endpoint)
+    credential = AzureKeyCredential(settings.documentintelligence_api_key.get_secret_value())
 
     async def extract_page(image: ByteContent) -> ByteContent:
-        submit = await client.post(
-            "/documentintelligence/documentModels/prebuilt-layout:analyze",
-            params={"api-version": "2024-11-30", "outputContentFormat": "markdown"},
-            content=await image.content(ctx),
-            headers={"Content-Type": "application/octet-stream"},
-        )
-        submit.raise_for_status()
-        operation_url = submit.headers["Operation-Location"]
-
-        deadline, poll_interval, elapsed = 300.0, 2.0, 0.0
-        while True:
-            poll = await client.get(operation_url)
-            poll.raise_for_status()
-            body = poll.json()
-            status = body.get("status")
-            if status == "succeeded":
-                markdown = str(body["analyzeResult"]["content"])
-                return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
-            if status in ("failed", "canceled"):
-                raise RuntimeError(f"Azure Document Intelligence job {status}: {body.get('error')}")
-            if elapsed >= deadline:
-                raise TimeoutError(f"Azure Document Intelligence job timed out after {deadline}s")
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
+        async with DocumentIntelligenceClient(endpoint=endpoint, credential=credential) as client:
+            poller = await client.begin_analyze_document(
+                "prebuilt-layout",
+                AnalyzeDocumentRequest(bytes_source=await image.content(ctx)),
+                output_content_format=DocumentContentFormat.MARKDOWN,
+            )
+            result = await poller.result()
+        markdown = result.content or ""
+        return ByteContent(raw_content=markdown.encode("utf-8"), content_encoding="utf-8", metadata={"content_type": "text/markdown"})
 
     return by_page(extract_page)
 

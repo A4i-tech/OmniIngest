@@ -316,6 +316,20 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-ai-documentintelligence"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/7b/8115cd713e2caa5e44def85f2b7ebd02a74ae74d7113ba20bdd41fd6dd80/azure_ai_documentintelligence-1.0.2.tar.gz", hash = "sha256:4d75a2513f2839365ebabc0e0e1772f5601b3a8c9a71e75da12440da13b63484", size = 170940, upload-time = "2025-03-27T02:46:20.606Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/75/c9ec040f23082f54ffb1977ff8f364c2d21c79a640a13d1c1809e7fd6b1a/azure_ai_documentintelligence-1.0.2-py3-none-any.whl", hash = "sha256:e1fb446abbdeccc9759d897898a0fe13141ed29f9ad11fc705f951925822ed59", size = 106005, upload-time = "2025-03-27T02:46:22.356Z" },
+]
+
+[[package]]
 name = "azure-ai-translation-text"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3601,7 +3615,9 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "adlfs" },
+    { name = "aiohttp" },
     { name = "aiosqlite" },
+    { name = "azure-ai-documentintelligence" },
     { name = "azure-ai-translation-text" },
     { name = "azure-cognitiveservices-speech" },
     { name = "datamodel-code-generator" },
@@ -3623,7 +3639,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "qdrant-client" },
     { name = "rich" },
-    { name = "sarvamai" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "sqlmodel" },
 ]
@@ -3690,7 +3705,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "adlfs", specifier = ">=2026.5.0" },
+    { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "azure-ai-documentintelligence", specifier = ">=1.0.2" },
     { name = "azure-ai-translation-text", specifier = ">=2.0.0" },
     { name = "azure-cognitiveservices-speech", specifier = ">=1.50.0" },
     { name = "azure-search-documents", marker = "extra == 'storage'", specifier = ">=12.0.0" },
@@ -3727,7 +3744,6 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "qdrant-client", specifier = ">=1.18.0" },
     { name = "rich", specifier = ">=15.0.0" },
-    { name = "sarvamai", specifier = ">=0.1.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
     { name = "sqlmodel", specifier = ">=0.0.39" },
 ]
@@ -5584,22 +5600,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/3f/73ccf82579412b4a71c4ca673f10b5f1f888d7cf5af7fe24f27d30307be4/safetensors-0.8.0-cp310-abi3-win32.whl", hash = "sha256:2ddf52eac562eda224f99acfa7889d02968c1fd59a5b011ae7d8137c37e9c02d", size = 342401, upload-time = "2026-06-09T07:52:28.895Z" },
     { url = "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl", hash = "sha256:096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f", size = 355540, upload-time = "2026-06-09T07:52:27.832Z" },
     { url = "https://files.pythonhosted.org/packages/8d/fc/7eedc3510d97878876e32774eebbeb61c43f148a96e915c84229a3e967aa/safetensors-0.8.0-cp310-abi3-win_arm64.whl", hash = "sha256:f7838e5135a406ad3e02efdcb8cf2e5397d368b0154537c4fec682dbc544d452", size = 340500, upload-time = "2026-06-09T07:52:26.745Z" },
-]
-
-[[package]]
-name = "sarvamai"
-version = "0.1.28"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "typing-extensions" },
-    { name = "websockets" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/23/44/57a7a37be64953bb0bec9f674e92a9f8fb7070ce6aeb44c6f22720458b40/sarvamai-0.1.28.tar.gz", hash = "sha256:bc52f0c849e429d1a4493e49b1b4b65bf06965f3936d4eb6ee3da3130452e7ea", size = 139022, upload-time = "2026-04-20T08:05:12.185Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/90/95cd195a3a2ae9a9973c6a05705207e8dd97b5aea90339bc24343cb54850/sarvamai-0.1.28-py3-none-any.whl", hash = "sha256:52e71c0a0f521552d4d948ec452699b44554a56e64ee354b14da2efc9d9046b3", size = 269335, upload-time = "2026-04-20T08:05:10.712Z" },
 ]
 
 [[package]]

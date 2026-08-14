@@ -175,11 +175,11 @@ class Settings(BaseSettings):
     ocr_model: str = "gpt-4o-mini"
     """Model name to request from the generic OpenAI-compatible OCR vision endpoint (`openai` engine)"""
 
-    azure_di_ocr_endpoint: AnyHttpUrl | None = None
-    """Azure Document Intelligence OCR endpoint"""
+    documentintelligence_endpoint: AnyHttpUrl | None = None
+    """Azure Document Intelligence endpoint"""
 
-    azure_di_ocr_key: SecretStr | None = None
-    """Azure Document Intelligence OCR key"""
+    documentintelligence_api_key: SecretStr | None = None
+    """Azure Document Intelligence API key"""
 
     azure_vm_ocr_subscription_id: str | None = None
     """Azure subscription id used to provision the ephemeral OCR VM"""
