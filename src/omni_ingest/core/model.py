@@ -53,6 +53,14 @@ class ByteContent(BaseModel):
     content_encoding: str = Field(default="utf-8")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @staticmethod
+    def from_bytes(content: StrictBytes, content_type: str | None = None, content_encoding: str = "utf-8") -> ByteContent:
+        return ByteContent(raw_content=content, content_encoding=content_encoding, metadata={"content_type": content_type})
+
+    @staticmethod
+    def from_uri(uri: str, content_type: str | None = None, content_encoding: str = "utf-8") -> ByteContent:
+        return ByteContent(content_uri=uri, content_encoding=content_encoding, metadata={"content_type": content_type})
+
     async def content(self, ctx: IngestionContext[ResolvedResource]) -> bytes:
         if self.content_uri is None:
             return self.raw_content

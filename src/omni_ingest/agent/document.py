@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from ..core.config import settings
 from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import Ocr
+from ..core.ocr import Ocr, OcrOutputFormat
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -158,11 +158,12 @@ class RasterizeAgent(BaseModel, Step):
 
 
 class OcrAgent(BaseModel, Step):
-    """Extracts items into Markdown using a configured OCR engine."""
+    """Extracts items using a configured OCR engine."""
 
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items")
     input: JqExpression = Field(default="[.id]", description="jq expression selecting item ids")
     engine: str = Field(default=settings.default_ocr_engine, description="OCR engine name")
+    format: OcrOutputFormat = Field(default=OcrOutputFormat.MARKDOWN, description="OCR output format")
     src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
     dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
     workers: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
@@ -181,7 +182,7 @@ class OcrAgent(BaseModel, Step):
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
         ctx.progress(0, len(items), "extracting text")
-        await self._extract_all(items, ctx, ctx.ocr_factory(self.engine, ctx, self.src_lang, self.dst_lang))
+        await self._extract_all(items, ctx, ctx.ocr_factory(self.engine, ctx, self.format, self.src_lang, self.dst_lang))
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
 

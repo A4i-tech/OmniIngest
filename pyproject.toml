@@ -41,6 +41,7 @@ dependencies = [
     "sqlmodel>=0.0.39",
     "azure-ai-documentintelligence>=1.0.2",
     "azure-core[aio]>=1.41.0",
+    "sarvamai>=0.1.30",
 ]
 
 [project.urls]
@@ -101,6 +102,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-env>=1.6.0",
+    "html5lib>=1.1",
 ]
 
 [tool.ruff]

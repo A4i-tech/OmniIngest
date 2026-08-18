@@ -144,13 +144,13 @@ class Settings(BaseSettings):
     """Directory containing reusable pipeline components"""
 
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)
-    """Vector store configuration selected entirely through environment configuration"""
+    """Default vector store configuration"""
 
     graph_store: GraphStoreConfig = Field(default_factory=InMemoryGraphStoreConfig)
-    """Graph store configuration selected entirely through environment configuration"""
+    """Default graph store configuration"""
 
     default_ocr_engine: str = "llm"
-    """Default OCR engine used by the ocr step, selected entirely through environment configuration"""
+    """Default OCR engine used by the ocr step"""
 
     azure_speech_key: SecretStr | None = None
     """Azure Speech SDK subscription key"""
@@ -163,15 +163,6 @@ class Settings(BaseSettings):
 
     azure_translation_region: str | None = None
     """Azure Translator service region"""
-
-    ocr_api_key: SecretStr | None = None
-    """API key for OpenAI-compatible OCR"""
-
-    ocr_base_url: AnyHttpUrl | None = None
-    """Base URL for OpenAI-compatible OCR"""
-
-    ocr_model: str = "gpt-4o-mini"
-    """Model to use for OpenAI-compatible OCR"""
 
     documentintelligence_endpoint: AnyHttpUrl | None = None
     """Azure Document Intelligence endpoint"""

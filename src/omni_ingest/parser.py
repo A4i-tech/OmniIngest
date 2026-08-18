@@ -48,8 +48,8 @@ async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
         return ResolvedResource(uri=path, raw_content=stream.read())
 
 
-async def read_resources(path: str, parse_limit: int | None = None, **kwargs):
-    fs, resolved_path = fsspec.core.url_to_fs(path, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, **kwargs)
+async def read_resources(path: str, parse_limit: int | None = None, headers: dict[str, str] | None = None, **kwargs):
+    fs, resolved_path = fsspec.core.url_to_fs(path, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", **(headers or {})}, **kwargs)
     paths = fs.expand_path(resolved_path)
     for coro in asyncio.as_completed([asyncio.ensure_future(_parse_resource(fs, p)) for p in paths[:parse_limit or len(paths)]]):
         yield await coro

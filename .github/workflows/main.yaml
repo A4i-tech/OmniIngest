@@ -143,9 +143,8 @@ jobs:
           DEFAULT_EMBEDDING_MODEL: ${{ vars.DEFAULT_EMBEDDING_MODEL }}
           DOCUMENTINTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENTINTELLIGENCE_ENDPOINT }}
           DOCUMENTINTELLIGENCE_API_KEY: ${{ secrets.DOCUMENTINTELLIGENCE_API_KEY }}
-          OCR_API_KEY: ${{ secrets.OCR_API_KEY }}
-          OCR_BASE_URL: ${{ vars.OCR_BASE_URL }}
           OPENAI_API_VERSION: ${{ vars.OPENAI_API_VERSION }}
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
         run: uv run pytest
       - name: Extract coverage percentage
         id: coverage
