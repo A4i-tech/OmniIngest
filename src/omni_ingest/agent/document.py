@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Literal
 
 import jq
@@ -14,8 +15,8 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.config import settings
-from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import Ocr, OcrOutputFormat
+from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.ocr import OcrBuilderParams, OcrOutputFormat
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -166,7 +167,7 @@ class OcrAgent(BaseModel, Step):
     format: OcrOutputFormat = Field(default=OcrOutputFormat.MARKDOWN, description="OCR output format")
     src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
     dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
-    workers: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
+    concurrency: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
@@ -182,23 +183,23 @@ class OcrAgent(BaseModel, Step):
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
         ctx.progress(0, len(items), "extracting text")
-        await self._extract_all(items, ctx, ctx.ocr_factory(self.engine, ctx, self.format, self.src_lang, self.dst_lang))
+        ocr = ctx.ocr_factory(self.engine, OcrBuilderParams(ctx=ctx, format=self.format, concurrency=self.concurrency, src_lang=self.src_lang, dst_lang=self.dst_lang))
+
+        async def aitems() -> AsyncIterator[KnowledgeItem]:
+            for item in items:
+                yield item
+
+        n = 0
+        async for original, changed in ocr(aitems()):
+            if changed is original:  # 'is' is the right way to test for identical
+                continue
+
+            original.raw_content = await changed.content(ctx)
+            original.content_uri = None
+            original.content_encoding = changed.content_encoding
+            original.metadata["content_type"] = await changed.content_type(ctx)
+
+            n += 1
+            ctx.progress(n, len(items), f"extracted {n}/{len(items)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
-
-    async def _extract_all(self, items: list[KnowledgeItem], ctx: IngestionContext[ResolvedResource], engine: Ocr) -> None:
-        sem = asyncio.Semaphore(self.workers)
-
-        async def process(item: KnowledgeItem) -> None:
-            async with sem:
-                content_type = await item.content_type(ctx)
-                document = ByteContent(raw_content=await item.content(ctx), content_encoding=item.content_encoding, metadata={**item.metadata, "content_type": content_type})
-                result = await engine(document)
-            item.raw_content = await result.content(ctx)
-            item.content_uri = None
-            item.content_encoding = result.content_encoding
-            item.metadata["content_type"] = await result.content_type(ctx)
-
-        for i, task in enumerate(asyncio.as_completed([process(item) for item in items]), 1):
-            await task
-            ctx.progress(i, len(items), f"extracted {i}/{len(items)}")

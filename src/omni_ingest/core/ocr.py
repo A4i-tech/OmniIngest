@@ -1,15 +1,16 @@
-"""OCR engine and factory definitions."""
+"""OCR, builder, and factory definitions."""
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias, TypeVar
 
 from .model import ByteContent, ResolvedResource
 
 if TYPE_CHECKING:
-    from .pipeline import IngestionContext
+    from ..core.pipeline import IngestionContext
 
 
 class OcrOutputFormat(StrEnum):
@@ -33,36 +34,47 @@ class OcrOutputFormat(StrEnum):
         return obj
 
 
-Ocr: TypeAlias = Callable[[ByteContent], Awaitable[ByteContent]]
-OcrEngineBuilder: TypeAlias = Callable[["IngestionContext[ResolvedResource]", OcrOutputFormat, str | None, str | None], Ocr]
-OcrFactory: TypeAlias = Callable[[str, "IngestionContext[ResolvedResource]", OcrOutputFormat, str | None, str | None], Ocr]
+@dataclass(kw_only=True)
+class OcrBuilderParams:
+    ctx: IngestionContext[ResolvedResource]
+    format: OcrOutputFormat
+    concurrency: int
+    src_lang: str | None = None
+    dst_lang: str | None = None
 
 
-def simple(mapping: dict[str, OcrEngineBuilder]) -> OcrFactory:
+T = TypeVar("T", bound=ByteContent)
+Ocr: TypeAlias = Callable[[AsyncIterator[T]], AsyncIterator[tuple[T, ByteContent]]]
+OcrBuilder: TypeAlias = Callable[[OcrBuilderParams], Ocr]
+OcrFactory: TypeAlias = Callable[[str, OcrBuilderParams], Ocr]
+
+
+def simple(mapping: dict[str, OcrBuilder]) -> OcrFactory:
     """
-    Build a factory that dispatches by engine name to a fixed mapping.
+    Build a factory that dispatches by some name to a fixed mapping.
 
     Args:
-        mapping: Engines indexed by their name.
+        mapping: Builders indexed by their name.
 
     Example:
         ```python
         from omni_ingest.core.ocr import simple
 
-        def llm_ocr_builder(ctx, out_fmt, src_lang, dst_lang) -> Ocr:
-            async def ocr(item: ByteContent) -> ByteContent:
-                data = await item.decode(ctx)
-                ocr = await llm("Transcribe to markdown", data)
-                return ByteContent.raw(ocr.encode("utf-8"), "text/markdown")
+        def llm_ocr_builder(params: OcrBuilderParams) -> Ocr:
+            async def ocr(items):
+                async for item in items:
+                    data = await item.decode(ctx)
+                    ocr = await llm("Transcribe to markdown", data)
+                    yield item, ByteContent.from_bytes(ocr.encode("utf-8"), "text/markdown")
             return ocr
 
         factory = simple({"llm": llm_ocr_builder})
         ```
     """
 
-    def factory(engine: str, ctx: IngestionContext[ResolvedResource], out_fmt: OcrOutputFormat, src_lang: str | None, dst_lang: str | None) -> Ocr:
-        if engine not in mapping:
-            raise ValueError(f"Unknown OCR engine: {engine}")
-        return mapping[engine](ctx, out_fmt, src_lang, dst_lang)
+    def factory(name: str, params: OcrBuilderParams) -> Ocr:
+        if name not in mapping:
+            raise ValueError(f"Unknown OCR builder: {name}")
+        return mapping[name](params)
 
     return factory
