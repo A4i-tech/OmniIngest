@@ -1,7 +1,9 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 import omni_ingest.agent.modality as modality
-from omni_ingest.agent.modality import TextAgent
+from omni_ingest.agent.modality import AudioTranslationAgent, TextAgent
 from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 
@@ -67,3 +69,37 @@ async def test_text_agent_parse_rejects_unsupported_mime_type():
     with pytest.raises(ValueError, match="Unsupported data URI MIME type: 'font/ttf'"):
         ctx = IngestionContext(resource=ResolvedResource(uri="/tmp/sample.ttf", raw_content=b""))
         await TextAgent().parse(ctx, ByteContent.from_bytes(b"", content_type="font/ttf"), "/tmp/sample.ttf")
+
+
+@pytest.mark.asyncio
+async def test_audio_translation_agent_translates_audio_items(monkeypatch):
+    mock_translate = AsyncMock(return_value=("hola mundo", {"source_text": "hello world"}))
+    monkeypatch.setattr("omni_ingest.agent.modality.translate_audio", mock_translate)
+
+    item = KnowledgeItem(raw_content=b"fake-audio-bytes", metadata={"content_type": "audio/mpeg"})
+    ctx = IngestionContext(resource=ResolvedResource(uri="sample.mp3", raw_content=b""), items=[item])
+
+    result = await AudioTranslationAgent(dst="es").run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["translated_count"] == 1
+    mock_translate.assert_awaited_once()
+    assert await item.decode(ctx) == "hola mundo"
+    assert item.metadata["source_text"] == "hello world"
+    assert item.metadata["target_language"] == "es"
+
+
+@pytest.mark.asyncio
+async def test_audio_translation_agent_skips_non_audio_items(monkeypatch):
+    mock_translate = AsyncMock(return_value=("hola mundo", {}))
+    monkeypatch.setattr("omni_ingest.agent.modality.translate_audio", mock_translate)
+
+    item = KnowledgeItem(raw_content=b"hello world", metadata={"content_type": "text/plain"})
+    ctx = IngestionContext(resource=ResolvedResource(uri="sample.txt", raw_content=b""), items=[item])
+
+    result = await AudioTranslationAgent(dst="es").run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["translated_count"] == 0
+    mock_translate.assert_not_awaited()
+    assert await item.decode(ctx) == "hello world"

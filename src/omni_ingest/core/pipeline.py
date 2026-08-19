@@ -111,6 +111,7 @@ _STEP_FACTORY: StepFactory = {
     "extract": agent.enrichment.ExtractAgent,
     "transform": agent.enrichment.TransformAgent,
     "translate": agent.enrichment.TranslateAgent,
+    "audio_translate": agent.modality.AudioTranslationAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
     "lineage": agent.governance.DataLineageAgent,

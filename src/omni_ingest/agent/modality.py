@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.model import AgentMixin, ByteContent, ResolvedResource, Step, StepResult, StepStatus
-from ..parser import parse_audio, parse_brf, parse_document, parse_text
+from ..parser import parse_audio, parse_brf, parse_document, parse_text, translate_audio
 
 
 class TextAgent(BaseModel, Step, AgentMixin):
@@ -81,3 +81,33 @@ class TextAgent(BaseModel, Step, AgentMixin):
             return result.output, {"selected_parser": "image"}
 
         raise ValueError(f"Unsupported data URI MIME type: {content_type!r}")
+
+
+class AudioTranslationAgent(BaseModel, Step):
+    """
+    Directly translates spoken audio content into target-language text.
+
+    Uses Azure Speech SDK's speech-translation capability to transcribe and
+    translate audio in a single pass, without a separate text-translation
+    step. Items whose content is not `audio/*` are left unchanged.
+    """
+
+    src: str | None = Field(default=None, description="Source spoken language (e.g. 'en-US'), or None to auto-detect")
+    dst: str = Field(..., description="Target language code the translated text is produced in (e.g. 'es')")
+
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
+        translated_count = 0
+        for item in ctx.items:
+            if not (await item.content_type(ctx)).startswith("audio/"):
+                continue
+            uri = item.source_uri or ctx.resource.uri
+            text, metadata = await translate_audio(uri, io.BytesIO(await item.content(ctx)), self.dst, src=self.src)
+            item.metadata.update(metadata)
+            item.metadata["content_type"] = "text/plain"
+            item.metadata["source_language"] = self.src
+            item.metadata["target_language"] = self.dst
+            item.raw_content = text.encode("utf-8")
+            item.content_uri = None
+            item.content_encoding = "utf-8"
+            translated_count += 1
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"translated_count": translated_count, "target_language": self.dst})
