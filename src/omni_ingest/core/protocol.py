@@ -39,6 +39,15 @@ class Translator(Protocol):
 
 
 @runtime_checkable
+class SpeechToText(Protocol):
+    """Transcribe a WAV audio file to text."""
+
+    async def transcribe(self, wav_path: str) -> tuple[str, dict[str, Any]]:
+        """Return (transcript, metadata) or raise `RuntimeError` on failure."""
+        ...
+
+
+@runtime_checkable
 class ContentResolver(Protocol):
     """Resolve virtual content URIs into bytes during ingestion.
 
