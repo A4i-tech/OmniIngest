@@ -8,7 +8,7 @@ from pydantic_ai.embeddings import KnownEmbeddingModelName
 from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-KnownTranslationModelName: TypeAlias = Literal["azure"]
+KnownTranslationModelName: TypeAlias = Literal["azure", "openai", "sarvam"]
 
 
 class InMemoryVectorStoreConfig(BaseModel):
@@ -169,6 +169,12 @@ class Settings(BaseSettings):
 
     documentintelligence_api_key: SecretStr | None = None
     """Azure Document Intelligence API key"""
+
+    openai_translation_model: str = "gpt-4o-mini"
+    """Chat completion model used for OpenAI-compatible translation"""
+
+    openai_translation_base_url: AnyHttpUrl | None = None
+    """OpenAI-compatible endpoint override for translation"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 

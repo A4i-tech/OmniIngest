@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from fnmatch import fnmatch
 from random import sample
@@ -11,6 +12,8 @@ from xml.etree import ElementTree
 from azure.ai.translation.text.aio import TextTranslationClient
 from azure.ai.translation.text.models import TranslateInputItem, TranslationTarget
 from azure.core.credentials import AzureKeyCredential
+from openai import AsyncOpenAI
+from sarvamai import AsyncSarvamAI
 
 from ..core.config import KnownTranslationModelName, settings
 
@@ -105,7 +108,93 @@ class AzureTranslator:
         return (await self.client.translate(body=[item]))[0].translations[0].text
 
 
+async def _translate_leaves(data: dict[str, Any] | list[Any], skip_fields: Iterable[str], translate_one) -> dict[str, Any] | list[Any]:
+    flat, mapping = flatten(data)
+    patterns = tuple(skip_fields)
+    strings = {key: value for key, value in flat.items() if isinstance(value, str) and not any(fnmatch(".".join(map(str, mapping[key])), pattern) for pattern in patterns)}
+    if not strings:
+        return data
+    translated = await asyncio.gather(*(translate_one(value) for value in strings.values()))
+    flat.update(dict(zip(strings.keys(), translated, strict=True)))
+    return unflatten(flat, mapping)
+
+
+class OpenAICompatibleTranslator:
+    """Translates via chat completion against any OpenAI-compatible endpoint."""
+
+    def __init__(self, model: str, base_url: str | None):
+        self.client = AsyncOpenAI(base_url=base_url)
+        self.model = model
+
+    async def __aenter__(self) -> OpenAICompatibleTranslator:
+        await self.client.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.client.__aexit__(exc_type, exc, tb)
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: str) -> str: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: dict[str, Any], skip_fields: Iterable[str] = ()) -> dict[str, Any]: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: list[Any], skip_fields: Iterable[str] = ()) -> list[Any]: ...
+
+    async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]:
+        if isinstance(data, str):
+            return await self._translate(src, dst, data)
+        return await _translate_leaves(data, skip_fields, lambda text: self._translate(src, dst, text))
+
+    async def _translate(self, src: str | None, dst: str, text: str) -> str:
+        instructions = f"Translate the user's text{f' from {src}' if src else ''} into {dst}. Return only the translation, with no commentary, quotes, or code fences."
+        response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}])
+        return response.choices[0].message.content or ""
+
+
+class SarvamTranslator:
+    """Translates via Sarvam's dedicated text-translation API.
+
+    `src`/`dst` must already be Sarvam language codes (e.g. `"en-IN"`, `"hi-IN"`), or `"auto"` for
+    automatic source-language detection. Sarvam's codes do not match Azure's or arbitrary ISO codes.
+    """
+
+    def __init__(self):
+        self.client = AsyncSarvamAI()
+
+    async def __aenter__(self) -> SarvamTranslator:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        pass
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: str) -> str: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: dict[str, Any], skip_fields: Iterable[str] = ()) -> dict[str, Any]: ...
+
+    @overload
+    async def translate(self, src: str | None, dst: str, data: list[Any], skip_fields: Iterable[str] = ()) -> list[Any]: ...
+
+    async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]:
+        if isinstance(data, str):
+            return await self._translate(src, dst, data)
+        return await _translate_leaves(data, skip_fields, lambda text: self._translate(src, dst, text))
+
+    async def _translate(self, src: str | None, dst: str, text: str) -> str:
+        response = await self.client.text.translate(input=text, source_language_code=src or "auto", target_language_code=dst)
+        return cast(str, response.translated_text)
+
+
 def create_translator(model: KnownTranslationModelName = settings.default_translation_model) -> Translator:
-    if model != "azure" or not settings.azure_translation_key or not settings.azure_translation_region:
-        raise ValueError(f"Translation model is unsupported or not configured: {model}")
-    return AzureTranslator(settings.azure_translation_key.get_secret_value(), settings.azure_translation_region)
+    if model == "azure":
+        if not settings.azure_translation_key or not settings.azure_translation_region:
+            raise ValueError("AZURE_TRANSLATION_KEY/AZURE_TRANSLATION_REGION are not configured. Set both environment variables to use the azure translation model.")
+        return AzureTranslator(settings.azure_translation_key.get_secret_value(), settings.azure_translation_region)
+    if model == "openai":
+        return OpenAICompatibleTranslator(settings.openai_translation_model, str(settings.openai_translation_base_url) if settings.openai_translation_base_url else None)
+    if model == "sarvam":
+        return SarvamTranslator()
+    raise ValueError(f"Translation model is unsupported or not configured: {model}")
