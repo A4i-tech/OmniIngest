@@ -15,7 +15,7 @@ from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAge
 from omni_ingest.agent.governance import DataLineageAgent
 from omni_ingest.agent.indexing import EmbeddingAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
+from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 
 
@@ -505,3 +505,45 @@ async def test_ingestion_logger_agent(vector_store):
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "timestamp" in result.metadata
+
+
+@pytest.mark.asyncio
+async def test_brf_file_output_write(vector_store, tmp_path):
+    path = tmp_path / "items.brf"
+    output = BrfFileOutput(path=str(path))
+    ctx = create_ctx(vector_store, "resource")
+    ctx.metadata["source"] = "unit"
+    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tag": "x"})]
+
+    result = await output.write(ctx)
+    written = path.read_text()
+    data = json.loads(written.lower())
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.output_paths == {"brf": str(path)}
+    assert written == written.upper()
+    assert data["resource"]["content"] == "resource"
+    assert data["items"][0]["content"] == "test"
+
+
+@pytest.mark.asyncio
+async def test_brf_file_output_write_many(vector_store, tmp_path):
+    path = tmp_path / "items.brf"
+    output = BrfFileOutput(path=str(path))
+    ctx1 = create_ctx(vector_store, "first")
+    ctx2 = create_ctx(vector_store, "second")
+
+    result = await output.write_many([ctx1, ctx2])
+    written = path.read_text()
+    data = json.loads(written.lower())
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.output_paths == {"brf": str(path)}
+    assert written == written.upper()
+    assert [run["resource"]["content"] for run in data["runs"]] == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_parse_detects_brf_format(tmp_path):
+    assert isinstance(parse(str(tmp_path / "items.brf")), BrfFileOutput)
+    assert isinstance(parse(str(tmp_path / "items.yml"), "brf"), BrfFileOutput)

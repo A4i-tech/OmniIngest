@@ -159,3 +159,11 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     if content.startswith(b"PK\x03\x04"):
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
+
+
+async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
+    """Decode a BRF (Braille Ready Format) file as plain text.
+
+    This is a plain-text decode, not a Braille dot-pattern translation.
+    """
+    return await parse_text(stream, encoding=encoding, strip_html=strip_html, normalize_whitespace=normalize_whitespace)

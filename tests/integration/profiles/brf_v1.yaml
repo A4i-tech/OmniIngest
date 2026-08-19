@@ -1,0 +1,9 @@
+pipeline_id: brf_v1
+domain_profile: accessibility
+input_modality: brf
+description: "Accessibility pipeline for ingesting BRF (Braille Ready Format) input"
+steps:
+  - agent: text
+  - agent: chunking
+  - agent: enrichment
+  - agent: embedding

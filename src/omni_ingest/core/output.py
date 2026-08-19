@@ -87,6 +87,24 @@ class JsonFileOutput(FileOutput):
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
 
 
+class BrfFileOutput(JsonFileOutput):
+    """Writes finalized ingestion output to a BRF (Braille Ready Format) file."""
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        json_str = await self.dump([ctx])
+        # Simplification: BRF is uppercase-only computer braille ASCII; a full Grade-1/Grade-2 braille translation is out of scope for this ticket.
+        brf_str = json_str.upper()
+        await asyncio.to_thread(self._write, brf_str, mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        json_str = await self.dump(ctxs)
+        # Simplification: BRF is uppercase-only computer braille ASCII; a full Grade-1/Grade-2 braille translation is out of scope for this ticket.
+        brf_str = json_str.upper()
+        await asyncio.to_thread(self._write, brf_str, mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
+
+
 class PickleFileOutput(FileOutput):
     """Writes finalized ingestion output to a pickle file."""
 
@@ -261,4 +279,6 @@ def parse(value: str, format: str | None = None) -> Output:
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
     if format == "pkl":
         return PickleFileOutput(value)
+    if format == "brf":
+        return BrfFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")
