@@ -10,11 +10,13 @@ import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
+from ..braille import DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE, check_tables, translate
 from .config import settings
 from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
@@ -87,21 +89,29 @@ class JsonFileOutput(FileOutput):
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
 
 
-class BrfFileOutput(JsonFileOutput):
-    """Writes finalized ingestion output to a BRF (Braille Ready Format) file."""
+class BrfFileOutput(FileOutput):
+    """Writes item content as real BRF (Braille Ready Format) braille.
+
+    :param table: liblouis translation table, e.g. `en-us-g2.ctb`. See
+        https://github.com/liblouis/liblouis/tree/master/tables for the full list.
+    :param display: liblouis display table that maps to the target BRF ASCII
+        convention, e.g. `en-us-brf.dis`.
+
+    `self.tables` stores them liblouis-order: `[display, table]`.
+    """
+
+    def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
+        super().__init__(path)
+        self.tables = [display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE]
+        check_tables(self.tables)
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
-        json_str = await self.dump([ctx])
-        # Simplification: BRF is uppercase-only computer braille ASCII; a full Grade-1/Grade-2 braille translation is out of scope for this ticket.
-        brf_str = json_str.upper()
-        await asyncio.to_thread(self._write, brf_str, mode="wt")
-        return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
+        return await self.write_many([ctx])
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        json_str = await self.dump(ctxs)
-        # Simplification: BRF is uppercase-only computer braille ASCII; a full Grade-1/Grade-2 braille translation is out of scope for this ticket.
-        brf_str = json_str.upper()
-        await asyncio.to_thread(self._write, brf_str, mode="wt")
+        texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
+        braille = "\n".join(translate(text, self.tables) for text in texts)
+        await asyncio.to_thread(self._write, braille, mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
 
 
@@ -264,6 +274,11 @@ class GraphStoreOutput(Output):
 def parse(value: str, format: str | None = None) -> Output:
     if value.startswith(("mongodb://", "mongodb+srv://")):
         return MongoDocumentOutput(value)
+
+    frag = urlsplit(value)
+    if frag.scheme == "brf":
+        qsl = dict(parse_qsl(frag.query))
+        return BrfFileOutput(frag.path, qsl.get("table"), qsl.get("display"))
 
     format = format or {
         "-": "json",

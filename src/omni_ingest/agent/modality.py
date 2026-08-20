@@ -62,13 +62,13 @@ class TextAgent(BaseModel, Step, AgentMixin):
             content, metadata = await parse_audio(path, stream)
             metadata["selected_parser"] = "audio"
             return content, metadata
+        if content_type == "text/plain" and path.split("?")[0].lower().endswith(".brf"):
+            content, metadata = await parse_brf(stream, encoding=encoding)
+            metadata["selected_parser"] = "brf"
+            return content, metadata
         if content_type.startswith("text/"):
             content, metadata = await parse_text(stream, encoding=encoding)
             metadata["selected_parser"] = "text"
-            return content, metadata
-        if content_type == "application/x-brf":
-            content, metadata = await parse_brf(stream, encoding=encoding)
-            metadata["selected_parser"] = "brf"
             return content, metadata
         if content_type.startswith("application/"):
             content, metadata = await parse_document(stream, encoding=encoding)

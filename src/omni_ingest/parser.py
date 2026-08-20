@@ -16,6 +16,7 @@ import fsspec  # type: ignore[import-untyped]
 from docx import Document
 from pypdf import PdfReader
 
+from .braille import DEFAULT_TRANSLATION_TABLE, back_translate
 from .core.config import settings
 from .core.model import ResolvedResource
 
@@ -161,9 +162,16 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     return content.decode(encoding), {}
 
 
-async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
-    """Decode a BRF (Braille Ready Format) file as plain text.
+async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[str] | None = None, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
+    """Back-translate a BRF (Braille Ready Format) file into print text.
 
-    This is a plain-text decode, not a Braille dot-pattern translation.
+    Uses liblouis to expand grade 2 (contracted) braille, not just a plain
+    ASCII-to-text decode. Requires the liblouis shared library to be
+    installed on the host system; see `omni_ingest.braille` for install hints.
     """
-    return await parse_text(stream, encoding=encoding, strip_html=strip_html, normalize_whitespace=normalize_whitespace)
+    brf_text = stream.read().decode(encoding)
+    content = await asyncio.to_thread(back_translate, brf_text, tables or [DEFAULT_TRANSLATION_TABLE])
+    if normalize_whitespace:
+        content = re.sub(r"\s+", " ", content)
+        content = "\n".join(line.strip() for line in content.split("\n") if line.strip()).strip()
+    return content, {"original_length": len(brf_text), "parsed_length": len(content)}
