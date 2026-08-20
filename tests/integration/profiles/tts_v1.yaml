@@ -4,6 +4,6 @@ input_modality: text
 description: "Text-to-audio pipeline synthesizing pipeline text output into MP3 audio"
 steps:
   - agent: text
-  - agent: tts
+  - agent: speech
     config:
       format: mp3

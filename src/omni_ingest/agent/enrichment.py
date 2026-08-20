@@ -17,10 +17,11 @@ from pydantic_ai.capabilities import Hooks
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
-from ..core.config import KnownTranslationModelName, KnownTTSModelName, settings
-from ..core.model import AgentMixin, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
+from ..core.config import KnownSpeechModelName, KnownTranslationModelName, settings
+from ..core.model import AgentMixin, ByteContent, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
+from ..core.tts import SpeechBuilderParams, SpeechFormat
+from ..core.tts import default_factory as default_speech_factory
 from ..port.translator import create_translator
-from ..port.tts import TtsOutputFormat, create_synthesizer
 
 
 def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
@@ -207,14 +208,14 @@ class TranslateAgent(BaseModel, Step):
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
 
 
-class TextToSpeechAgent(BaseModel, Step):
+class SpeechAgent(BaseModel, Step):
     """Synthesizes item text into audio, replacing item content in place."""
 
     foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items to synthesize")
     input: JqExpression = Field(default=".text", description="jq expression selecting synthesis input")
     voice: str | None = Field(default=None, description="Azure Speech voice name")
-    format: TtsOutputFormat = Field(default=TtsOutputFormat.MP3, description="Synthesized audio output format")
-    model: KnownTTSModelName = Field(default=settings.default_tts_model, description="Text-to-speech model")
+    format: SpeechFormat = Field(default=SpeechFormat.MP3, description="Synthesized audio output format")
+    model: KnownSpeechModelName = Field(default=settings.default_speech_model, description="Speech model")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         if not ctx.items:
@@ -227,13 +228,14 @@ class TextToSpeechAgent(BaseModel, Step):
             return StepResult(status=StepStatus.SKIPPED, error="No items selected for synthesis")
         values = [jq.compile(self.input).input_value(item).first() for item in selected]
         if any(not isinstance(value, str) for value in values):
-            raise ValueError("Text-to-speech input must resolve to text")
+            raise ValueError("Speech input must resolve to text")
 
-        synthesizer = create_synthesizer(self.model)
+        speech_model = default_speech_factory()(self.model, SpeechBuilderParams(voice=self.voice))
         ctx.progress(0, len(selected), "synthesizing audio")
         for n, (item_doc, text) in enumerate(zip(selected, values, strict=True), 1):
             item = item_by_id[item_doc["id"]]
-            item.raw_content = await synthesizer.synthesize(text, voice=self.voice, format=self.format)
+            audio = await speech_model(ByteContent.from_bytes(text.encode(), content_type="text/plain"), self.format)
+            item.raw_content = audio.raw_content
             item.content_uri = None
             item.metadata["content_type"] = self.format.mime_type
             ctx.progress(n, len(selected), f"synthesized {n}/{len(selected)}")

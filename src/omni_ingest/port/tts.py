@@ -1,31 +1,18 @@
-"""Speech synthesis service implementations."""
+"""Azure Speech synthesis service binding."""
 
 from __future__ import annotations
 
 import asyncio
-from enum import StrEnum
 
 import azure.cognitiveservices.speech as speechsdk
 
-from ..core.config import KnownTTSModelName, settings
-
-
-class TtsOutputFormat(StrEnum):
-    MP3 = "mp3", "audio/mpeg"
-    WAV = "wav", "audio/wav"
-
-    mime_type: str
-
-    def __new__(cls, value: str, mime_type: str):
-        obj = str.__new__(cls, value)
-        obj._value_ = value
-        obj.mime_type = mime_type
-        return obj
-
+from ..core.config import settings
+from ..core.model import ByteContent
+from ..core.tts import SpeechBuilderParams, SpeechFormat, SpeechModel
 
 _SDK_OUTPUT_FORMAT = {
-    TtsOutputFormat.MP3: speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
-    TtsOutputFormat.WAV: speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm,
+    SpeechFormat.MP3: speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
+    SpeechFormat.WAV: speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm,
 }
 
 
@@ -34,10 +21,10 @@ class AzureSpeechSynthesizer:
         self._key = key
         self._region = region
 
-    async def synthesize(self, text: str, *, voice: str | None = None, format: TtsOutputFormat = TtsOutputFormat.MP3) -> bytes:
+    async def synthesize(self, text: str, *, voice: str | None = None, format: SpeechFormat = SpeechFormat.MP3) -> bytes:
         return await asyncio.to_thread(self._synthesize_sync, text, voice, format)
 
-    def _synthesize_sync(self, text: str, voice: str | None, format: TtsOutputFormat) -> bytes:
+    def _synthesize_sync(self, text: str, voice: str | None, format: SpeechFormat) -> bytes:
         speech_config = speechsdk.SpeechConfig(subscription=self._key, region=self._region)
         speech_config.set_speech_synthesis_output_format(_SDK_OUTPUT_FORMAT[format])
         if voice:
@@ -52,7 +39,15 @@ class AzureSpeechSynthesizer:
         return bytes(result.audio_data)
 
 
-def create_synthesizer(model: KnownTTSModelName = settings.default_tts_model) -> AzureSpeechSynthesizer:
-    if model != "azure" or not settings.azure_speech_key or not settings.azure_speech_region:
-        raise ValueError(f"Text-to-speech model is unsupported or not configured: {model}")
-    return AzureSpeechSynthesizer(settings.azure_speech_key.get_secret_value(), settings.azure_speech_region)
+def azure_speech_builder(params: SpeechBuilderParams) -> SpeechModel:
+    if not settings.azure_speech_key or not settings.azure_speech_region:
+        raise ValueError("Azure Speech model is not configured")
+
+    synthesizer = AzureSpeechSynthesizer(settings.azure_speech_key.get_secret_value(), settings.azure_speech_region)
+
+    async def model(content: ByteContent, format: SpeechFormat) -> ByteContent:
+        text = content.raw_content.decode(content.content_encoding)
+        audio = await synthesizer.synthesize(text, voice=params.voice, format=format)
+        return ByteContent.from_bytes(audio, content_type=format.mime_type)
+
+    return model
