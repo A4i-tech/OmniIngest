@@ -37,7 +37,8 @@ async def test_audio_translation_v1_pipeline(metadata_store, tenant, profiles_di
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
     assert len(ctx.items) > 0
-    assert ctx.items[0].metadata["target_language"] == "es"
+    assert ctx.items[0].metadata["selected_parser"] == "audio"
+    assert "source_text" in ctx.items[0].metadata
 
 
 @pytest.mark.asyncio

@@ -86,14 +86,15 @@ async def as_wav(path: str, stream: BinaryIO):
             yield tmp_dst.name
 
 
-async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]:
+async def parse_audio(path: str, stream: BinaryIO, *, src: str | None = None, dst: str | None = None) -> tuple[str, dict[str, Any]]:
+    # dst set -> translate via TranslationRecognizer; dst None -> plain transcription
     key = settings.azure_speech_key.get_secret_value() if settings.azure_speech_key else None
     region = settings.azure_speech_region
     if not key or not region:
         raise RuntimeError("Azure Speech credentials missing")
 
     loop = asyncio.get_running_loop()
-    done, transcript, words = asyncio.Future[Literal[True]](), [], []
+    done, transcript, words, translations = asyncio.Future[Literal[True]](), [], [], []
 
     def finish(error: RuntimeError | None = None):
         if done.done():
@@ -104,8 +105,12 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
             done.set_result(True)
 
     def handle_final(evt):
-        nonlocal transcript, words
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        nonlocal transcript, words, translations
+        if dst is not None:
+            if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
+                transcript.append(evt.result.text)
+                translations.append(evt.result.translations[dst])
+        elif evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
             transcript.append(evt.result.text)
             obj = json.loads(evt.result.json)
             if "NBest" in obj and obj["NBest"]:
@@ -122,11 +127,22 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
         else:
             loop.call_soon_threadsafe(finish)
 
-    speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-    speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
     async with as_wav(path, stream) as wav_path:
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+        if dst is not None:
+            translation_config = speechsdk.translation.SpeechTranslationConfig(subscription=key, region=region)
+            translation_config.add_target_language(dst)
+            if src:
+                translation_config.speech_recognition_language = src
+            auto_detect_config = None if src else speechsdk.languageconfig.AutoDetectSourceLanguageConfig()
+            recognizer = speechsdk.translation.TranslationRecognizer(translation_config=translation_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_config)
+        else:
+            speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+            speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
+            if src:
+                speech_config.speech_recognition_language = src
+            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
         recognizer.recognized.connect(handle_final)
         recognizer.session_stopped.connect(stop_cb)
@@ -137,6 +153,10 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
             await done
         finally:
             recognizer.stop_continuous_recognition()
+
+    if dst is not None:
+        full_translation = " ".join(translations)
+        return full_translation, {"source_text": " ".join(transcript), "translated_len": len(full_translation)}
 
     full_text = " ".join(transcript)
     return full_text, {"text_len": len(full_text), "word_count": len(words), "word_timestamps": words}
@@ -174,56 +194,3 @@ async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[
     brf_text = stream.read().decode(encoding)
     content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or ("en-us-brf.dis", "en-us-g2.ctb")), brf_text))
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}
-
-
-async def translate_audio(path: str, stream: BinaryIO, dst: str, src: str | None = None) -> tuple[str, dict[str, Any]]:
-    key = settings.azure_speech_key.get_secret_value() if settings.azure_speech_key else None
-    region = settings.azure_speech_region
-    if not key or not region:
-        raise RuntimeError("Azure Speech credentials missing")
-
-    loop = asyncio.get_running_loop()
-    done, transcript, translations = asyncio.Future[Literal[True]](), [], []
-
-    def handle_final(evt):
-        nonlocal transcript, translations
-        if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-            transcript.append(evt.result.text)
-            translations.append(evt.result.translations[dst])
-
-    def stop_cb(evt):
-        nonlocal done
-        if not done.done():
-            loop.call_soon_threadsafe(done.set_result, True)
-
-    def cancel_cb(evt):
-        nonlocal done
-        if evt.result and evt.result.cancellation_details and evt.result.cancellation_details.reason != speechsdk.CancellationReason.EndOfStream:
-            cancellation = evt.result.cancellation_details
-            details = cancellation.error_details if cancellation.error_details else str(cancellation.reason)
-            loop.call_soon_threadsafe(done.set_exception, RuntimeError(details))
-        elif not done.done():
-            loop.call_soon_threadsafe(done.set_result, True)
-
-    translation_config = speechsdk.translation.SpeechTranslationConfig(subscription=key, region=region)
-    translation_config.add_target_language(dst)
-    if src:
-        translation_config.speech_recognition_language = src
-
-    async with as_wav(path, stream) as wav_path:
-        audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
-        auto_detect_config = None if src else speechsdk.languageconfig.AutoDetectSourceLanguageConfig()
-        recognizer = speechsdk.translation.TranslationRecognizer(translation_config=translation_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_config)
-
-        recognizer.recognized.connect(handle_final)
-        recognizer.session_stopped.connect(stop_cb)
-        recognizer.canceled.connect(cancel_cb)
-
-        recognizer.start_continuous_recognition()
-        try:
-            await done
-        finally:
-            recognizer.stop_continuous_recognition()
-
-    full_translation = " ".join(translations)
-    return full_translation, {"source_text": " ".join(transcript), "translated_len": len(full_translation)}

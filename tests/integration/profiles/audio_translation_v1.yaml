@@ -8,6 +8,6 @@ parameters:
       type: string
       default: "es"
 steps:
-  - agent: audio_translate
+  - agent: text
     config:
       dst: "${.config.dst_language}"
