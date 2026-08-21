@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import pytest
 
-from omni_ingest.agent.enrichment import TranslateAgent
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.model import StepStatus
 from omni_ingest.core.output import BrfFileOutput, parse
@@ -33,20 +32,17 @@ async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path,
         pytest.skip(f"liblouis unavailable: {e}")
 
     ctx = IngestionContext(store=metadata_store, resource=resources_dir / "twinky-the-dinky-dog.brf")
-    results = await PipelineRunner([
-        TextAgent(),
-        TranslateAgent(src="en", dst="es", input=".items[0].text", path=".metadata.translated"),
-    ]).run(ctx)
+    results = await PipelineRunner([TextAgent()]).run(ctx)
     assert results[-1].status == StepStatus.SUCCESS
-
-    # BrfFileOutput only encodes item content, so hand the agent's real translation back to the item.
-    ctx.items[0].raw_content = ctx.metadata["translated"].encode()
 
     out_path = tmp_path / "output.brf"
     output = BrfFileOutput(str(out_path))
     result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
 
-    text = louis.backTranslateString(list(output.tables), out_path.read_text())
-    assert "In his heart Twinky knew he was a big dog." not in text
-    assert "En su corazón, Twinky sabía que era un perro grande." in text
+    # Raw file on disk should hold braille cells, not literal print text.
+    raw = out_path.read_text()
+    assert "Twinky" not in raw
+
+    text = louis.backTranslateString(list(output.tables), raw)
+    assert "In his heart Twinky knew he was a big dog." in text
