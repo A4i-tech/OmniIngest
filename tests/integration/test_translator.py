@@ -4,7 +4,7 @@ import pytest
 
 from omni_ingest.agent.enrichment import TranslateAgent
 from omni_ingest.core.config import settings
-from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.translator import create_translator
 
@@ -70,3 +70,15 @@ async def test_translate_agent_translates_metadata_in_place():
 
     assert result.status == StepStatus.SUCCESS
     assert ctx.metadata == {"lesson": {"title": "Hello", "count": 2}, "translated": {"title": "Bonjour", "count": 2}}
+
+
+async def test_translate_agent_translates_item_text():
+    ctx = IngestionContext(
+        resource=ResolvedResource(uri="", raw_content=b""),
+        items=[KnowledgeItem(raw_content=b"The dog runs.")],
+    )
+
+    result = await TranslateAgent(src="en", dst="fr", input=".items[0].text", path=".metadata.translated").run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert "chien" in ctx.metadata["translated"].lower()

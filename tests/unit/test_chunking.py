@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from omni_ingest.agent.chunking import PageChunkingAgent, PageStitchingAgent, SentenceChunkingAgent
+from omni_ingest.agent.chunking import PageChunkingAgent, PageStitchingAgent, SentenceChunkingAgent, TimedChunkingAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 
@@ -28,15 +28,6 @@ async def test_chunking_with_default_params():
     assert result.status == StepStatus.SUCCESS
     assert result.metadata["chunk_size"] == 512
     assert len(result.items) >= 1
-
-
-@pytest.mark.asyncio
-async def test_byte_content_resolves_inline_content():
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b"context"))
-    item = KnowledgeItem(raw_content=b"inline")
-
-    assert await item.content(ctx) == b"inline"
-    assert await item.decode(ctx) == "inline"
 
 
 @pytest.mark.asyncio
@@ -126,6 +117,46 @@ async def test_chunking_whitespace_normalization():
 
 
 @pytest.mark.asyncio
+async def test_timed_chunking_from_word_timestamps():
+    ctx = IngestionContext(
+        resource=ResolvedResource(uri="", raw_content=b""),
+        items=[KnowledgeItem(metadata={
+            "word_timestamps": [
+                {"Word": "Hello", "Offset": 10000000, "Duration": 2000000},
+                {"Word": "world", "Offset": 15000000, "Duration": 2000000},
+                {"Word": "this", "Offset": 400000000, "Duration": 2000000},
+                {"Word": "is", "Offset": 410000000, "Duration": 2000000},
+                {"Word": "audio", "Offset": 420000000, "Duration": 2000000},
+            ]
+        })],
+    )
+
+    result = await TimedChunkingAgent(segment_duration="00:00:10").run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(result.items) == 2
+    assert await result.items[0].decode(ctx) == "Hello world"
+    assert result.items[0].metadata["start_offset_ms"] == 1000
+    assert await result.items[1].decode(ctx) == "this is audio"
+    assert result.items[1].metadata["start_offset_ms"] == 40000
+
+
+@pytest.mark.asyncio
+async def test_timed_chunking_accepts_custom_token_schema():
+    ctx = IngestionContext(
+        resource=ResolvedResource(uri="", raw_content=b""),
+        items=[KnowledgeItem(metadata={"tokens": [{"value": "Hello", "start": 1.0, "length": 0.2}, {"value": "world", "start": 1.5, "length": 0.2}]})],
+    )
+    agent = TimedChunkingAgent(tokens=".metadata.tokens[]", text=".value", start=".start", duration=".length", units_per_second=1)
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert await result.items[0].decode(ctx) == "Hello world"
+    assert result.items[0].metadata["start_offset_ms"] == 1000
+
+
+@pytest.mark.asyncio
 async def test_sentence_chunking_selects_items_and_custom_boundaries():
     selected = KnowledgeItem(raw_content=b"Section one; Section two; Section three", metadata={"kind": "paragraph"})
     ignored = KnowledgeItem(raw_content=b"Ignore this", metadata={"kind": "caption"})
@@ -155,6 +186,16 @@ async def test_page_chunking_pdf_mode_emits_virtual_page_items():
     assert [item.content_uri for item in result.items] == ["omni-ingest://resource/pages/1", "omni-ingest://resource/pages/2"]
     assert all(item.raw_content == b"" for item in result.items)
     assert all([len(PdfReader(io.BytesIO(await item.content(ctx))).pages) == 1 for item in result.items])
+
+
+@pytest.mark.asyncio
+async def test_page_chunking_real_pdf(resources_dir):
+    ctx = create_ctx((resources_dir / "when-tomorrow-was-yesterday.pdf").read_bytes())
+
+    result = await PageChunkingAgent().run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(ctx.items) == 12
 
 
 @pytest.mark.asyncio

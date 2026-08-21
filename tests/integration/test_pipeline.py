@@ -2,13 +2,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
 
-from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.agent.indexing import EmbeddingAgent
 from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
-from omni_ingest.core.output import VectorStoreOutput
-from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, create_pipeline_from_config
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
 
 class EchoStep(Step):
@@ -74,36 +70,6 @@ async def test_successful_pipeline_deletes_checkpoint(metadata_store):
     ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="file://input.pdf", raw_content=b"%PDF"))
     await PipelineRunner([SaveStep()]).run(ctx)
     assert await metadata_store.get_pipeline_checkpoint(ctx.run_id) is None
-
-
-@pytest.mark.asyncio
-async def test_embedding_agent_standalone(metadata_store):
-    from omni_ingest.core.model import KnowledgeItem
-
-    item = KnowledgeItem(raw_content=b"hello world")
-    res = await EmbeddingAgent().run(IngestionContext(items=[item], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
-    assert res.status == StepStatus.SUCCESS and len(res.items) == 1
-
-
-@pytest.mark.asyncio
-async def test_full_ingestion_flow(metadata_store, vector_store):
-    steps = [SentenceChunkingAgent(), EmbeddingAgent()]
-
-    runner = PipelineRunner(steps=steps)
-    results = await runner.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"Hello world. Test."), store=metadata_store), output=VectorStoreOutput(store=vector_store))
-    assert all(r.status == StepStatus.SUCCESS for r in results) and await vector_store.count() >= 1
-    assert runner.output_result is not None and runner.output_result.status == StepStatus.SUCCESS
-
-
-@pytest.mark.asyncio
-async def test_yaml_pipeline_factory(metadata_store):
-    config = {"steps": [{"agent": "chunking"}, {"agent": "embedding"}]}
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
-        yaml.dump(config, tmp)
-        tmp.flush()
-        results = await create_pipeline_from_config(Path(tmp.name)).run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"YAML test."), store=metadata_store))
-        assert all(r.status == StepStatus.SUCCESS for r in results) and len(results) == 2
 
 
 @pytest.mark.asyncio

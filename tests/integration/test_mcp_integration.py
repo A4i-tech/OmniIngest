@@ -70,7 +70,7 @@ async def test_pipeline_with_mcp_unreachable(metadata_store):
         "description": "Test pipeline with MCP toolsets",
         "tool_vendors": {
             "converter": {
-                "url": "https://a4i-tech.github.io/nomcp",
+                "url": "http://127.0.0.1:1",
             }
         },
         "steps": [{

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING, Any, BinaryIO
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import BinaryContent
@@ -46,8 +46,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
 
     async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        content_type = await obj.content_type(ctx)
-        text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
+        text, metadata = await self.parse(ctx, obj, uri)
         obj.metadata.update(metadata)
         obj.metadata["content_type"] = "text/plain"
         obj.raw_content = text.encode(self.encoding)
@@ -57,21 +56,23 @@ class TextAgent(BaseModel, Step, AgentMixin):
         obj.content_encoding = self.encoding
 
 
-    async def parse(self, ctx: IngestionContext[ResolvedResource], path: str, stream: BinaryIO, *, content_type: str, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
+    async def parse(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> tuple[str, dict[str, Any]]:
+        content_type = await obj.content_type(ctx)
+        stream = io.BytesIO(await obj.content(ctx))
         if content_type.startswith("audio/"):
-            content, metadata = await parse_audio(path, stream)
+            content, metadata = await parse_audio(uri, stream)
             metadata["selected_parser"] = "audio"
             return content, metadata
-        if content_type == "text/plain" and path.split("?")[0].lower().endswith(".brf"):
-            content, metadata = await parse_brf(stream, encoding=encoding)
+        if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):
+            content, metadata = await parse_brf(stream, encoding=self.encoding)
             metadata["selected_parser"] = "brf"
             return content, metadata
         if content_type.startswith("text/"):
-            content, metadata = await parse_text(stream, encoding=encoding)
+            content, metadata = await parse_text(stream, encoding=self.encoding)
             metadata["selected_parser"] = "text"
             return content, metadata
         if content_type.startswith("application/"):
-            content, metadata = await parse_document(stream, encoding=encoding)
+            content, metadata = await parse_document(stream, encoding=self.encoding)
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):

@@ -19,9 +19,6 @@ from pypdf import PdfReader
 from .core.config import settings
 from .core.model import ResolvedResource
 
-DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
-DEFAULT_DISPLAY_TABLE = "en-us-brf.dis"
-
 
 class _HTMLTextExtractor(HTMLParser):
     def __init__(self):
@@ -98,6 +95,14 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
     loop = asyncio.get_running_loop()
     done, transcript, words = asyncio.Future[Literal[True]](), [], []
 
+    def finish(error: RuntimeError | None = None):
+        if done.done():
+            return
+        if error:
+            done.set_exception(error)
+        else:
+            done.set_result(True)
+
     def handle_final(evt):
         nonlocal transcript, words
         if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
@@ -107,25 +112,22 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
                 words.extend(obj["NBest"][0].get("Words", []))
 
     def stop_cb(evt):
-        nonlocal done
-        if not done.done():
-            loop.call_soon_threadsafe(done.set_result, True)
+        loop.call_soon_threadsafe(finish)
 
     def cancel_cb(evt):
-        nonlocal done
         if evt.result and evt.result.cancellation_details and evt.result.cancellation_details.reason != speechsdk.CancellationReason.EndOfStream:
             cancellation = evt.result.cancellation_details
             details = cancellation.error_details if cancellation.error_details else str(cancellation.reason)
-            loop.call_soon_threadsafe(done.set_exception, RuntimeError(details))
-        elif not done.done():
-            loop.call_soon_threadsafe(done.set_result, True)
+            loop.call_soon_threadsafe(finish, RuntimeError(details))
+        else:
+            loop.call_soon_threadsafe(finish)
 
     speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+    speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
     async with as_wav(path, stream) as wav_path:
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
         recognizer.recognized.connect(handle_final)
         recognizer.session_stopped.connect(stop_cb)
         recognizer.canceled.connect(cancel_cb)
@@ -137,7 +139,7 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
             recognizer.stop_continuous_recognition()
 
     full_text = " ".join(transcript)
-    return " ".join(transcript), {"text_len": len(full_text), "word_count": len(words)}
+    return full_text, {"text_len": len(full_text), "word_count": len(words), "word_timestamps": words}
 
 
 async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
@@ -165,15 +167,10 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
 
 
 async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[str, ...] | None = None) -> tuple[str, dict[str, Any]]:
-    """Back-translate a BRF (Braille Ready Format) file into print text.
-
-    Uses liblouis to expand grade 2 (contracted) braille, not just a plain
-    ASCII-to-text decode.
-    """
     try:
         import louis
     except OSError as e:
         raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
     brf_text = stream.read().decode(encoding)
-    content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or (DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE)), brf_text))
+    content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or ("en-us-brf.dis", "en-us-g2.ctb")), brf_text))
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}

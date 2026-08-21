@@ -131,18 +131,20 @@ async def test_pipeline_checkpoint_crud(metadata_store):
 
 
 @pytest.mark.asyncio
-async def test_invalid_pipeline_checkpoint_returns_none(metadata_store):
+async def test_invalid_pipeline_checkpoint_raises(metadata_store):
     run_id = await metadata_store.create_pipeline_run(uuid4(), uuid4(), "file://input.pdf")
     await metadata_store.set_pipeline_checkpoint(run_id, PipelineCheckpoint(stage=0, resource=ResolvedResource(uri="file://input.pdf", raw_content=b""), tenant_id=uuid4(), domain_profile="test"))
     async with metadata_store.session_factory() as s:
         await s.execute(update(PipelineCheckpointRecord).where(PipelineCheckpointRecord.pipeline_run_id == run_id).values(checkpoint=b"invalid pickle"))
         await s.commit()
-    assert await metadata_store.get_pipeline_checkpoint(run_id) is None
+    with pytest.raises(pickle.UnpicklingError):
+        await metadata_store.get_pipeline_checkpoint(run_id)
 
     async with metadata_store.session_factory() as s:
         await s.execute(update(PipelineCheckpointRecord).where(PipelineCheckpointRecord.pipeline_run_id == run_id).values(checkpoint=pickle.dumps("not a checkpoint")))
         await s.commit()
-    assert await metadata_store.get_pipeline_checkpoint(run_id) is None
+    with pytest.raises(TypeError, match="Expected PipelineCheckpoint, got str"):
+        await metadata_store.get_pipeline_checkpoint(run_id)
 
 
 @pytest.mark.asyncio

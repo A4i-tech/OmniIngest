@@ -23,9 +23,6 @@ from .protocol import GraphStore, VectorStore
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
 
-DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
-DEFAULT_DISPLAY_TABLE = "en-us-brf.dis"
-
 
 async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
     data = obj.model_dump(mode="json", exclude={"raw_content"})
@@ -102,7 +99,7 @@ class BrfFileOutput(FileOutput):
 
     def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
         super().__init__(path)
-        self.tables = (display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE)
+        self.tables = (display or "en-us-brf.dis", table or "en-us-g2.ctb")
         try:
             import louis
         except OSError as e:
