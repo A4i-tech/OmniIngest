@@ -13,6 +13,7 @@ from typing import Any, BinaryIO, Literal
 
 import azure.cognitiveservices.speech as speechsdk
 import fsspec  # type: ignore[import-untyped]
+import openpyxl
 from docx import Document
 from pypdf import PdfReader
 
@@ -157,5 +158,51 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
     if content.startswith(b"PK\x03\x04"):
+        import zipfile
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            names = zf.namelist()
+        if any(name.startswith("xl/") for name in names):
+            return _parse_xlsx(content)
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
+
+
+def _parse_xlsx(content: bytes) -> tuple[str, dict[str, Any]]:
+    workbook = openpyxl.load_workbook(io.BytesIO(content))
+    sheets: dict[str, list[dict[str, Any]]] = {}
+    markdown_parts: list[str] = []
+
+    for sheet_name in workbook.sheetnames:
+        ws = workbook[sheet_name]
+        merged_ranges = list(ws.merged_cells.ranges)
+
+        rows: list[list[Any]] = []
+        for row in ws.iter_rows():
+            values = [cell.value for cell in row]
+            for merged_range in merged_ranges:
+                if merged_range.min_row <= row[0].row <= merged_range.max_row:
+                    top_left = ws.cell(row=merged_range.min_row, column=merged_range.min_col).value
+                    for col_idx in range(merged_range.min_col, merged_range.max_col + 1):
+                        if col_idx <= len(values):
+                            values[col_idx - 1] = top_left
+            rows.append(values)
+
+        if not rows:
+            sheets[sheet_name] = []
+            continue
+
+        headers = [str(h) if h is not None else "" for h in rows[0]]
+        header_row = "| " + " | ".join(headers) + " |"
+        separator_row = "| " + " | ".join("---" for _ in headers) + " |"
+        markdown_parts.append(header_row)
+        markdown_parts.append(separator_row)
+
+        data_rows: list[dict[str, Any]] = []
+        for values in rows[1:]:
+            row_dict = {headers[i]: values[i] if i < len(values) else None for i in range(len(headers))}
+            data_rows.append(row_dict)
+            markdown_parts.append("| " + " | ".join(str(v) if v is not None else "" for v in values) + " |")
+
+        sheets[sheet_name] = data_rows
+
+    return "\n".join(markdown_parts), {"sheets": sheets}

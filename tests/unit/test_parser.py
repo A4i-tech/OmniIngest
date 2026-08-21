@@ -1,6 +1,7 @@
 import io
 from unittest.mock import patch
 
+import openpyxl
 import pytest
 from docx import Document
 from pypdf import PdfWriter
@@ -44,6 +45,27 @@ async def test_document_parser_docx():
 
     content, _ = await parse_document(out)
     assert "Hello from DOCX" in content
+
+
+@pytest.mark.asyncio
+async def test_document_parser_xlsx():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["Name", "Value"])
+    ws.append(["Alpha", 1])
+    ws.append([None, 2])
+    ws.merge_cells("A2:A3")
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+
+    content, metadata = await parse_document(out)
+    assert "Name" in content
+    assert "Value" in content
+    assert "Alpha" in content
+    assert metadata["sheets"]["Sheet1"][0]["Name"] == "Alpha"
+    assert metadata["sheets"]["Sheet1"][1]["Name"] == "Alpha"
 
 
 @pytest.mark.asyncio
