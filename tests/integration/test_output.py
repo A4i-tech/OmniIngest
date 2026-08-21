@@ -4,7 +4,7 @@ import pytest
 
 from omni_ingest.agent.enrichment import TranslateAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.model import StepStatus
 from omni_ingest.core.output import BrfFileOutput, parse
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
@@ -26,13 +26,13 @@ def test_parse_raises_import_error_when_pymongo_missing():
 
 
 @pytest.mark.asyncio
-async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path):
+async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path, resources_dir):
     try:
         import louis
     except OSError as e:
         pytest.skip(f"liblouis unavailable: {e}")
 
-    ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"the dog sat"))
+    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "twinky-the-dinky-dog.brf")
     results = await PipelineRunner([
         TextAgent(),
         TranslateAgent(src="en", dst="es", input=".items[0].text", path=".metadata.translated"),
