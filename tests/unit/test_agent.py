@@ -14,9 +14,9 @@ from omni_ingest.agent.chunking import PageChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAgent
 from omni_ingest.agent.governance import DataLineageAgent
 from omni_ingest.agent.indexing import EmbeddingAgent
-from omni_ingest.braille import back_translate, check_tables
+from omni_ingest.braille import PEF_DISPLAY_TABLE, back_translate, check_tables
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
+from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, PefFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 
 
@@ -568,4 +568,47 @@ async def test_parse_brf_uri_selects_tables(tmp_path):
     _skip_if_no_liblouis()
     output = parse(f"brf:{tmp_path / 'items.brf'}?table=en-us-g2.ctb&display=en-us-brf.dis")
     assert isinstance(output, BrfFileOutput)
-    assert output.tables == ["en-us-brf.dis", "en-us-g2.ctb"]
+    assert output.tables == ("en-us-brf.dis", "en-us-g2.ctb")
+
+
+def _pef_row_text(pef_xml: str) -> str:
+    from omni_ingest.parser import _PEF_ROW_RE
+    return "".join(_PEF_ROW_RE.findall(pef_xml))
+
+
+@pytest.mark.asyncio
+async def test_pef_file_output_write(vector_store, tmp_path):
+    _skip_if_no_liblouis()
+    path = tmp_path / "items.pef"
+    output = PefFileOutput(path=str(path))
+    ctx = create_ctx(vector_store, "resource")
+    ctx.items = [KnowledgeItem(raw_content=b"test")]
+
+    result = await output.write(ctx)
+    written = path.read_text(encoding="utf-8")
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.output_paths == {"pef": str(path)}
+    assert written.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert back_translate(_pef_row_text(written), [PEF_DISPLAY_TABLE, "en-us-g2.ctb"], ascii_braille=False).strip().lower() == "test"
+
+
+@pytest.mark.asyncio
+async def test_pef_file_output_rejects_unknown_table():
+    with pytest.raises(RuntimeError):
+        PefFileOutput(path="/tmp/items.pef", table="does-not-exist.ctb")
+
+
+@pytest.mark.asyncio
+async def test_parse_detects_pef_format(tmp_path):
+    _skip_if_no_liblouis()
+    assert isinstance(parse(str(tmp_path / "items.pef")), PefFileOutput)
+    assert isinstance(parse(str(tmp_path / "items.yml"), "pef"), PefFileOutput)
+
+
+@pytest.mark.asyncio
+async def test_parse_pef_uri_selects_tables(tmp_path):
+    _skip_if_no_liblouis()
+    output = parse(f"pef:{tmp_path / 'items.pef'}?table=en-us-g2.ctb&display=unicode.dis")
+    assert isinstance(output, PefFileOutput)
+    assert output.tables == ("unicode.dis", "en-us-g2.ctb")

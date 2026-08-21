@@ -39,7 +39,7 @@ def _parse_args() -> argparse.Namespace:
     source.add_argument("--resume", nargs="+", type=UUID, help="Pipeline run ID to resume")
     parser.add_argument("--input-name", help="Filename hint for stdin input")
     parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
-    parser.add_argument("--format", choices=["json", "pkl", "brf"], help="Output format, overrides filename extension")
+    parser.add_argument("--format", choices=["brf", "json", "pef", "pkl"], help="Output format, overrides filename extension")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
     for name, schema in properties.items():
         value_type = schema.get("type", "VALUE")

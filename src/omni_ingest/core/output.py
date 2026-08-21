@@ -9,6 +9,7 @@ import pickle
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
+from html import escape
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
@@ -16,7 +17,7 @@ import fsspec  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
-from ..braille import DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE, check_tables, translate
+from ..braille import DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE, PEF_DISPLAY_TABLE, check_tables, translate
 from .config import settings
 from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
@@ -96,13 +97,11 @@ class BrfFileOutput(FileOutput):
         https://github.com/liblouis/liblouis/tree/master/tables for the full list.
     :param display: liblouis display table that maps to the target BRF ASCII
         convention, e.g. `en-us-brf.dis`.
-
-    `self.tables` stores them liblouis-order: `[display, table]`.
     """
 
     def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
         super().__init__(path)
-        self.tables = [display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE]
+        self.tables = (display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE)
         check_tables(self.tables)
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
@@ -113,6 +112,59 @@ class BrfFileOutput(FileOutput):
         braille = "\n".join(translate(text, self.tables) for text in texts)
         await asyncio.to_thread(self._write, braille, mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
+
+
+def _pef_document(rows: list[str]) -> str:
+    """Wrap Unicode braille rows in a minimal DAISY PEF 2008-1 document.
+
+    Covers the structure real embosser/reader software expects (head/body/
+    volume/section/page/row); layout metadata (page size, volumes) is fixed
+    at single-page defaults rather than computed, which is out of scope here.
+    """
+    body_rows = "\n".join(f"      <row>{escape(row)}</row>" for row in rows)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<pef xmlns="http://www.daisy.org/ns/2008/pef" version="2008-1">\n'
+        "  <head>\n"
+        '    <meta xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+        "      <dc:format>application/x-pef+xml</dc:format>\n"
+        "    </meta>\n"
+        "  </head>\n"
+        "  <body>\n"
+        '    <volume rows="25" cols="40" rowgap="0" duplex="false">\n'
+        "    <section>\n"
+        "    <page>\n"
+        f"{body_rows}\n"
+        "    </page>\n"
+        "    </section>\n"
+        "    </volume>\n"
+        "  </body>\n"
+        "</pef>\n"
+    )
+
+
+class PefFileOutput(FileOutput):
+    """Writes item content as real PEF (Portable Embosser Format) braille.
+
+    :param table: liblouis translation table, e.g. `en-us-g2.ctb`. See
+        https://github.com/liblouis/liblouis/tree/master/tables for the full list.
+    :param display: liblouis display table producing the Unicode braille cells
+        PEF expects, e.g. `unicode.dis`.
+    """
+
+    def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
+        super().__init__(path)
+        self.tables = (display or PEF_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE)
+        check_tables(self.tables)
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
+        rows = [translate(text, self.tables) for text in texts]
+        await asyncio.to_thread(self._write, _pef_document(rows), mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"pef": self.path})
 
 
 class PickleFileOutput(FileOutput):
@@ -279,6 +331,9 @@ def parse(value: str, format: str | None = None) -> Output:
     if frag.scheme == "brf":
         qsl = dict(parse_qsl(frag.query))
         return BrfFileOutput(frag.path, qsl.get("table"), qsl.get("display"))
+    if frag.scheme == "pef":
+        qsl = dict(parse_qsl(frag.query))
+        return PefFileOutput(frag.path, qsl.get("table"), qsl.get("display"))
 
     format = format or {
         "-": "json",
@@ -296,4 +351,6 @@ def parse(value: str, format: str | None = None) -> Output:
         return PickleFileOutput(value)
     if format == "brf":
         return BrfFileOutput(value)
+    if format == "pef":
+        return PefFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")
