@@ -5,7 +5,7 @@ import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_pef, parse_text
+from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 @pytest.mark.parametrize(
@@ -67,27 +67,5 @@ async def test_brf_parser_back_translates_grade2_braille(resources_dir):
 
     assert "twinky" in content.lower()
     assert "dinky dog" in content.lower()
-    assert metadata["original_length"] > 0
-    assert metadata["parsed_length"] > 0
-
-
-@pytest.mark.asyncio
-async def test_pef_parser_back_translates_grade2_braille():
-    try:
-        from omni_ingest.braille import DEFAULT_TRANSLATION_TABLE, PEF_DISPLAY_TABLE, translate
-
-        row = translate("hello world", [PEF_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE])
-    except RuntimeError as e:
-        pytest.skip(f"liblouis unavailable: {e}")
-
-    pef_xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        '<pef xmlns="http://www.daisy.org/ns/2008/pef" version="2008-1">'
-        f"<body><volume><section><page><row>{row}</row></page></section></volume></body>"
-        "</pef>"
-    )
-    content, metadata = await parse_pef(io.BytesIO(pef_xml.encode()))
-
-    assert "hello world" in content.lower()
     assert metadata["original_length"] > 0
     assert metadata["parsed_length"] > 0

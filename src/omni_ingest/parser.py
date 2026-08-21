@@ -16,11 +16,9 @@ import fsspec  # type: ignore[import-untyped]
 from docx import Document
 from pypdf import PdfReader
 
-from .braille import DEFAULT_TRANSLATION_TABLE, PEF_DISPLAY_TABLE, back_translate
+from .braille import DEFAULT_TRANSLATION_TABLE, back_translate
 from .core.config import settings
 from .core.model import ResolvedResource
-
-_PEF_ROW_RE = re.compile(r"<row[^>]*>(.*?)</row>", re.DOTALL)
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -180,21 +178,3 @@ async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[s
     if normalize_whitespace:
         content = _normalize_whitespace(content)
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}
-
-
-async def parse_pef(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[str] | None = None, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
-    """Back-translate a PEF (Portable Embosser Format) file into print text.
-
-    PEF wraps Unicode braille cells (U+2800-U+28FF) in a DAISY XML container,
-    one `<row>` per braille line, so the row text is extracted before
-    back-translation against liblouis's unicode display table. See
-    `omni_ingest.braille` for platform support.
-    """
-    pef_text = stream.read().decode(encoding)
-    braille_text = "\n".join(_PEF_ROW_RE.findall(pef_text))
-    content = await asyncio.to_thread(
-        back_translate, braille_text, [PEF_DISPLAY_TABLE, *(tables or [DEFAULT_TRANSLATION_TABLE])], ascii_braille=False,
-    )
-    if normalize_whitespace:
-        content = _normalize_whitespace(content)
-    return content, {"original_length": len(pef_text), "parsed_length": len(content)}

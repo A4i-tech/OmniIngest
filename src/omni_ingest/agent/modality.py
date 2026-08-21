@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.model import AgentMixin, ByteContent, ResolvedResource, Step, StepResult, StepStatus
-from ..parser import parse_audio, parse_brf, parse_document, parse_pef, parse_text
+from ..parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 class TextAgent(BaseModel, Step, AgentMixin):
@@ -65,10 +65,6 @@ class TextAgent(BaseModel, Step, AgentMixin):
         if content_type == "text/plain" and path.split("?")[0].lower().endswith(".brf"):
             content, metadata = await parse_brf(stream, encoding=encoding)
             metadata["selected_parser"] = "brf"
-            return content, metadata
-        if path.split("?")[0].lower().endswith(".pef"):
-            content, metadata = await parse_pef(stream, encoding=encoding)
-            metadata["selected_parser"] = "pef"
             return content, metadata
         if content_type.startswith("text/"):
             content, metadata = await parse_text(stream, encoding=encoding)
