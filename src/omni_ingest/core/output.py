@@ -113,10 +113,7 @@ class BrfFileOutput(FileOutput):
         return await self.write_many([ctx])
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        try:
-            import louis
-        except OSError as e:
-            raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
+        import louis
         texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
         braille = "\n".join(str(louis.translateString(list(self.tables), text)) for text in texts)
         await asyncio.to_thread(self._write, braille, mode="wt")

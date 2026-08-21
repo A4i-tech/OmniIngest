@@ -167,8 +167,7 @@ async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[s
     """Back-translate a BRF (Braille Ready Format) file into print text.
 
     Uses liblouis to expand grade 2 (contracted) braille, not just a plain
-    ASCII-to-text decode. liblouis handles all output formatting itself, so
-    the result is returned as-is with no further whitespace preprocessing.
+    ASCII-to-text decode.
     """
     try:
         import louis
