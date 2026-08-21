@@ -46,14 +46,14 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
 
     async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        if not (content_type := await obj.content_type(ctx)).startswith("text/"):
-            text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
-            obj.metadata.update(metadata)
-            obj.metadata["content_type"] = "text/plain"
-            obj.raw_content = text.encode(self.encoding)
-            obj.content_uri = None
-            if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
-                raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
+        content_type = await obj.content_type(ctx)
+        text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
+        obj.metadata.update(metadata)
+        obj.metadata["content_type"] = "text/plain"
+        obj.raw_content = text.encode(self.encoding)
+        obj.content_uri = None
+        if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
+            raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
         obj.content_encoding = self.encoding
 
 
