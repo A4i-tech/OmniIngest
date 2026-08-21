@@ -37,6 +37,7 @@ async def test_text_agent_replaces_cached_content_type(monkeypatch):
     ("sample.mp3", "audio/mpeg", "parse_audio", "audio"),
     ("when-tomorrow-was-yesterday.pdf", "application/pdf", "parse_document", "document"),
     ("/tmp/sample.txt", "text/plain", "parse_text", "text"),
+    ("/tmp/sample.brf", "text/plain", "parse_brf", "brf"),
 ])
 @pytest.mark.asyncio
 async def test_text_agent_parse_routes_by_mime_type(uri, content_type, parser, expected, monkeypatch, resources_dir):

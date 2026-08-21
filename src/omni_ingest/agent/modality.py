@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.model import AgentMixin, ByteContent, ResolvedResource, Step, StepResult, StepStatus
-from ..parser import parse_audio, parse_document, parse_text
+from ..parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 class TextAgent(BaseModel, Step, AgentMixin):
@@ -46,14 +46,14 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
 
     async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        if not (content_type := await obj.content_type(ctx)).startswith("text/"):
-            text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
-            obj.metadata.update(metadata)
-            obj.metadata["content_type"] = "text/plain"
-            obj.raw_content = text.encode(self.encoding)
-            obj.content_uri = None
-            if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
-                raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
+        content_type = await obj.content_type(ctx)
+        text, metadata = await self.parse(ctx, uri, io.BytesIO(await obj.content(ctx)), encoding=self.encoding, content_type=content_type)
+        obj.metadata.update(metadata)
+        obj.metadata["content_type"] = "text/plain"
+        obj.raw_content = text.encode(self.encoding)
+        obj.content_uri = None
+        if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
+            raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
         obj.content_encoding = self.encoding
 
 
@@ -61,6 +61,10 @@ class TextAgent(BaseModel, Step, AgentMixin):
         if content_type.startswith("audio/"):
             content, metadata = await parse_audio(path, stream)
             metadata["selected_parser"] = "audio"
+            return content, metadata
+        if content_type == "text/plain" and path.split("?")[0].lower().endswith(".brf"):
+            content, metadata = await parse_brf(stream, encoding=encoding)
+            metadata["selected_parser"] = "brf"
             return content, metadata
         if content_type.startswith("text/"):
             content, metadata = await parse_text(stream, encoding=encoding)

@@ -10,6 +10,7 @@ import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
@@ -21,6 +22,9 @@ from .protocol import GraphStore, VectorStore
 
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
+
+DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
+DEFAULT_DISPLAY_TABLE = "en-us-brf.dis"
 
 
 async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
@@ -85,6 +89,35 @@ class JsonFileOutput(FileOutput):
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         await asyncio.to_thread(self._write, await self.dump(ctxs), mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": self.path})
+
+
+class BrfFileOutput(FileOutput):
+    """Writes item content as real BRF (Braille Ready Format) braille.
+
+    :param table: liblouis translation table, e.g. `en-us-g2.ctb`. See
+        https://github.com/liblouis/liblouis/tree/master/tables for the full list.
+    :param display: liblouis display table that maps to the target BRF ASCII
+        convention, e.g. `en-us-brf.dis`.
+    """
+
+    def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
+        super().__init__(path)
+        self.tables = (display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE)
+        try:
+            import louis
+        except OSError as e:
+            raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
+        louis.checkTable(list(self.tables))
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        import louis
+        texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
+        braille = "\n".join(str(louis.translateString(list(self.tables), text)) for text in texts)
+        await asyncio.to_thread(self._write, braille, mode="wt")
+        return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
 
 
 class PickleFileOutput(FileOutput):
@@ -247,6 +280,11 @@ def parse(value: str, format: str | None = None) -> Output:
     if value.startswith(("mongodb://", "mongodb+srv://")):
         return MongoDocumentOutput(value)
 
+    frag = urlsplit(value)
+    if frag.scheme == "brf":
+        qsl = dict(parse_qsl(frag.query))
+        return BrfFileOutput(frag.path, qsl.get("table"), qsl.get("display"))
+
     format = format or {
         "-": "json",
         "vector:default": "vector",
@@ -261,4 +299,6 @@ def parse(value: str, format: str | None = None) -> Output:
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
     if format == "pkl":
         return PickleFileOutput(value)
+    if format == "brf":
+        return BrfFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")

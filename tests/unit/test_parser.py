@@ -5,7 +5,7 @@ import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse_audio, parse_document, parse_text
+from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 @pytest.mark.parametrize(
@@ -51,3 +51,19 @@ async def test_audio_parser_failure():
     with pytest.raises(RuntimeError), patch("omni_ingest.core.config.settings") as mock_settings:
         mock_settings.azure_speech_key = None
         await parse_audio("/tmp/test.wav", io.BytesIO())
+
+
+@pytest.mark.asyncio
+async def test_brf_parser_back_translates_grade2_braille(resources_dir):
+    try:
+        import louis  # noqa: F401
+    except OSError as e:
+        pytest.skip(f"liblouis unavailable: {e}")
+
+    with (resources_dir / "twinky-the-dinky-dog.brf").open("rb") as f:
+        content, metadata = await parse_brf(f)
+
+    assert "twinky" in content.lower()
+    assert "dinky dog" in content.lower()
+    assert metadata["original_length"] > 0
+    assert metadata["parsed_length"] > 0
