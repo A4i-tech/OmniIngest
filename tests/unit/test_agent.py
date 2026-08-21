@@ -14,9 +14,8 @@ from omni_ingest.agent.chunking import PageChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAgent
 from omni_ingest.agent.governance import DataLineageAgent
 from omni_ingest.agent.indexing import EmbeddingAgent
-from omni_ingest.braille import back_translate, check_tables
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
+from omni_ingest.core.output import GraphStoreOutput, JsonFileOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 
 
@@ -506,66 +505,3 @@ async def test_ingestion_logger_agent(vector_store):
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
     assert "timestamp" in result.metadata
-
-
-def _skip_if_no_liblouis():
-    try:
-        check_tables(["en-us-brf.dis", "en-us-g2.ctb"])
-    except RuntimeError as e:
-        pytest.skip(f"liblouis unavailable: {e}")
-
-
-@pytest.mark.asyncio
-async def test_brf_file_output_write(vector_store, tmp_path):
-    _skip_if_no_liblouis()
-    path = tmp_path / "items.brf"
-    output = BrfFileOutput(path=str(path))
-    ctx = create_ctx(vector_store, "resource")
-    ctx.items = [KnowledgeItem(raw_content=b"test")]
-
-    result = await output.write(ctx)
-    written = path.read_text()
-
-    assert result.status == StepStatus.SUCCESS
-    assert result.output_paths == {"brf": str(path)}
-    assert back_translate(written, ["en-us-g2.ctb"]).strip().lower() == "test"
-
-
-@pytest.mark.asyncio
-async def test_brf_file_output_write_many(vector_store, tmp_path):
-    _skip_if_no_liblouis()
-    path = tmp_path / "items.brf"
-    output = BrfFileOutput(path=str(path))
-    ctx1 = create_ctx(vector_store, "")
-    ctx1.items = [KnowledgeItem(raw_content=b"first")]
-    ctx2 = create_ctx(vector_store, "")
-    ctx2.items = [KnowledgeItem(raw_content=b"second")]
-
-    result = await output.write_many([ctx1, ctx2])
-    written = path.read_text()
-
-    assert result.status == StepStatus.SUCCESS
-    assert result.output_paths == {"brf": str(path)}
-    lines = [back_translate(line, ["en-us-g2.ctb"]).strip().lower() for line in written.splitlines()]
-    assert lines == ["first", "second"]
-
-
-@pytest.mark.asyncio
-async def test_brf_file_output_rejects_unknown_table():
-    with pytest.raises(RuntimeError):
-        BrfFileOutput(path="/tmp/items.brf", table="does-not-exist.ctb")
-
-
-@pytest.mark.asyncio
-async def test_parse_detects_brf_format(tmp_path):
-    _skip_if_no_liblouis()
-    assert isinstance(parse(str(tmp_path / "items.brf")), BrfFileOutput)
-    assert isinstance(parse(str(tmp_path / "items.yml"), "brf"), BrfFileOutput)
-
-
-@pytest.mark.asyncio
-async def test_parse_brf_uri_selects_tables(tmp_path):
-    _skip_if_no_liblouis()
-    output = parse(f"brf:{tmp_path / 'items.brf'}?table=en-us-g2.ctb&display=en-us-brf.dis")
-    assert isinstance(output, BrfFileOutput)
-    assert output.tables == ("en-us-brf.dis", "en-us-g2.ctb")

@@ -16,13 +16,15 @@ import fsspec  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
-from ..braille import DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE, check_tables, translate
 from .config import settings
 from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
 
 if TYPE_CHECKING:
     from .pipeline import IngestionContext
+
+DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
+DEFAULT_DISPLAY_TABLE = "en-us-brf.dis"
 
 
 async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
@@ -101,14 +103,22 @@ class BrfFileOutput(FileOutput):
     def __init__(self, path: str, table: str | None = None, display: str | None = None) -> None:
         super().__init__(path)
         self.tables = (display or DEFAULT_DISPLAY_TABLE, table or DEFAULT_TRANSLATION_TABLE)
-        check_tables(self.tables)
+        try:
+            import louis
+        except OSError as e:
+            raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
+        louis.checkTable(list(self.tables))
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         return await self.write_many([ctx])
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        try:
+            import louis
+        except OSError as e:
+            raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
         texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
-        braille = "\n".join(translate(text, self.tables) for text in texts)
+        braille = "\n".join(str(louis.translateString(list(self.tables), text)) for text in texts)
         await asyncio.to_thread(self._write, braille, mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
 

@@ -56,10 +56,8 @@ async def test_audio_parser_failure():
 @pytest.mark.asyncio
 async def test_brf_parser_back_translates_grade2_braille(resources_dir):
     try:
-        from omni_ingest.braille import back_translate
-
-        back_translate(",T", ["en-us-g2.ctb"])
-    except RuntimeError as e:
+        import louis  # noqa: F401
+    except OSError as e:
         pytest.skip(f"liblouis unavailable: {e}")
 
     with (resources_dir / "twinky-the-dinky-dog.brf").open("rb") as f:

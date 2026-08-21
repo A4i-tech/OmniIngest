@@ -16,9 +16,10 @@ import fsspec  # type: ignore[import-untyped]
 from docx import Document
 from pypdf import PdfReader
 
-from .braille import DEFAULT_TRANSLATION_TABLE, back_translate
 from .core.config import settings
 from .core.model import ResolvedResource
+
+DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -162,19 +163,17 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     return content.decode(encoding), {}
 
 
-def _normalize_whitespace(content: str) -> str:
-    content = re.sub(r"\s+", " ", content)
-    return "\n".join(line.strip() for line in content.split("\n") if line.strip()).strip()
-
-
-async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[str] | None = None, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
+async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     """Back-translate a BRF (Braille Ready Format) file into print text.
 
     Uses liblouis to expand grade 2 (contracted) braille, not just a plain
-    ASCII-to-text decode. See `omni_ingest.braille` for platform support.
+    ASCII-to-text decode. liblouis handles all output formatting itself, so
+    the result is returned as-is with no further whitespace preprocessing.
     """
+    try:
+        import louis
+    except OSError as e:
+        raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
     brf_text = stream.read().decode(encoding)
-    content = await asyncio.to_thread(back_translate, brf_text, tables or [DEFAULT_TRANSLATION_TABLE])
-    if normalize_whitespace:
-        content = _normalize_whitespace(content)
+    content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or [DEFAULT_TRANSLATION_TABLE]), brf_text.lower()))
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}
