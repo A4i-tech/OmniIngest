@@ -47,6 +47,6 @@ async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path,
     result = await output.write(ctx)
     assert result.status == StepStatus.SUCCESS
 
-    text = louis.backTranslateString(list(output.tables), out_path.read_text()).lower()
-    assert "dog" not in text
-    assert "perro" in text
+    text = louis.backTranslateString(list(output.tables), out_path.read_text())
+    assert "In his heart Twinky knew he was a big dog." not in text
+    assert "En su corazón, Twinky sabía que era un perro grande." in text

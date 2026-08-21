@@ -20,6 +20,7 @@ from .core.config import settings
 from .core.model import ResolvedResource
 
 DEFAULT_TRANSLATION_TABLE = "en-us-g2.ctb"
+DEFAULT_DISPLAY_TABLE = "en-us-brf.dis"
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -163,7 +164,7 @@ async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[
     return content.decode(encoding), {}
 
 
-async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[str] | None = None) -> tuple[str, dict[str, Any]]:
+async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[str, ...] | None = None) -> tuple[str, dict[str, Any]]:
     """Back-translate a BRF (Braille Ready Format) file into print text.
 
     Uses liblouis to expand grade 2 (contracted) braille, not just a plain
@@ -174,5 +175,5 @@ async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: list[s
     except OSError as e:
         raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
     brf_text = stream.read().decode(encoding)
-    content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or [DEFAULT_TRANSLATION_TABLE]), brf_text.lower()))
+    content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or (DEFAULT_DISPLAY_TABLE, DEFAULT_TRANSLATION_TABLE)), brf_text))
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}
