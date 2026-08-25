@@ -1,11 +1,12 @@
 import io
+from unittest.mock import patch
 
 import openpyxl
 import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse_brf, parse_document, parse_text
+from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 @pytest.mark.parametrize(
@@ -72,6 +73,9 @@ async def test_audio_parser_failure():
     with pytest.raises(RuntimeError), patch("omni_ingest.core.config.settings") as mock_settings:
         mock_settings.azure_speech_key = None
         await parse_audio("/tmp/test.wav", io.BytesIO())
+
+
+@pytest.mark.asyncio
 async def test_brf_parser_back_translates_grade2_braille(resources_dir):
     try:
         import louis  # noqa: F401

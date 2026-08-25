@@ -137,5 +137,6 @@ module = [
     "lancedb.*",
     "pyarrow.*",
     "louis.*",
+    "openpyxl.*",
 ]
 ignore_missing_imports = true
