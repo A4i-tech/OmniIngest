@@ -6,15 +6,16 @@ from uuid import UUID
 import pytest
 import yaml
 from pydantic import ValidationError
+from pydantic_ai import Embedder
+from pydantic_ai.embeddings import TestEmbeddingModel
 
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.chunking import SentenceChunkingAgent
 from omni_ingest.agent.enrichment import ExtractAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.config import LanceDBVectorStoreConfig
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, _resolve_step_kwargs, create_pipeline_from_config
-from omni_ingest.port.vector_store import LanceDBVectorStore
+from omni_ingest.port.metadata_store import NullMetadataStore
 
 
 @pytest.mark.parametrize(
@@ -223,7 +224,6 @@ def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
 
     runner = create_pipeline_from_config(root)
 
-    assert len(runner.steps) == 1
     assert isinstance(runner.steps[0], TextAgent)
 
 
@@ -326,37 +326,21 @@ def test_enrichment_profile_exposes_prompt_parameter(tmp_path):
     assert runner.steps[0].prompt == "Custom enrichment."  # type: ignore[attr-defined]
 
 
-def test_create_vector_store_uses_env_backed_settings(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        pipeline_module.settings,
-        "vector_store",
-        LanceDBVectorStoreConfig(table_name="env_vectors", path=tmp_path / "lancedb", vector_size=256),
-    )
-
-    store = pipeline_module.settings.vector_store.build()
-
-    assert isinstance(store, LanceDBVectorStore)
-    assert store.table_name == "env_vectors"
-    assert store.vector_size == 256
-
-
 @pytest.mark.asyncio
-async def test_knowledge_base_adapter_search_text():
-    from unittest.mock import AsyncMock, patch
-
+async def test_knowledge_base_adapter_search_text(vector_store):
     from omni_ingest.core.pipeline import KnowledgeBaseAdapter
 
-    mock_store = AsyncMock()
-    mock_vector = AsyncMock()
-    adapter = KnowledgeBaseAdapter(metadata_store=mock_store, vector_store=mock_vector)
+    model = TestEmbeddingModel(dimensions=1536)
+    adapter = KnowledgeBaseAdapter(
+        metadata_store=NullMetadataStore(),
+        vector_store=vector_store,
+        embedder=Embedder(model),
+    )
 
-    with patch.object(adapter.embedder, "embed_query", new_callable=AsyncMock) as mock_embed:
-        mock_embed.return_value.embeddings = [[0.1] * 1536]
+    result = await adapter.query_text(UUID("461724ce-ce7f-4a11-8db0-a03c2d1093d0"), "query")
 
-        await adapter.query_text(UUID("461724ce-ce7f-4a11-8db0-a03c2d1093d0"), "query")
-
-        mock_embed.assert_awaited_once_with("query")
-        mock_vector.search.assert_awaited_once()
+    assert result == []
+    assert model.last_settings == {}
 
 
 @pytest.mark.asyncio

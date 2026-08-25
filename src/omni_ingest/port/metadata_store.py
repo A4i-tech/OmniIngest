@@ -92,11 +92,10 @@ class SQLAlchemyMetadataStore(MetadataStore):
             row = await s.get(PipelineCheckpointRecord, id)
             if not row:
                 return None
-            try:
-                checkpoint = pickle.loads(row.checkpoint)
-                return checkpoint if isinstance(checkpoint, PipelineCheckpoint) else None
-            except Exception:
-                return None
+            checkpoint = pickle.loads(row.checkpoint)
+            if not isinstance(checkpoint, PipelineCheckpoint):
+                raise TypeError(f"Expected PipelineCheckpoint, got {type(checkpoint).__name__}")
+            return checkpoint
 
     async def set_pipeline_checkpoint(self, id: UUID, checkpoint: PipelineCheckpoint | None) -> None:
         await self._init_db()

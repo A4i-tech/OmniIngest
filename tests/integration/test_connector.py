@@ -33,3 +33,12 @@ async def test_filesystem_fetch():
     assert len(resources) == 1
     ctx = IngestionContext(resource=resources[0])
     assert await resources[0].content(ctx) == b"hello world"
+
+
+@pytest.mark.asyncio
+async def test_filesystem_detects_mp3(resources_dir):
+    resources = [resource async for resource in read_resources(str(resources_dir / "sample.mp3"))]
+
+    assert len(resources) == 1
+    ctx = IngestionContext(resource=resources[0])
+    assert (await resources[0].content_type(ctx)).startswith("audio/")

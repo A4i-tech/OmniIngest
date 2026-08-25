@@ -199,7 +199,7 @@ class TranslateAgent(BaseModel, Step):
     model: KnownTranslationModelName = Field(default=settings.default_translation_model, description="Translation model")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        doc = await _doc(ctx)
+        doc = await _doc(ctx, text=True)
         async with create_translator(self.model) as translator:
             output = await translator.translate(self.src, self.dst, jq.compile(self.input).input_value(doc).first(), self.skip_fields)
         ctx.metadata = _assign(doc, self.path, output)["metadata"]

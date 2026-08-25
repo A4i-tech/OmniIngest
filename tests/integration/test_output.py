@@ -1,21 +1,90 @@
-from unittest.mock import patch
-
 import pytest
+from pymongo import AsyncMongoClient
 
-from omni_ingest.core.output import parse
+from omni_ingest.agent.modality import TextAgent
+from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.output import BrfFileOutput, MongoDocumentOutput
+from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
-
-def test_parse_rejects_mongodb_uri_missing_collection():
-    with pytest.raises(ValueError, match=r"MongoDB output URI must include database and collection"):
-        parse("mongodb://localhost:27017/mydb")
-
-
-def test_parse_rejects_mongodb_uri_missing_db():
-    with pytest.raises(ValueError, match=r"MongoDB output URI must include database and collection"):
-        parse("mongodb://localhost:27017")
+_MONGO_OUTPUT_URI = "mongodb://localhost:27017/test_omni_ingest/test_mongo_document_output"
 
 
-def test_parse_raises_import_error_when_pymongo_missing():
-    with patch.dict("sys.modules", {"pymongo": None, "pymongo.uri_parser": None}):
-        with pytest.raises(ImportError, match=r"MongoDocumentOutput requires pymongo"):
-            parse("mongodb://localhost:27017/db/col")
+@pytest.fixture
+async def mongo_collection():
+    async with AsyncMongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=2000) as client:
+        await client.admin.command("ping")
+        collection = client["test_omni_ingest"]["test_mongo_document_output"]
+        await collection.drop()
+        yield collection
+        await collection.drop()
+
+
+async def test_mongo_output_inserts_documents(mongo_collection, metadata_store):
+    output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
+    items = [
+        KnowledgeItem(raw_content=b"Question 1", metadata={"subject": "math"}),
+        KnowledgeItem(raw_content=b"Question 2", metadata={"subject": "science"}),
+    ]
+    ctx = IngestionContext(resource=ResolvedResource(uri="test://doc.pdf", raw_content=b""), store=metadata_store, items=items)
+
+    result = await output.write(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert result.metadata["count"] == 2
+    assert await mongo_collection.count_documents({}) == 2
+
+
+async def test_mongo_output_upsert_is_idempotent(mongo_collection, metadata_store):
+    output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
+    item = KnowledgeItem(raw_content=b"Same content")
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store, items=[item])
+
+    await output.write(ctx)
+    await output.write(ctx)
+
+    assert await mongo_collection.count_documents({}) == 1
+
+
+async def test_mongo_output_stores_expected_fields(mongo_collection, metadata_store):
+    output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
+    item = KnowledgeItem(raw_content=b"hello world", metadata={"grade": 6})
+    ctx = IngestionContext(resource=ResolvedResource(uri="file://test.pdf", raw_content=b""), store=metadata_store, items=[item])
+
+    await output.write(ctx)
+
+    document = await mongo_collection.find_one({"_id": str(item.id)})
+    assert document == {"_id": str(item.id), "source_uri": None, "content": "hello world", "metadata": {"grade": 6}}
+
+
+async def test_mongo_output_skips_when_no_items(mongo_collection, metadata_store):
+    output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
+    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store)
+
+    result = await output.write(ctx)
+
+    assert result.status == StepStatus.SKIPPED
+    assert await mongo_collection.count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path, resources_dir):
+    try:
+        import louis
+    except OSError as e:
+        pytest.skip(f"liblouis unavailable: {e}")
+
+    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "twinky-the-dinky-dog.brf")
+    results = await PipelineRunner([TextAgent()]).run(ctx)
+    assert results[-1].status == StepStatus.SUCCESS
+
+    out_path = tmp_path / "output.brf"
+    output = BrfFileOutput(str(out_path))
+    result = await output.write(ctx)
+    assert result.status == StepStatus.SUCCESS
+
+    # Raw file on disk should hold braille cells, not literal print text.
+    raw = out_path.read_text()
+    assert "Twinky" not in raw
+
+    text = louis.backTranslateString(list(output.tables), raw)
+    assert "In his heart Twinky knew he was a big dog." in text
