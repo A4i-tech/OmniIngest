@@ -32,7 +32,7 @@ async def test_document_parser_pdf():
     writer.write(out)
     out.seek(0)
 
-    await parse_document(out)
+    await parse_document(out, content_type="application/pdf")
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,7 @@ async def test_document_parser_docx():
     doc.save(out)
     out.seek(0)
 
-    content, _ = await parse_document(out)
+    content, _ = await parse_document(out, content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     assert "Hello from DOCX" in content
 
 
@@ -60,7 +60,7 @@ async def test_document_parser_xlsx():
     wb.save(out)
     out.seek(0)
 
-    content, metadata = await parse_document(out)
+    content, metadata = await parse_document(out, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     assert "Name" in content
     assert "Value" in content
     assert "Alpha" in content

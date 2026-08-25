@@ -72,7 +72,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
             metadata["selected_parser"] = "text"
             return content, metadata
         if content_type.startswith("application/"):
-            content, metadata = await parse_document(stream, encoding=self.encoding)
+            content, metadata = await parse_document(stream, content_type=content_type, encoding=self.encoding)
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):

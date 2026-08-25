@@ -158,16 +158,13 @@ async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: b
     return content, {"original_length": len(content), "parsed_length": len(content)}
 
 
-async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
+async def parse_document(stream: BinaryIO, *, content_type: str, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
     content = stream.read()
+    if content_type.split(";", 1)[0].strip().lower() == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        return _parse_xlsx(content)
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
     if content.startswith(b"PK\x03\x04"):
-        import zipfile
-        with zipfile.ZipFile(io.BytesIO(content)) as zf:
-            names = zf.namelist()
-        if any(name.startswith("xl/") for name in names):
-            return _parse_xlsx(content)
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
 
