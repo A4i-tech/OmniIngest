@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Iterable
+import json
+from collections.abc import Awaitable, Callable, Iterable
 from fnmatch import fnmatch
 from random import sample
 from typing import TYPE_CHECKING, Any, TypeAlias, cast, overload
@@ -13,7 +13,7 @@ from azure.ai.translation.text.aio import TextTranslationClient
 from azure.ai.translation.text.models import TranslateInputItem, TranslationTarget
 from azure.core.credentials import AzureKeyCredential
 from openai import AsyncOpenAI
-from sarvamai import AsyncSarvamAI
+from sarvamai import AsyncSarvamAI, TranslateModel
 
 from ..core.config import KnownTranslationModelName, settings
 
@@ -57,6 +57,40 @@ def unflatten(flat: dict[str, Any], mapping: dict[str, Path]) -> dict[str, Any] 
     return root
 
 
+def _translatable_leaves(flat: dict[str, Any], mapping: dict[str, Path], skip_fields: Iterable[str]) -> dict[str, str]:
+    patterns = tuple(skip_fields)
+    return {key: value for key, value in flat.items() if isinstance(value, str) and not any(fnmatch(".".join(map(str, mapping[key])), pattern) for pattern in patterns)}
+
+
+async def _translate_html(data: dict[str, Any] | list[Any], skip_fields: Iterable[str], translate_html: Callable[[str], Awaitable[str]], max_batch_size: int) -> dict[str, Any] | list[Any]:
+    """Batches string leaves into <div id="..."> elements and translates each batch as one HTML document.
+
+    Shared by translators whose backing model preserves markup structure (Azure's `text_type="Html"`,
+    Sarvam's `sarvam-translate:v1`), so leaves translate together in one call per batch instead of one
+    call per leaf.
+    """
+    flat, mapping = flatten(data)
+    strings = _translatable_leaves(flat, mapping, skip_fields)
+    if not strings:
+        return data
+
+    batches = [ElementTree.Element("div")]
+    size = 11
+    for key, value in strings.items():
+        element = ElementTree.Element("div", id=key)
+        element.text = value
+        length = len(ElementTree.tostring(element, encoding="unicode"))
+        if size + length > max_batch_size:
+            batches.append(ElementTree.Element("div"))
+            size = 11
+        batches[-1].append(element)
+        size += length
+    for html in batches:
+        root = ElementTree.fromstring(await translate_html(ElementTree.tostring(html, encoding="unicode")))
+        flat.update({element.attrib["id"]: "".join(element.itertext()) for element in root})
+    return unflatten(flat, mapping)
+
+
 class AzureTranslator:
     def __init__(self, key: str, region: str):
         self.client = TextTranslationClient(credential=AzureKeyCredential(key), region=region)
@@ -80,43 +114,11 @@ class AzureTranslator:
     async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]:
         if isinstance(data, str):
             return await self._translate(src, dst, data, "Plain")
-
-        flat, mapping = flatten(data)
-        patterns = tuple(skip_fields)
-        strings = {key: value for key, value in flat.items() if isinstance(value, str) and not any(fnmatch(".".join(map(str, mapping[key])), pattern) for pattern in patterns)}
-        if not strings:
-            return data
-
-        batches = [ElementTree.Element("div")]
-        size = 11
-        for key, value in strings.items():
-            element = ElementTree.Element("div", id=key)
-            element.text = value
-            length = len(ElementTree.tostring(element, encoding="unicode"))
-            if size + length > 49_000:
-                batches.append(ElementTree.Element("div"))
-                size = 11
-            batches[-1].append(element)
-            size += length
-        for html in batches:
-            root = ElementTree.fromstring(await self._translate(src, dst, ElementTree.tostring(html, encoding="unicode"), "Html"))
-            flat.update({element.attrib["id"]: "".join(element.itertext()) for element in root})
-        return unflatten(flat, mapping)
+        return await _translate_html(data, skip_fields, lambda html: self._translate(src, dst, html, "Html"), 49_000)
 
     async def _translate(self, src: str | None, dst: str, text: str, text_type: str) -> str:
         item = TranslateInputItem(text=text, language=src, text_type=text_type, targets=[TranslationTarget(language=dst)])
         return (await self.client.translate(body=[item]))[0].translations[0].text
-
-
-async def _translate_leaves(data: dict[str, Any] | list[Any], skip_fields: Iterable[str], translate_one) -> dict[str, Any] | list[Any]:
-    flat, mapping = flatten(data)
-    patterns = tuple(skip_fields)
-    strings = {key: value for key, value in flat.items() if isinstance(value, str) and not any(fnmatch(".".join(map(str, mapping[key])), pattern) for pattern in patterns)}
-    if not strings:
-        return data
-    translated = await asyncio.gather(*(translate_one(value) for value in strings.values()))
-    flat.update(dict(zip(strings.keys(), translated, strict=True)))
-    return unflatten(flat, mapping)
 
 
 class OpenAICompatibleTranslator:
@@ -145,20 +147,56 @@ class OpenAICompatibleTranslator:
     async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]:
         if isinstance(data, str):
             return await self._translate(src, dst, data)
-        return await _translate_leaves(data, skip_fields, lambda text: self._translate(src, dst, text))
+
+        flat, mapping = flatten(data)
+        strings = _translatable_leaves(flat, mapping, skip_fields)
+        if not strings:
+            return data
+        flat.update(await self._translate_bulk(src, dst, strings))
+        return unflatten(flat, mapping)
 
     async def _translate(self, src: str | None, dst: str, text: str) -> str:
         instructions = f"Translate the user's text{f' from {src}' if src else ''} into {dst}. Return only the translation, with no commentary, quotes, or code fences."
         response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}])
         return response.choices[0].message.content or ""
 
+    async def _translate_bulk(self, src: str | None, dst: str, strings: dict[str, str]) -> dict[str, str]:
+        """Translates every leaf in a single structured-output call, keyed by the same flatten() keys.
+
+        One call for the whole batch is more reliable than N parallel single-string completions:
+        the model sees every string together (consistent terminology/tone) and the response is
+        schema-validated instead of trusted as free text.
+        """
+        schema = {"type": "object", "properties": {key: {"type": "string"} for key in strings}, "required": list(strings), "additionalProperties": False}
+        instructions = f"Translate each value in the user's JSON object{f' from {src}' if src else ''} into {dst}. Return one translated string per key, keeping the same keys."
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(strings)}],
+            response_format={"type": "json_schema", "json_schema": {"name": "translation", "schema": schema, "strict": True}},
+        )
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError(f"Translation request returned no content (finish_reason={response.choices[0].finish_reason!r})")
+        result = cast(dict[str, str], json.loads(content))
+        if result.keys() != strings.keys():
+            raise ValueError(f"Translation response is missing keys: {strings.keys() - result.keys()}")
+        return result
+
 
 class SarvamTranslator:
-    """Translates via Sarvam's dedicated text-translation API.
+    """Translates via Sarvam's `sarvam-translate:v1` model.
 
     `src`/`dst` must already be Sarvam language codes (e.g. `"en-IN"`, `"hi-IN"`), or `"auto"` for
     automatic source-language detection. Sarvam's codes do not match Azure's or arbitrary ISO codes.
+
+    Structured data is translated through the same flatten -> HTML -> translate -> unflatten flow as
+    `AzureTranslator`: `sarvam-translate:v1` (unlike Sarvam's older `mayura:v1`) is documented to
+    preserve HTML tags and translate only the enclosed text, so batching leaves as `<div id="...">`
+    elements works the same way it does against Azure's `text_type="Html"`.
     """
+
+    MODEL: TranslateModel = "sarvam-translate:v1"
+    MAX_BATCH_SIZE = 2_000
 
     def __init__(self):
         self.client = AsyncSarvamAI()
@@ -181,10 +219,10 @@ class SarvamTranslator:
     async def translate(self, src: str | None, dst: str, data: str | dict[str, Any] | list[Any], skip_fields: Iterable[str] = ()) -> str | dict[str, Any] | list[Any]:
         if isinstance(data, str):
             return await self._translate(src, dst, data)
-        return await _translate_leaves(data, skip_fields, lambda text: self._translate(src, dst, text))
+        return await _translate_html(data, skip_fields, lambda html: self._translate(src, dst, html), self.MAX_BATCH_SIZE)
 
     async def _translate(self, src: str | None, dst: str, text: str) -> str:
-        response = await self.client.text.translate(input=text, source_language_code=src or "auto", target_language_code=dst)
+        response = await self.client.text.translate(input=text, source_language_code=src or "auto", target_language_code=dst, model=self.MODEL)
         return cast(str, response.translated_text)
 
 

@@ -7,7 +7,8 @@ def test_create_translator_azure_returns_azure_translator():
     assert isinstance(create_translator("azure"), AzureTranslator)
 
 
-def test_create_translator_openai_returns_openai_translator():
+def test_create_translator_openai_returns_openai_translator(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-key-for-unit-testing-only")
     assert isinstance(create_translator("openai"), OpenAICompatibleTranslator)
 
 

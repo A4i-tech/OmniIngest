@@ -174,7 +174,7 @@ class Settings(BaseSettings):
     """Chat completion model used for OpenAI-compatible translation"""
 
     openai_translation_base_url: AnyHttpUrl | None = None
-    """OpenAI-compatible endpoint override for translation"""
+    """OpenAI-compatible endpoint for translation"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
