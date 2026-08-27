@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
-from .model import ByteContent
+from .model import ByteContent, ResolvedResource
+
+if TYPE_CHECKING:
+    from ..core.pipeline import IngestionContext
 
 
 class SpeechFormat(StrEnum):
@@ -25,6 +28,7 @@ class SpeechFormat(StrEnum):
 
 @dataclass(kw_only=True)
 class SpeechBuilderParams:
+    ctx: IngestionContext[ResolvedResource]
     voice: str | None = None
 
 
@@ -47,8 +51,3 @@ def simple(mapping: dict[str, SpeechBuilder]) -> SpeechFactory:
         return mapping[name](params)
 
     return factory
-
-
-def default_factory() -> SpeechFactory:
-    from ..port.tts import azure_speech_builder
-    return simple({"azure": azure_speech_builder})
