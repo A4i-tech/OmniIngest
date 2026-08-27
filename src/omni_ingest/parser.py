@@ -1,11 +1,13 @@
 """Resource readers for turning local or remote inputs into resolved content."""
 
 import asyncio
+import csv
 import io
 import json
 import re
 import shutil
 import tempfile
+import zipfile
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
@@ -160,11 +162,18 @@ async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: b
 
 async def parse_document(stream: BinaryIO, *, content_type: str, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
     content = stream.read()
-    if content_type.split(";", 1)[0].strip().lower() == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-        return _parse_xlsx(content)
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
     if content.startswith(b"PK\x03\x04"):
+        # .docx and .xlsx are both ZIP containers with the same signature, and
+        # libmagic's MIME guess for OOXML files is inconsistent across magic
+        # database versions (observed returning plain "application/zip" here).
+        # The internal part layout is unambiguous: an XLSX package always has
+        # an "xl/" entry, a DOCX package a "word/" entry.
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            is_xlsx = any(name.startswith("xl/") for name in zf.namelist())
+        if is_xlsx:
+            return _parse_xlsx(content)
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
 
@@ -172,42 +181,38 @@ async def parse_document(stream: BinaryIO, *, content_type: str, encoding: str =
 def _parse_xlsx(content: bytes) -> tuple[str, dict[str, Any]]:
     workbook = openpyxl.load_workbook(io.BytesIO(content))
     sheets: dict[str, list[dict[str, Any]]] = {}
-    markdown_parts: list[str] = []
+    csv_parts: list[str] = []
 
     for sheet_name in workbook.sheetnames:
         ws = workbook[sheet_name]
-        merged_ranges = list(ws.merged_cells.ranges)
+        merge_fill = {
+            (row, col): ws.cell(row=merged.min_row, column=merged.min_col).value
+            for merged in ws.merged_cells.ranges
+            for row in range(merged.min_row, merged.max_row + 1)
+            for col in range(merged.min_col, merged.max_col + 1)
+        }
 
-        rows: list[list[Any]] = []
-        for row in ws.iter_rows():
-            values = [cell.value for cell in row]
-            for merged_range in merged_ranges:
-                if merged_range.min_row <= row[0].row <= merged_range.max_row:
-                    top_left = ws.cell(row=merged_range.min_row, column=merged_range.min_col).value
-                    for col_idx in range(merged_range.min_col, merged_range.max_col + 1):
-                        if col_idx <= len(values):
-                            values[col_idx - 1] = top_left
-            rows.append(values)
-
+        rows = [[merge_fill.get((cell.row, cell.column), cell.value) for cell in row] for row in ws.iter_rows()]
         if not rows:
             sheets[sheet_name] = []
             continue
 
         headers = [str(h) if h is not None else "" for h in rows[0]]
-        header_row = "| " + " | ".join(headers) + " |"
-        separator_row = "| " + " | ".join("---" for _ in headers) + " |"
-        markdown_parts.append(header_row)
-        markdown_parts.append(separator_row)
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(headers)
 
         data_rows: list[dict[str, Any]] = []
         for values in rows[1:]:
-            row_dict = {headers[i]: values[i] if i < len(values) else None for i in range(len(headers))}
-            data_rows.append(row_dict)
-            markdown_parts.append("| " + " | ".join(str(v) if v is not None else "" for v in values) + " |")
+            data_rows.append({headers[i]: values[i] if i < len(values) else None for i in range(len(headers))})
+            writer.writerow("" if v is None else v for v in values)
 
+        csv_parts.append(f"# {sheet_name}\n{buf.getvalue().strip()}")
         sheets[sheet_name] = data_rows
 
-    return "\n".join(markdown_parts), {"sheets": sheets}
+    return "\n\n".join(csv_parts), {"sheets": sheets}
+
+
 async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[str, ...] | None = None) -> tuple[str, dict[str, Any]]:
     try:
         import louis
