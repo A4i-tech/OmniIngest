@@ -31,7 +31,6 @@ class TextAgent(BaseModel, Step, AgentMixin):
     encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
     src: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
-    dst: str | None = Field(default=None, description="Target language to translate audio/image-derived text into, or None to skip translation")
 
     image_conversion_prompt: str = Field(default=(
         "Convert the image into a complete, accessibility-focused text description for someone who cannot see it. "
@@ -63,7 +62,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
         content_type = await obj.content_type(ctx)
         stream = io.BytesIO(await obj.content(ctx))
         if content_type.startswith("audio/"):
-            content, metadata = await parse_audio(uri, stream, src=self.src, dst=self.dst)
+            content, metadata = await parse_audio(uri, stream, src=self.src)
             metadata["selected_parser"] = "audio"
             return content, metadata
         if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):
@@ -79,11 +78,8 @@ class TextAgent(BaseModel, Step, AgentMixin):
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):
-            instructions = self.image_conversion_prompt
-            if self.dst:
-                instructions += f" Write the description in {self.dst} language."
             async with self._agent(ctx) as agent:
-                result = await agent.run([BinaryContent(data=stream.read(), media_type=content_type)], instructions=instructions)
+                result = await agent.run([BinaryContent(data=stream.read(), media_type=content_type)], instructions=self.image_conversion_prompt)
             return result.output, {"selected_parser": "image"}
 
         raise ValueError(f"Unsupported data URI MIME type: {content_type!r}")
