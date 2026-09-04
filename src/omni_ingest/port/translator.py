@@ -13,6 +13,7 @@ from azure.ai.translation.text.aio import TextTranslationClient
 from azure.ai.translation.text.models import TranslateInputItem, TranslationTarget
 from azure.core.credentials import AzureKeyCredential
 from openai import AsyncOpenAI
+from pydantic import create_model
 from sarvamai import AsyncSarvamAI, TranslateModel
 
 from ..core.config import KnownTranslationModelName, settings
@@ -63,12 +64,6 @@ def _translatable_leaves(flat: dict[str, Any], mapping: dict[str, Path], skip_fi
 
 
 async def _translate_html(data: dict[str, Any] | list[Any], skip_fields: Iterable[str], translate_html: Callable[[str], Awaitable[str]], max_batch_size: int) -> dict[str, Any] | list[Any]:
-    """Batches string leaves into <div id="..."> elements and translates each batch as one HTML document.
-
-    Shared by translators whose backing model preserves markup structure (Azure's `text_type="Html"`,
-    Sarvam's `sarvam-translate:v1`), so leaves translate together in one call per batch instead of one
-    call per leaf.
-    """
     flat, mapping = flatten(data)
     strings = _translatable_leaves(flat, mapping, skip_fields)
     if not strings:
@@ -121,14 +116,14 @@ class AzureTranslator:
         return (await self.client.translate(body=[item]))[0].translations[0].text
 
 
-class OpenAICompatibleTranslator:
+class OpenAITranslator:
     """Translates via chat completion against any OpenAI-compatible endpoint."""
 
     def __init__(self, model: str, base_url: str | None):
         self.client = AsyncOpenAI(base_url=base_url)
         self.model = model
 
-    async def __aenter__(self) -> OpenAICompatibleTranslator:
+    async def __aenter__(self) -> OpenAITranslator:
         await self.client.__aenter__()
         return self
 
@@ -161,40 +156,19 @@ class OpenAICompatibleTranslator:
         return response.choices[0].message.content or ""
 
     async def _translate_bulk(self, src: str | None, dst: str, strings: dict[str, str]) -> dict[str, str]:
-        """Translates every leaf in a single structured-output call, keyed by the same flatten() keys.
-
-        One call for the whole batch is more reliable than N parallel single-string completions:
-        the model sees every string together (consistent terminology/tone) and the response is
-        schema-validated instead of trusted as free text.
-        """
-        schema = {"type": "object", "properties": {key: {"type": "string"} for key in strings}, "required": list(strings), "additionalProperties": False}
+        schema = create_model("Translation", **{key: (str, ...) for key in strings})
         instructions = f"Translate each value in the user's JSON object{f' from {src}' if src else ''} into {dst}. Return one translated string per key, keeping the same keys."
-        response = await self.client.chat.completions.create(
+        response = await self.client.responses.parse(
             model=self.model,
-            messages=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(strings)}],
-            response_format={"type": "json_schema", "json_schema": {"name": "translation", "schema": schema, "strict": True}},
+            input=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(strings)}],
+            text_format=schema,
         )
-        content = response.choices[0].message.content
-        if content is None:
-            raise ValueError(f"Translation request returned no content (finish_reason={response.choices[0].finish_reason!r})")
-        result = cast(dict[str, str], json.loads(content))
-        if result.keys() != strings.keys():
-            raise ValueError(f"Translation response is missing keys: {strings.keys() - result.keys()}")
-        return result
+        if response.output_parsed is None:
+            raise ValueError(f"Translation request returned no content (status={response.status!r})")
+        return response.output_parsed.model_dump()
 
 
 class SarvamTranslator:
-    """Translates via Sarvam's `sarvam-translate:v1` model.
-
-    `src`/`dst` must already be Sarvam language codes (e.g. `"en-IN"`, `"hi-IN"`), or `"auto"` for
-    automatic source-language detection. Sarvam's codes do not match Azure's or arbitrary ISO codes.
-
-    Structured data is translated through the same flatten -> HTML -> translate -> unflatten flow as
-    `AzureTranslator`: `sarvam-translate:v1` (unlike Sarvam's older `mayura:v1`) is documented to
-    preserve HTML tags and translate only the enclosed text, so batching leaves as `<div id="...">`
-    elements works the same way it does against Azure's `text_type="Html"`.
-    """
-
     MODEL: TranslateModel = "sarvam-translate:v1"
     MAX_BATCH_SIZE = 2_000
 
@@ -232,7 +206,7 @@ def create_translator(model: KnownTranslationModelName = settings.default_transl
             raise ValueError("AZURE_TRANSLATION_KEY/AZURE_TRANSLATION_REGION are not configured. Set both environment variables to use the azure translation model.")
         return AzureTranslator(settings.azure_translation_key.get_secret_value(), settings.azure_translation_region)
     if model == "openai":
-        return OpenAICompatibleTranslator(settings.openai_translation_model, str(settings.openai_translation_base_url) if settings.openai_translation_base_url else None)
+        return OpenAITranslator(settings.openai_translation_model, str(settings.openai_translation_base_url) if settings.openai_translation_base_url else None)
     if model == "sarvam":
         return SarvamTranslator()
     raise ValueError(f"Translation model is unsupported or not configured: {model}")

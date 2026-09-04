@@ -3,8 +3,6 @@ import os
 # `settings` (omni_ingest.core.config.settings) is a module-level pydantic-settings
 # singleton built at import time, before any test function runs, so these must be
 # real env vars here rather than per-test monkeypatch.setenv.
-os.environ.setdefault("AZURE_SPEECH_KEY", "dummy-speech-key")
-os.environ.setdefault("AZURE_SPEECH_REGION", "eastus")
 os.environ.setdefault("AZURE_TRANSLATION_KEY", "dummy-translation-key")
 os.environ.setdefault("AZURE_TRANSLATION_REGION", "eastus")
 
