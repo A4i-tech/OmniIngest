@@ -7,7 +7,6 @@ import json
 import re
 import shutil
 import tempfile
-import zipfile
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
@@ -164,16 +163,9 @@ async def parse_document(stream: BinaryIO, *, content_type: str, encoding: str =
     content = stream.read()
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
-    if content.startswith(b"PK\x03\x04"):
-        # .docx and .xlsx are both ZIP containers with the same signature, and
-        # libmagic's MIME guess for OOXML files is inconsistent across magic
-        # database versions (observed returning plain "application/zip" here).
-        # The internal part layout is unambiguous: an XLSX package always has
-        # an "xl/" entry, a DOCX package a "word/" entry.
-        with zipfile.ZipFile(io.BytesIO(content)) as zf:
-            is_xlsx = any(name.startswith("xl/") for name in zf.namelist())
-        if is_xlsx:
-            return _parse_xlsx(content)
+    if content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        return _parse_xlsx(content)
+    if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
 
@@ -192,23 +184,17 @@ def _parse_xlsx(content: bytes) -> tuple[str, dict[str, Any]]:
             for col in range(merged.min_col, merged.max_col + 1)
         }
 
-        rows = [[merge_fill.get((cell.row, cell.column), cell.value) for cell in row] for row in ws.iter_rows()]
+        rows = [[merge_fill.get((r, c), v) for c, v in enumerate(row, ws.min_column)] for r, row in enumerate(ws.iter_rows(values_only=True), ws.min_row)]
         if not rows:
             sheets[sheet_name] = []
             continue
 
         headers = [str(h) if h is not None else "" for h in rows[0]]
         buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(headers)
-
-        data_rows: list[dict[str, Any]] = []
-        for values in rows[1:]:
-            data_rows.append({headers[i]: values[i] if i < len(values) else None for i in range(len(headers))})
-            writer.writerow("" if v is None else v for v in values)
+        csv.writer(buf).writerows([headers, *(["" if v is None else v for v in row] for row in rows[1:])])
 
         csv_parts.append(f"# {sheet_name}\n{buf.getvalue().strip()}")
-        sheets[sheet_name] = data_rows
+        sheets[sheet_name] = [dict(zip(headers, row, strict=True)) for row in rows[1:]]
 
     return "\n\n".join(csv_parts), {"sheets": sheets}
 
