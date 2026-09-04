@@ -1,9 +1,0 @@
-pipeline_id: tts_v1
-domain_profile: accessibility
-input_modality: text
-description: "Text-to-audio pipeline synthesizing pipeline text output into MP3 audio"
-steps:
-  - agent: text
-  - agent: speech
-    config:
-      format: mp3
