@@ -9,6 +9,7 @@ from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 KnownTranslationModelName: TypeAlias = Literal["azure"]
+KnownSpeechModelName: TypeAlias = Literal["azure"]
 
 
 class InMemoryVectorStoreConfig(BaseModel):
@@ -169,6 +170,9 @@ class Settings(BaseSettings):
 
     documentintelligence_api_key: SecretStr | None = None
     """Azure Document Intelligence API key"""
+
+    default_speech_model: KnownSpeechModelName = "azure"
+    """Default speech synthesis model to use during pipeline execution"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
