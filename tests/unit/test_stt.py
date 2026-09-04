@@ -1,35 +1,30 @@
 import pytest
 
 from omni_ingest.core.config import settings
-from omni_ingest.port.stt import (
-    AzureSpeechToText,
-    OpenAISpeechToText,
-    SarvamSpeechToText,
-    create_stt_client,
-)
+from omni_ingest.port.stt import default_factory
 
 
-def test_create_stt_client_azure_returns_azure_client():
-    client = create_stt_client("azure")
-    assert isinstance(client, AzureSpeechToText)
+def test_default_factory_azure_returns_callable():
+    stt = default_factory()("azure")
+    assert callable(stt)
 
 
-def test_create_stt_client_openai_returns_openai_client():
-    client = create_stt_client("openai")
-    assert isinstance(client, OpenAISpeechToText)
+def test_default_factory_openai_returns_callable():
+    stt = default_factory()("openai")
+    assert callable(stt)
 
 
-def test_create_stt_client_sarvam_returns_sarvam_client():
-    client = create_stt_client("sarvam")
-    assert isinstance(client, SarvamSpeechToText)
+def test_default_factory_sarvam_returns_callable():
+    stt = default_factory()("sarvam")
+    assert callable(stt)
 
 
-def test_create_stt_client_azure_raises_when_unconfigured(monkeypatch):
+def test_default_factory_azure_raises_when_unconfigured(monkeypatch):
     monkeypatch.setattr(settings, "azure_speech_key", None)
-    with pytest.raises(ValueError, match="STT model is unsupported or not configured: azure"):
-        create_stt_client("azure")
+    with pytest.raises(ValueError, match="AZURE_SPEECH_KEY"):
+        default_factory()("azure")
 
 
-def test_create_stt_client_rejects_unknown_model():
-    with pytest.raises(ValueError, match="STT model is unsupported or not configured: bogus"):
-        create_stt_client("bogus")  # type: ignore[arg-type]
+def test_default_factory_rejects_unknown_engine():
+    with pytest.raises(ValueError, match="Unknown STT builder: bogus"):
+        default_factory()("bogus")

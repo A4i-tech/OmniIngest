@@ -15,7 +15,7 @@ from docx import Document
 from pypdf import PdfReader
 
 from .core.model import ResolvedResource
-from .port.stt import create_stt_client
+from .core.stt import Stt
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -84,10 +84,9 @@ async def as_wav(path: str, stream: BinaryIO):
             yield tmp_dst.name
 
 
-async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]:
-    client = create_stt_client()
+async def parse_audio(path: str, stream: BinaryIO, stt: Stt) -> tuple[str, dict[str, Any]]:
     async with as_wav(path, stream) as wav_path:
-        return await client.transcribe(wav_path)
+        return await stt(wav_path)
 
 
 async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:

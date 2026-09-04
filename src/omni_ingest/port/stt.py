@@ -1,27 +1,26 @@
-"""Speech-to-text service implementations."""
+"""Speech-to-text engine and factory implementations."""
 
 from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
 from openai import AsyncOpenAI
 from sarvamai import AsyncSarvamAI
 
-from ..core.config import KnownSTTModelName, settings
-
-if TYPE_CHECKING:
-    from ..core.protocol import SpeechToText
+from ..core.config import settings
+from ..core.stt import Stt, SttFactory, simple
 
 
-class AzureSpeechToText:
-    def __init__(self, key: str, region: str):
-        self.key = key
-        self.region = region
+def azure_stt_builder() -> Stt:
+    if not settings.azure_speech_key or not settings.azure_speech_region:
+        raise ValueError("AZURE_SPEECH_KEY/AZURE_SPEECH_REGION are not configured. Set both environment variables to use the azure STT model.")
+    key = settings.azure_speech_key.get_secret_value()
+    region = settings.azure_speech_region
 
-    async def transcribe(self, wav_path: str) -> tuple[str, dict[str, Any]]:
+    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
         loop = asyncio.get_running_loop()
         done, transcript, words = asyncio.Future[Literal[True]](), [], []
 
@@ -52,7 +51,7 @@ class AzureSpeechToText:
             else:
                 loop.call_soon_threadsafe(finish)
 
-        speech_config = speechsdk.SpeechConfig(subscription=self.key, region=self.region)
+        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
         speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
@@ -70,39 +69,37 @@ class AzureSpeechToText:
         full_text = " ".join(transcript)
         return full_text, {"text_len": len(full_text), "word_count": len(words), "word_timestamps": words}
 
+    return transcribe
 
-class OpenAISpeechToText:
+
+def openai_stt_builder() -> Stt:
     """Transcribes via an OpenAI-compatible Whisper endpoint."""
+    client = AsyncOpenAI(base_url=str(settings.stt_base_url) if settings.stt_base_url else None)
 
-    def __init__(self, base_url: str | None = None, model: str = "whisper-1"):
-        self.client = AsyncOpenAI(base_url=base_url)
-        self.model = model
-
-    async def transcribe(self, wav_path: str) -> tuple[str, dict[str, Any]]:
+    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
         with open(wav_path, "rb") as f:
-            result = await self.client.audio.transcriptions.create(file=f, model=self.model)
+            result = await client.audio.transcriptions.create(file=f, model="whisper-1")
         text = result.text
         return text, {"text_len": len(text), "word_count": len(text.split())}
 
+    return transcribe
 
-class SarvamSpeechToText:
-    def __init__(self):
-        self.client = AsyncSarvamAI()
 
-    async def transcribe(self, wav_path: str) -> tuple[str, dict[str, Any]]:
+def sarvam_stt_builder() -> Stt:
+    client = AsyncSarvamAI()
+
+    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
         with open(wav_path, "rb") as f:
-            result = await self.client.speech_to_text.transcribe(file=f)
+            result = await client.speech_to_text.transcribe(file=f)
         text = result.transcript
         return text, {"text_len": len(text), "word_count": len(text.split())}
 
+    return transcribe
 
-def create_stt_client(model: KnownSTTModelName = settings.default_stt_model) -> SpeechToText:
-    if model == "azure":
-        if not settings.azure_speech_key or not settings.azure_speech_region:
-            raise ValueError(f"STT model is unsupported or not configured: {model}")
-        return AzureSpeechToText(settings.azure_speech_key.get_secret_value(), settings.azure_speech_region)
-    if model == "openai":
-        return OpenAISpeechToText(base_url=str(settings.stt_base_url) if settings.stt_base_url else None)
-    if model == "sarvam":
-        return SarvamSpeechToText()
-    raise ValueError(f"STT model is unsupported or not configured: {model}")
+
+def default_factory() -> SttFactory:
+    return simple({
+        "azure": azure_stt_builder,
+        "openai": openai_stt_builder,
+        "sarvam": sarvam_stt_builder,
+    })
