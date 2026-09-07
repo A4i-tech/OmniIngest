@@ -156,7 +156,8 @@ class OpenAITranslator:
         return response.choices[0].message.content or ""
 
     async def _translate_bulk(self, src: str | None, dst: str, strings: dict[str, str]) -> dict[str, str]:
-        schema = create_model("Translation", **{key: (str, ...) for key in strings})
+        fields: dict[str, Any] = {key: (str, ...) for key in strings}
+        schema = create_model("Translation", **fields)
         instructions = f"Translate each value in the user's JSON object{f' from {src}' if src else ''} into {dst}. Return one translated string per key, keeping the same keys."
         response = await self.client.responses.parse(
             model=self.model,
