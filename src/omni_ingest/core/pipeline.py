@@ -36,8 +36,8 @@ from ..port.stt import default_factory as default_stt_factory
 from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
 from .ocr import OcrFactory
 from .output import Output, OutputResult
-from .stt import SttFactory
 from .protocol import ContentResolver, MetadataStore, VectorStore
+from .stt import SttFactory
 
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
