@@ -38,6 +38,7 @@ from .ocr import OcrFactory
 from .output import Output, OutputResult
 from .stt import SttFactory
 from .protocol import ContentResolver, MetadataStore, VectorStore
+from .tts import SpeechFactory
 
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
@@ -116,6 +117,7 @@ _STEP_FACTORY: StepFactory = {
     "extract": agent.enrichment.ExtractAgent,
     "transform": agent.enrichment.TransformAgent,
     "translate": agent.enrichment.TranslateAgent,
+    "speech": agent.enrichment.SpeechAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
     "lineage": agent.governance.DataLineageAgent,
