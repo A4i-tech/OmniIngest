@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #0000F2; color: #F5F5F5; font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #FFD98E; text-decoration: none; }
+    a:hover { color: #F5F5F5; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 760px; background: #0000F2; padding: 34px 36px; display: flex; flex-direction: column; gap: 26px; overflow: hidden;">
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid rgba(245,245,245,0.22); padding-bottom: 18px;">
+    <div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5); margin-bottom: 10px;">IMPLEMENTATION SPEC</div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 46px; font-weight: 400; line-height: 0.94;">Design tokens</div>
+    </div>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.7; color: rgba(245,245,245,0.62); text-align: right;">src/theme.css<br>every value below is literal &mdash; no rounding</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px;">
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">GROUND</div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #0000F2; border: 1px solid rgba(245,245,245,0.28); flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--blue</span><br>#0000F2</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #0000CC; border: 1px solid rgba(245,245,245,0.28); flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--canvas</span><br>#0000CC</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #F5F5F5; flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--cream</span><br>#F5F5F5</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">SIGNAL</div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #FFC94E; flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--running</span><br>#FFC94E</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #FFD98E; flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--jq</span><br>#FFD98E</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 40px; height: 40px; background: #FF5C4D; flex-shrink: 0;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;"><span style="color: rgba(245,245,245,0.6);">--failed</span><br>#FF5C4D</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">CREAM ALPHA</div>
+      <div style="display: flex; flex-direction: column; gap: 7px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;">
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.88); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.88);">.88 &middot; body</span></div>
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.62); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.62);">.62 &middot; secondary</span></div>
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.5); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.5);">.50 &middot; micro-label</span></div>
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.28); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.62);">.28 &middot; control border</span></div>
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.22); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.62);">.22 &middot; panel rule</span></div>
+        <div style="display: flex; align-items: center; gap: 11px;"><div style="width: 40px; height: 20px; background: rgba(245,245,245,0.1); flex-shrink: 0;"></div><span style="color: rgba(245,245,245,0.62);">.10 &middot; track / fill</span></div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">RULES</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.62; color: rgba(245,245,245,0.72);">No border radius anywhere &mdash; every edge is square.<br>No shadows, no gradients. Depth comes from the darker canvas well and 1px hairlines.<br>Controls are 30px tall, 26px in canvas toolbars.<br>Panel padding 18px, canvas padding 24px.</div>
+    </div>
+
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 36px; border-top: 1px solid rgba(245,245,245,0.22); padding-top: 24px;">
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">TYPE RAMP</div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: baseline; gap: 18px;">
+          <div style="width: 150px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5); line-height: 1.5;">Bodoni Moda 400<br>58 / 0.92</div>
+          <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 44px; line-height: 0.94;">Page title</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 18px;">
+          <div style="width: 150px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5); line-height: 1.5;">Bodoni Moda 400<br>30 / 1.0</div>
+          <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 30px; line-height: 1;">Panel heading</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 18px;">
+          <div style="width: 150px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5); line-height: 1.5;">Plex Mono 500<br>12 / 0.02em</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">node_title &middot; agent name</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 18px;">
+          <div style="width: 150px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5); line-height: 1.5;">Plex Sans 400<br>12 / 1.45</div>
+          <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: rgba(245,245,245,0.65);">Prose &mdash; descriptions, help text</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 18px;">
+          <div style="width: 150px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5); line-height: 1.5;">Plex Mono 400<br>9 / 0.20em</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">MICRO-LABEL &middot; ALL CAPS</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">NODE STATES</div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 9px 11px; display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">chunking</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">idle &middot; 1px .40</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 2px solid #F5F5F5; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">chunking</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">selected &middot; 2px cream</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 1px solid #FFC94E; padding: 9px 11px; display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #FFC94E;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFC94E;">chunking</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">running &middot; amber</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 1px solid #FF5C4D; padding: 9px 11px; display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #FF5C4D;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FF5C4D;">chunking</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">failed &middot; coral</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 9px 11px; display: flex; align-items: center; gap: 8px;">
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="#FFD98E" stroke-width="1.2"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="#FFD98E" stroke-width="1.2"/></svg>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">kg_builder</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">component &middot; subgraph</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="background: #0000F2; border: 1px dashed rgba(245,245,245,0.4); padding: 9px 11px; display: flex; align-items: center; gap: 8px; opacity: 0.6;">
+            <div style="width: 5px; height: 5px; border: 1px solid #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">chunking</div>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);">skipped &middot; condition</div>
+        </div>
+
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 2px;">
+        <div style="background: #F5F5F5; color: #0000F2; height: 30px; display: flex; align-items: center; padding: 0 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.14em;">PRIMARY</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); height: 30px; display: flex; align-items: center; padding: 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">GHOST</div>
+        <div style="border: 1px solid #FF5C4D; color: #FF5C4D; height: 30px; display: flex; align-items: center; padding: 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">DESTRUCTIVE</div>
+        <div style="border: 1px solid rgba(245,245,245,0.22); height: 30px; display: flex; align-items: center; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: rgba(245,245,245,0.42);">input field</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

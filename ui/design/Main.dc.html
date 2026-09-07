@@ -1,0 +1,316 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #0000F2; color: #F5F5F5; font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #FFD98E; text-decoration: none; }
+    a:hover { color: #F5F5F5; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #0000F2; display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 56px; flex-shrink: 0; border-bottom: 1px solid rgba(245,245,245,0.22); display: flex; align-items: center; justify-content: space-between; padding: 0 20px;">
+    <div style="display: flex; align-items: center; gap: 22px;">
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 19px; font-weight: 500; letter-spacing: 0.04em;">OmniIngest</div>
+      <div style="width: 1px; height: 22px; background: rgba(245,245,245,0.22);"></div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">kseeb_lba_questions</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.5); border: 1px solid rgba(245,245,245,0.22); padding: 2px 6px;">UNSAVED</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.5); margin-right: 8px;">6 STEPS &middot; 5 STAGES</div>
+      <div style="border: 1px solid rgba(245,245,245,0.28); height: 30px; display: flex; align-items: center; padding: 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">EXPORT YAML</div>
+      <div style="border: 1px solid rgba(245,245,245,0.28); height: 30px; display: flex; align-items: center; padding: 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">SAVE</div>
+      <div style="background: #F5F5F5; color: #0000F2; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.14em;">
+        <svg width="9" height="10" viewBox="0 0 9 10" fill="none"><path d="M0.5 0.8L8 5L0.5 9.2V0.8Z" fill="#0000F2"/></svg>
+        RUN
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 248px; flex-shrink: 0; border-right: 1px solid rgba(245,245,245,0.22); display: flex; flex-direction: column; min-height: 0;">
+      <div style="padding: 16px 18px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">AGENT LIBRARY</div>
+      <div style="margin: 0 18px 14px; border: 1px solid rgba(245,245,245,0.22); height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="3.6" stroke="rgba(245,245,245,0.5)" stroke-width="1.1"/><path d="M7.8 7.8L11 11" stroke="rgba(245,245,245,0.5)" stroke-width="1.1"/></svg>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: rgba(245,245,245,0.42);">filter agents</div>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; padding: 0 0 12px;">
+
+        <div style="padding: 0 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">MODALITY</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px; background: rgba(245,245,245,0.08);">
+            <svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">text</div>
+          </div>
+        </div>
+
+        <div style="padding: 12px 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">CHUNKING</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">chunking</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">page_chunking</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">page_stitching</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">timed_chunking</div></div>
+        </div>
+
+        <div style="padding: 12px 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">DOCUMENT</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">image_extraction</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">rasterize</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">ocr</div></div>
+        </div>
+
+        <div style="padding: 12px 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">ENRICHMENT</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">prompt</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">extract</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">transform</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">translate</div></div>
+        </div>
+
+        <div style="padding: 12px 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">INDEXING &middot; GOVERNANCE</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">embedding</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">ingestion_logger</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="7" height="11" viewBox="0 0 7 11" fill="none"><circle cx="1.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="1.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="5.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="1.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/><circle cx="5.5" cy="9.5" r="1.1" fill="rgba(245,245,245,0.5)"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">lineage</div></div>
+        </div>
+
+        <div style="padding: 12px 18px 5px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.38);">COMPONENTS &middot; profiles/</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="rgba(245,245,245,0.5)" stroke-width="1"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="rgba(245,245,245,0.5)" stroke-width="1"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD98E;">enrichment</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="rgba(245,245,245,0.5)" stroke-width="1"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="rgba(245,245,245,0.5)" stroke-width="1"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD98E;">learning_outcome</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="rgba(245,245,245,0.5)" stroke-width="1"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="rgba(245,245,245,0.5)" stroke-width="1"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD98E;">quality</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="rgba(245,245,245,0.5)" stroke-width="1"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="rgba(245,245,245,0.5)" stroke-width="1"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD98E;">kg_builder</div></div>
+          <div style="height: 26px; display: flex; align-items: center; gap: 9px; padding: 0 18px;"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="rgba(245,245,245,0.5)" stroke-width="1"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="rgba(245,245,245,0.5)" stroke-width="1"/></svg><div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD98E;">faq_generation</div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; position: relative; min-width: 0; background-color: #0000CC; background-image: radial-gradient(rgba(245,245,245,0.16) 1px, transparent 1px); background-size: 22px 22px; background-position: -1px -1px; overflow: hidden;">
+
+      <div style="position: absolute; left: 16px; top: 14px; display: flex; gap: 6px; z-index: 5;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); background: #0000F2; height: 26px; display: flex; align-items: center; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.14em;">+ STEP</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); background: #0000F2; height: 26px; display: flex; align-items: center; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.14em;">+ STAGE</div>
+      </div>
+      <div style="position: absolute; right: 16px; top: 14px; display: flex; align-items: center; gap: 10px; z-index: 5; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: rgba(245,245,245,0.55);">
+        <div>FIT</div><div>&minus;</div><div style="color: #F5F5F5;">100%</div><div>+</div>
+      </div>
+
+      <svg width="792" height="844" style="position: absolute; left: 0; top: 0;" fill="none">
+        <path d="M396 96 L396 136" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <path d="M396 236 L396 276" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <path d="M396 446 L396 486" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <path d="M396 570 L396 610" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <path d="M396 698 L396 738" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <rect x="393" y="113" width="6" height="6" fill="#0000CC" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <rect x="393" y="253" width="6" height="6" fill="#0000CC" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <rect x="393" y="463" width="6" height="6" fill="#0000CC" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <rect x="393" y="587" width="6" height="6" fill="#0000CC" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+        <rect x="393" y="715" width="6" height="6" fill="#0000CC" stroke="rgba(245,245,245,0.45)" stroke-width="1"/>
+      </svg>
+
+      <div style="position: absolute; left: 266px; top: 32px; width: 260px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 11px 13px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.02em;">text</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">01</div>
+        </div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: rgba(245,245,245,0.62); line-height: 1.4;">Resolve resource to text items</div>
+      </div>
+
+      <div style="position: absolute; left: 266px; top: 136px; width: 260px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 11px 13px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">chunking</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">02</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 8px;">
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">chunk_size</span><span>1024</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">overlap</span><span>100</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">input</span><span style="color: #FFD98E;">.text</span></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 160px; top: 276px; width: 472px; height: 170px; border: 1px dashed rgba(245,245,245,0.34);"></div>
+      <div style="position: absolute; left: 172px; top: 267px; background: #0000CC; padding: 0 7px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.62);">STAGE &middot; ENRICH &middot; CONCURRENT</div>
+
+      <div style="position: absolute; left: 176px; top: 296px; width: 210px; background: #0000F2; border: 2px solid #F5F5F5; padding: 10px 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">extract</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">03</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 8px;">
+          <div style="display: flex; justify-content: space-between; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">path</span><span style="color: #FFD98E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">.metadata.questions</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">concurrency</span><span>4</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">schema</span><span style="color: rgba(245,245,245,0.75);">6 fields</span></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 406px; top: 296px; width: 210px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 10px 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="#FFD98E" stroke-width="1.2"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="#FFD98E" stroke-width="1.2"/></svg>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">learning_outcome</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 8px;">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: #FFD98E;">COMPONENT &middot; 2 STEPS</div>
+          <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: rgba(245,245,245,0.62); line-height: 1.4;">profiles/learning_outcome.yaml</div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 266px; top: 486px; width: 260px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 11px 13px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="#FFD98E" stroke-width="1.2"/><path d="M0.6 5H9.4M5 0.6V9.4" stroke="#FFD98E" stroke-width="1.2"/></svg>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">quality</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">04</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 8px;">
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">min_quality_score</span><span>0.6</span></div>
+          <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: #FF5C4D;">
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 0.8L9.4 8.8H0.6L5 0.8Z" stroke="#FF5C4D" stroke-width="1"/></svg>
+            1 VALIDATION &middot; AFTER
+          </div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 266px; top: 610px; width: 260px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 11px 13px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">embedding</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">05</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 8px;">
+          <div style="display: flex; justify-content: space-between; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">model</span><span style="color: #FFD98E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">text-embedding-3-large</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px;"><span style="color: rgba(245,245,245,0.55);">path</span><span style="color: #FFD98E;">.metadata.embedding</span></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 266px; top: 738px; width: 260px; background: #0000F2; border: 1px solid rgba(245,245,245,0.4); padding: 11px 13px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 5px; height: 5px; background: #F5F5F5;"></div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500;">ingestion_logger</div>
+          </div>
+          <div style="font-family: 'Bodoni Moda', serif; font-size: 15px; color: rgba(245,245,245,0.4);">06</div>
+        </div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: rgba(245,245,245,0.62); margin-top: 6px;">Write run manifest to metadata store</div>
+      </div>
+
+    </div>
+
+    <div style="width: 400px; flex-shrink: 0; border-left: 1px solid rgba(245,245,245,0.22); display: flex; flex-direction: column; min-height: 0;">
+
+      <div style="height: 384px; flex-shrink: 0; border-bottom: 1px solid rgba(245,245,245,0.22); display: flex; flex-direction: column; overflow: hidden;">
+        <div style="padding: 15px 18px 12px; display: flex; align-items: baseline; justify-content: space-between;">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">STEP 03</div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.5);">ExtractAgent</div>
+        </div>
+        <div style="padding: 0 18px 14px;">
+          <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 30px; font-weight: 400; line-height: 1;">extract</div>
+        </div>
+
+        <div style="padding: 0 18px; display: flex; flex-direction: column; gap: 11px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">PROMPT</div>
+            <div style="border: 1px solid rgba(245,245,245,0.22); padding: 8px 9px; height: 62px; overflow: hidden; font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.55; color: rgba(245,245,245,0.88);">You are extracting practice questions from a Karnataka (KSEEB) Kannada-medium school lesson. Extract EVERY question, including every sub-question&hellip;</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">FOREACH</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #FFD98E;">.items[]</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">INPUT</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #FFD98E;">.text</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">PATH</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #FFD98E;">.metadata.questions</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">MODE</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;">direct
+                <svg width="8" height="5" viewBox="0 0 8 5" fill="none"><path d="M0.6 0.6L4 4L7.4 0.6" stroke="rgba(245,245,245,0.6)" stroke-width="1.1"/></svg>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">CONCURRENCY</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;">4</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">MODEL</div>
+              <div style="border: 1px solid rgba(245,245,245,0.22); height: 28px; display: flex; align-items: center; padding: 0 9px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: rgba(245,245,245,0.45);">inherit default</div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(245,245,245,0.18); padding-top: 10px;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.5);">SCHEMA &middot; JSON &middot; 6 FIELDS</div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; border-bottom: 1px solid rgba(245,245,245,0.5); padding-bottom: 1px;">EDIT</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+        <div style="height: 38px; flex-shrink: 0; border-bottom: 1px solid rgba(245,245,245,0.18); display: flex; align-items: center; justify-content: space-between; padding: 0 18px;">
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.5);">kseeb_lba_questions.yaml</div>
+          <div style="display: flex; gap: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.16em; color: rgba(245,245,245,0.62);">
+            <div>COPY</div>
+            <div>DOWNLOAD</div>
+          </div>
+        </div>
+        <div style="flex-grow: 1; overflow: hidden; padding: 12px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.62; white-space: pre;"><span style="color:#F5F5F5;">pipeline_id</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">kseeb_lba_questions</span>
+<span style="color:#F5F5F5;">domain_profile</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">lba_question_extraction</span>
+<span style="color:#F5F5F5;">input_modality</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">text</span>
+<span style="color:#F5F5F5;">parameters</span><span style="color:rgba(245,245,245,0.5);">:</span>
+  <span style="color:#F5F5F5;">properties</span><span style="color:rgba(245,245,245,0.5);">:</span>
+    <span style="color:#F5F5F5;">marks_default</span><span style="color:rgba(245,245,245,0.5);">:</span>
+      <span style="color:#F5F5F5;">type</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">integer</span>
+      <span style="color:#F5F5F5;">default</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">1</span>
+<span style="color:#F5F5F5;">steps</span><span style="color:rgba(245,245,245,0.5);">:</span>
+  <span style="color:rgba(245,245,245,0.5);">-</span> <span style="color:#F5F5F5;">agent</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">text</span>
+  <span style="color:rgba(245,245,245,0.5);">-</span> <span style="color:#F5F5F5;">agent</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">chunking</span>
+    <span style="color:#F5F5F5;">config</span><span style="color:rgba(245,245,245,0.5);">:</span>
+      <span style="color:#F5F5F5;">chunk_size</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">1024</span>
+      <span style="color:#F5F5F5;">overlap</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">100</span>
+  <span style="color:rgba(245,245,245,0.5);">-</span> <span style="color:#F5F5F5;">agent</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">extract</span>
+    <span style="color:#F5F5F5;">stage</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">enrich</span>
+    <span style="color:#F5F5F5;">config</span><span style="color:rgba(245,245,245,0.5);">:</span>
+      <span style="color:#F5F5F5;">foreach</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">&quot;.items[]&quot;</span>
+      <span style="color:#F5F5F5;">input</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">.text</span>
+      <span style="color:#F5F5F5;">path</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">.metadata.questions</span>
+      <span style="color:#F5F5F5;">concurrency</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:#FFD98E;">4</span>
+      <span style="color:#F5F5F5;">prompt</span><span style="color:rgba(245,245,245,0.5);">:</span> <span style="color:rgba(245,245,245,0.5);">&gt;</span>
+        <span style="color:rgba(245,245,245,0.62);">You are extracting practice</span>
+        <span style="color:rgba(245,245,245,0.62);">questions from a Karnataka&hellip;</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

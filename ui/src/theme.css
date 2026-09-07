@@ -1,0 +1,256 @@
+:root {
+  /* Three real elevation steps: well < ground < raised. The old scheme had one flat fill. */
+  --canvas: #080b16;
+  --ground: #0b0f1e;
+  --blue: #121829;
+
+  --cream: #eceff7;
+  --accent: #3d5afe;
+
+  --running: #ffb020;
+  --jq: #ffd98e;
+  --failed: #ff5c4d;
+
+  /* Kept the old --cNN names so every existing reference still resolves.
+     They are opaque now: alpha over a dark ground washed borders out. */
+  --c88: #eceff7;
+  --c62: #a7b0c8;
+  --c50: #8b95b2;
+  --c40: #6b7391;
+  --c28: #39435f;
+  --c22: #2a3450;
+  --c18: #222b44;
+  --c10: #1a2135;
+
+  --edge: #4a5675;
+  --grid: #1e2740;
+  --hover: #1a2237;
+
+  --serif: 'Bodoni Moda', 'Times New Roman', serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--cream);
+  font-family: var(--sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Nothing in this design has a radius or a shadow. Depth is the elevation steps
+   plus 1px hairlines — see the Design tokens artboard. */
+button,
+input,
+select,
+textarea {
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--c28);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0 9px;
+  height: 28px;
+  font-family: var(--mono);
+  font-size: 10px;
+  outline: none;
+  background: var(--canvas);
+}
+
+textarea {
+  height: auto;
+  padding: 8px 9px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--c40);
+}
+
+select option {
+  background: var(--blue);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--cream);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c28);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c40);
+}
+::-webkit-scrollbar-track {
+  background: var(--canvas);
+}
+
+/* ---- shared primitives ---- */
+
+.label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--c50);
+  text-transform: uppercase;
+}
+
+.label-sm {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: var(--c50);
+  text-transform: uppercase;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.serif {
+  font-family: var(--serif);
+  font-weight: 400;
+}
+
+.btn {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  background: var(--blue);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--cream);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+  padding: 0 16px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #5570ff;
+  border-color: #5570ff;
+}
+
+.btn-danger {
+  border-color: var(--failed);
+  color: var(--failed);
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--failed);
+  background: rgba(255, 92, 77, 0.16);
+  color: var(--failed);
+}
+
+.btn-sm {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 9px;
+}
+
+.rule {
+  border: 0;
+  border-top: 1px solid var(--c18);
+  margin: 0;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sq {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+}
+
+.scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.empty {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--c50);
+  line-height: 1.6;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pulse {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* Views are flex children of <main>; without this they size to content. */
+.view-host > * {
+  flex: 1;
+  min-width: 0;
+}

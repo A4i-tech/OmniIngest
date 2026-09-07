@@ -1,0 +1,18 @@
+pipeline_id: parallel_demo
+domain_profile: education
+description: Two transform steps share stage `fanout`, so the runner executes them concurrently.
+steps:
+  - agent: text
+  - agent: chunking
+    config:
+      chunk_size: 400
+  - agent: transform
+    stage: fanout
+    config:
+      value: ".items | length"
+      path: ".metadata.chunk_count"
+  - agent: transform
+    stage: fanout
+    config:
+      value: "[.items[].text | length] | add"
+      path: ".metadata.total_chars"

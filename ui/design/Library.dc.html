@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #0000F2; color: #F5F5F5; font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #FFD98E; text-decoration: none; }
+    a:hover { color: #F5F5F5; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #0000F2; display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 56px; flex-shrink: 0; border-bottom: 1px solid rgba(245,245,245,0.22); display: flex; align-items: center; justify-content: space-between; padding: 0 20px;">
+    <div style="display: flex; align-items: center; gap: 22px;">
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 19px; font-weight: 500; letter-spacing: 0.04em;">OmniIngest</div>
+      <div style="width: 1px; height: 22px; background: rgba(245,245,245,0.22);"></div>
+      <div style="display: flex; gap: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.16em;">
+        <div style="color: rgba(245,245,245,0.5);">BUILDER</div>
+        <div style="color: rgba(245,245,245,0.5);">RUNS</div>
+        <div style="color: #F5F5F5; border-bottom: 1px solid #F5F5F5; padding-bottom: 2px;">LIBRARY</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="border: 1px solid rgba(245,245,245,0.28); height: 30px; display: flex; align-items: center; padding: 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">IMPORT YAML</div>
+      <div style="background: #F5F5F5; color: #0000F2; height: 30px; display: flex; align-items: center; padding: 0 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.14em;">+ NEW PIPELINE</div>
+    </div>
+  </div>
+
+  <div style="padding: 30px 32px 22px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid rgba(245,245,245,0.18);">
+    <div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5); margin-bottom: 12px;">SAVED PIPELINES &middot; 9</div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 58px; font-weight: 400; line-height: 0.92; letter-spacing: 0.01em;">Library</div>
+    </div>
+    <div style="display: flex; gap: 24px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em;">
+      <div style="color: #F5F5F5; border-bottom: 1px solid #F5F5F5; padding-bottom: 3px;">ALL</div>
+      <div style="color: rgba(245,245,245,0.5);">PROFILES/</div>
+      <div style="color: rgba(245,245,245,0.5);">COMPONENTS</div>
+      <div style="color: rgba(245,245,245,0.5);">DRAFTS</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; padding: 26px 32px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-content: start;">
+
+    <div style="border: 1px solid rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">profiles/</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);"><div style="width: 5px; height: 5px; border-radius: 50%; background: #F5F5F5;"></div>2h ago</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05;">kseeb_lba_questions</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.65); flex-grow: 1;">Extracts every practice question from KSEEB Kannada-medium lesson exports into the LBA question bank.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">text</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">chunking</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">extract</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.55);">+3</div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">profiles/</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);"><div style="width: 5px; height: 5px; border-radius: 50%; background: #F5F5F5;"></div>1d ago</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05;">bse_tg_lba_questions</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.65); flex-grow: 1;">Telangana board variant of the LBA extraction pipeline, tuned for English-medium PDF sources.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">text</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">ocr</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">extract</div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">tests/integration/</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);"><div style="width: 5px; height: 5px; border-radius: 50%; background: #F5F5F5;"></div>3d ago</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05;">textbook_v1</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.65); flex-grow: 1;">Education-focused textbook ingestion with learning-outcome extraction and graph indexing.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">chunking</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #FFD98E;">learning_outcome</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #FFD98E;">kg_builder</div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">tests/integration/</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #FF5C4D;"><div style="width: 5px; height: 5px; border-radius: 50%; background: #FF5C4D;"></div>failed</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05;">audio_v2</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.65); flex-grow: 1;">Audio pipeline with transcript post-processing and 60-second timed segments.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">prompt</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">timed_chunking</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">embedding</div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: #FFD98E;">COMPONENT</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);">reused &times;4</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05; color: #FFD98E;">kg_builder</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.65); flex-grow: 1;">Extracts entities and relationships into a node/edge graph, then folds them into run metadata.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">extract</div>
+        <div style="border: 1px solid rgba(245,245,245,0.28); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;">transform</div>
+      </div>
+    </div>
+
+    <div style="border: 1px dashed rgba(245,245,245,0.34); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; height: 208px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.2em; color: rgba(245,245,245,0.5);">DRAFT &middot; LOCAL</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.5);"><div style="width: 5px; height: 5px; border-radius: 50%; border: 1px solid rgba(245,245,245,0.5);"></div>never run</div>
+      </div>
+      <div style="font-family: 'Bodoni Moda', 'Times New Roman', serif; font-size: 25px; line-height: 1.05; color: rgba(245,245,245,0.78);">scanned_worksheets</div>
+      <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; line-height: 1.45; color: rgba(245,245,245,0.55); flex-grow: 1;">Rasterize &rarr; OCR &rarr; page stitching for scanned worksheet packs. Schema not finished.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+        <div style="border: 1px solid rgba(245,245,245,0.22); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);">rasterize</div>
+        <div style="border: 1px solid rgba(245,245,245,0.22); padding: 2px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.62);">ocr</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

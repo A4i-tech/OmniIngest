@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Builder" },
+    { "file": "Runs.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Run monitor" },
+    { "file": "Library.dc.html", "x": 0, "y": 1060, "w": 1440, "h": 900, "title": "Library" },
+    { "file": "System.dc.html", "x": 1560, "y": 1060, "w": 1440, "h": 760, "title": "Design tokens" }
+  ],
+  "annotations": [
+    { "id": "node-model", "x": 0, "y": -190, "w": 620, "text": "Node model: 15 primitive agents from _STEP_FACTORY (config form generated from each Pydantic Step's field schema) + profiles/*.yaml component nodes (amber, collapsible subgraphs). stage: renders as the dashed group box, validation: as a badge on the node." },
+    { "id": "live-source", "x": 1560, "y": -190, "w": 620, "text": "Timeline and event stream map 1:1 to the omni_ingest event bus: pipeline_begin, pipeline_step_begin, pipeline_step_progress (completed/total), pipeline_step_end, pipeline_end. Backend relays them over SSE." }
+  ],
+  "launch": { "view": "canvas" }
+}
