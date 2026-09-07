@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 KnownTranslationModelName: TypeAlias = Literal["azure"]
 KnownSTTModelName: TypeAlias = Literal["azure", "openai", "sarvam"]
+KnownSpeechModelName: TypeAlias = Literal["azure"]
 
 
 class InMemoryVectorStoreConfig(BaseModel):
@@ -173,6 +174,9 @@ class Settings(BaseSettings):
 
     default_stt_model: KnownSTTModelName = "azure"
     """Default speech-to-text model to use during pipeline execution"""
+
+    default_speech_model: KnownSpeechModelName = "azure"
+    """Default speech synthesis model to use during pipeline execution"""
 
     stt_base_url: AnyHttpUrl | None = None
     """Base URL override for an OpenAI-compatible speech-to-text endpoint"""

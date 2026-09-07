@@ -33,11 +33,13 @@ from ..parser import read_resources
 from ..port.content import default_content_resolver
 from ..port.ocr import default_factory as default_ocr_factory
 from ..port.stt import default_factory as default_stt_factory
+from ..port.tts import default_factory as default_speech_factory
 from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
 from .ocr import OcrFactory
 from .output import Output, OutputResult
 from .protocol import ContentResolver, MetadataStore, VectorStore
 from .stt import SttFactory
+from .tts import SpeechFactory
 
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
@@ -78,6 +80,9 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     stt_factory: SttFactory = field(default_factory=default_stt_factory)
     """STT factory to vend speech-to-text engines from"""
 
+    speech_factory: SpeechFactory = field(default_factory=default_speech_factory)
+    """Speech factory to vend text-to-speech engines from"""
+
     run_id: UUID = field(default_factory=uuid4)
     """Unique identifier for the current pipeline run"""
 
@@ -116,6 +121,7 @@ _STEP_FACTORY: StepFactory = {
     "extract": agent.enrichment.ExtractAgent,
     "transform": agent.enrichment.TransformAgent,
     "translate": agent.enrichment.TranslateAgent,
+    "speech": agent.enrichment.SpeechAgent,
 
     "ingestion_logger": agent.governance.IngestionLoggerAgent,
     "lineage": agent.governance.DataLineageAgent,
