@@ -2,6 +2,8 @@
 
 import argparse
 import asyncio
+import importlib
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -40,6 +42,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--input-name", help="Filename hint for stdin input")
     parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
     parser.add_argument("--format", choices=["brf", "json", "pkl"], help="Output format, overrides filename extension")
+    parser.add_argument("--ocr-factory", help="Dotted path to a custom OcrFactory, for example 'mypkg.engines:factory'")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
     for name, schema in properties.items():
         value_type = schema.get("type", "VALUE")
@@ -64,6 +67,23 @@ def _parse_args() -> argparse.Namespace:
 
 def _read_stdin(name: str | None) -> ResolvedResource:
     return ResolvedResource(uri=name or "stdin://", raw_content=sys.stdin.buffer.read())
+
+
+def _load_ocr_factory(spec: str):
+    """Loads an OcrFactory (a `(name, params) -> Ocr` callable) from a 'module.path:attribute' spec.
+
+    Matches the `default_factory()` convention used throughout this codebase: an attribute
+    that takes no required arguments is a zero-arg builder and gets called for its result,
+    same as `omni_ingest.port.ocr:default_factory` would be if pointed at directly.
+    """
+
+    module_name, _, attr = spec.partition(":")
+    if not attr:
+        raise ValueError(f"--ocr-factory must be 'module.path:attribute', got '{spec}'")
+    target = getattr(importlib.import_module(module_name), attr)
+    if callable(target) and not any(p.default is inspect.Parameter.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) for p in inspect.signature(target).parameters.values()):
+        return target()
+    return target
 
 
 async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]], summary: TaskID) -> None:
@@ -99,10 +119,12 @@ async def _main() -> int:
 
     args = _parse_args()
     output = parse_output(args.output, args.format)
+    ocr_factory = _load_ocr_factory(args.ocr_factory) if args.ocr_factory else None
+    ctx_kwargs = {"ocr_factory": ocr_factory} if ocr_factory is not None else {}
     if args.resume:
         store = default_metadata_store()
         jobs = [
-            (str(run_id), runner := create_pipeline_from_config(args.pipeline, config_args=args.params), *(await runner.resume(run_id, store)))
+            (str(run_id), runner := create_pipeline_from_config(args.pipeline, config_args=args.params), *(await runner.resume(run_id, store, ocr_factory=ocr_factory)))
             for run_id in args.resume
         ]
     else:
@@ -111,7 +133,7 @@ async def _main() -> int:
         jobs = [
             (Path(ctx.resource.uri).name, runner := create_pipeline_from_config(args.pipeline, config_args=args.params), ctx, runner.run(ctx))
             for input_path, resolver in resolvers
-            async for ctx in resolver.flatten(IngestionContext(resource=input_path))
+            async for ctx in resolver.flatten(IngestionContext(resource=input_path, **ctx_kwargs))
         ]
 
     console = Console(stderr=True)

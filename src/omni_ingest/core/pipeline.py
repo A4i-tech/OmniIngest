@@ -172,7 +172,7 @@ class PipelineRunner:
         await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, 0))
         return await self._execute(ctx, output, 0)
 
-    async def resume(self, run_id: UUID, store: MetadataStore, output: Output | None = None) -> tuple[IngestionContext[ResolvedResource], Awaitable[list[StepResult]]]:
+    async def resume(self, run_id: UUID, store: MetadataStore, output: Output | None = None, ocr_factory: OcrFactory | None = None) -> tuple[IngestionContext[ResolvedResource], Awaitable[list[StepResult]]]:
         """Resumes a pipeline run from its latest successful-stage checkpoint."""
 
         checkpoint = await store.get_pipeline_checkpoint(run_id)
@@ -180,7 +180,10 @@ class PipelineRunner:
             raise ValueError(f"Pipeline checkpoint not found: {run_id}")
         if checkpoint.stage > len(self.stages):
             raise ValueError(f"Pipeline has {len(self.stages)} stages, but checkpoint {run_id} completed {checkpoint.stage}; resume with the pipeline YAML used to create this run")
-        ctx = IngestionContext(resource=checkpoint.resource, store=store, run_id=run_id, tenant_id=checkpoint.tenant_id, domain_profile=checkpoint.domain_profile, metadata=checkpoint.metadata, items=checkpoint.items)
+        # A resumed run rebuilds the context from scratch, so a custom ocr_factory passed to the
+        # original run is lost unless the caller passes it again here.
+        factory_kwargs = {"ocr_factory": ocr_factory} if ocr_factory is not None else {}
+        ctx = IngestionContext(resource=checkpoint.resource, store=store, run_id=run_id, tenant_id=checkpoint.tenant_id, domain_profile=checkpoint.domain_profile, metadata=checkpoint.metadata, items=checkpoint.items, **factory_kwargs)
         await store.update_pipeline_run(run_id, status="running")
         return ctx, self._execute(ctx, output, checkpoint.stage)
 
