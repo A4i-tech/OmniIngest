@@ -161,7 +161,8 @@ class OpenAITranslator:
         instructions = f"Translate each value in the user's JSON object{f' from {src}' if src else ''} into {dst}. Return one translated string per key, keeping the same keys."
         response = await self.client.responses.parse(
             model=self.model,
-            input=[{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(strings)}],
+            instructions=instructions,
+            input=json.dumps(strings),
             text_format=schema,
         )
         if response.output_parsed is None:
