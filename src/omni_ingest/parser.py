@@ -15,7 +15,7 @@ from docx import Document
 from pypdf import PdfReader
 
 from .core.model import ResolvedResource
-from .core.stt import Stt
+from .core.speech import Stt
 
 
 class _HTMLTextExtractor(HTMLParser):

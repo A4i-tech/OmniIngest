@@ -3,7 +3,7 @@ import pytest
 from omni_ingest.agent.enrichment import SpeechAgent
 from omni_ingest.core.model import StepStatus
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
-from omni_ingest.core.tts import SpeechFormat
+from omni_ingest.core.speech import SpeechFormat
 
 
 @pytest.mark.parametrize("output_format", list(SpeechFormat))
