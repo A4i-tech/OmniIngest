@@ -30,7 +30,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
     encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
-    src: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
+    lang: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
 
     image_conversion_prompt: str = Field(default=(
         "Convert the image into a complete, accessibility-focused text description for someone who cannot see it. "
@@ -62,7 +62,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
         content_type = await obj.content_type(ctx)
         stream = io.BytesIO(await obj.content(ctx))
         if content_type.startswith("audio/"):
-            content, metadata = await parse_audio(uri, stream, src=self.src)
+            content, metadata = await parse_audio(uri, stream, src=self.lang)
             metadata["selected_parser"] = "audio"
             return content, metadata
         if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):

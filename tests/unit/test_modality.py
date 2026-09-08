@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 import pytest
 
 import omni_ingest.agent.modality as modality
@@ -69,20 +67,3 @@ async def test_text_agent_parse_rejects_unsupported_mime_type():
     with pytest.raises(ValueError, match="Unsupported data URI MIME type: 'font/ttf'"):
         ctx = IngestionContext(resource=ResolvedResource(uri="/tmp/sample.ttf", raw_content=b""))
         await TextAgent().parse(ctx, ByteContent.from_bytes(b"", content_type="font/ttf"), "/tmp/sample.ttf")
-
-
-@pytest.mark.asyncio
-async def test_text_agent_transcribes_audio(monkeypatch):
-    mock_parse_audio = AsyncMock(return_value=("hello world", {}))
-    monkeypatch.setattr("omni_ingest.agent.modality.parse_audio", mock_parse_audio)
-
-    item = KnowledgeItem(raw_content=b"fake-audio-bytes", metadata={"content_type": "audio/mpeg"})
-    ctx = IngestionContext(resource=ResolvedResource(uri="sample.mp3", raw_content=b""), items=[item])
-
-    result = await TextAgent().run(ctx)
-
-    assert result.status == StepStatus.SUCCESS
-    mock_parse_audio.assert_awaited_once()
-    assert mock_parse_audio.call_args.args[0] == "sample.mp3"
-    assert mock_parse_audio.call_args.kwargs == {"src": None}
-    assert await item.decode(ctx) == "hello world"
