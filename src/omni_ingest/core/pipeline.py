@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 import jq
 import yaml
 from fastmcp import Client
-from fastmcp.mcp_config import MCPConfig
+from fastmcp.utilities.mcp_config import MCPConfig
 from jsonschema import ValidationError, validate
 from pydantic import PositiveInt, validate_call
 from pydantic_ai import AbstractToolset
