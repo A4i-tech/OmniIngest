@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import io
 import zipfile
+from base64 import b64encode
 from collections.abc import AsyncIterator
 from string import Template
+from typing import Any
 
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentContentFormat
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeOutputOption, DocumentContentFormat
 from azure.core.credentials import AzureKeyCredential
 from pydantic import BaseModel
 from pydantic_ai import Agent, BinaryContent
@@ -109,15 +111,46 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if settings.documentintelligence_endpoint is None or settings.documentintelligence_api_key is None:
         raise ValueError("DOCUMENTINTELLIGENCE_ENDPOINT/DOCUMENTINTELLIGENCE_API_KEY are not configured")
 
+    async def figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> list[dict[str, Any]]:
+        """Collect the figures the layout model found, with their cropped images."""
+        collected: list[dict[str, Any]] = []
+        for figure in result.figures or []:
+            region = (figure.get("boundingRegions") or [{}])[0]
+            entry: dict[str, Any] = {
+                "id": figure.get("id"),
+                "page": region.get("pageNumber"),
+                "caption": (figure.get("caption") or {}).get("content"),
+                "bbox": region.get("polygon"),
+            }
+            if result_id and figure.get("id"):
+                try:
+                    stream = await client.get_analyze_result_figure(
+                        model_id=result.model_id, result_id=result_id, figure_id=figure["id"]
+                    )
+                    entry["image"] = b64encode(b"".join([chunk async for chunk in stream])).decode("ascii")
+                    entry["content_type"] = "image/png"
+                except Exception:
+                    # A crop is a bonus; losing one must not lose the page text.
+                    entry["crop_failed"] = True
+            collected.append(entry)
+        return collected
+
     async def one(client: DocumentIntelligenceClient, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             poller = await client.begin_analyze_document(
                 "prebuilt-layout",
                 AnalyzeDocumentRequest(bytes_source=await item.content(params.ctx)),
-                locale=params.src_lang, output_content_format=output_content_format
+                locale=params.src_lang, output_content_format=output_content_format,
+                output=[AnalyzeOutputOption.FIGURES],
             )
             result = await poller.result()
-        return item, ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
+            found = await figures(client, result, poller.details.get("operation_id"))
+        changed = ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
+        if found:
+            changed.metadata["figures"] = found
+        if failed := sum(1 for f in found if f.get("crop_failed")):
+            changed.metadata["figures_failed"] = failed
+        return item, changed
 
     endpoint = str(settings.documentintelligence_endpoint)
     credential = AzureKeyCredential(settings.documentintelligence_api_key.get_secret_value())

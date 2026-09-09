@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from base64 import b64decode
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Literal
 
@@ -190,6 +191,8 @@ class OcrAgent(BaseModel, Step):
                 yield item
 
         n = 0
+        extracted: list[KnowledgeItem] = []
+        figures_failed = 0
         async for original, changed in ocr(aitems()):
             if changed is original:  # 'is' is the right way to test for identical
                 continue
@@ -197,9 +200,36 @@ class OcrAgent(BaseModel, Step):
             original.raw_content = await changed.content(ctx)
             original.content_uri = None
             original.content_encoding = changed.content_encoding
+            # Carry anything else the engine reported instead of discarding it.
+            extra = {k: v for k, v in changed.metadata.items() if k not in {"content_type", "figures", "figures_failed"}}
+            original.metadata.update(extra)
             original.metadata["content_type"] = await changed.content_type(ctx)
 
+            # Figures become items in their own right so later steps can address them by id.
+            for figure in changed.metadata.get("figures") or []:
+                if not figure.get("image"):
+                    continue
+                extracted.append(KnowledgeItem(
+                    raw_content=b64decode(figure["image"]),
+                    content_encoding="binary",
+                    tenant_id=original.tenant_id,
+                    source_uri=original.source_uri,
+                    metadata={
+                        "kind": "image",
+                        "parent_id": str(original.id),
+                        "page": page if (page := original.metadata.get("page")) is not None else figure.get("page"),
+                        "caption": figure.get("caption"),
+                        "figure_id": figure.get("id"),
+                        "bbox": figure.get("bbox"),
+                        "content_type": figure.get("content_type", "image/png"),
+                        "source": "ocr_engine",
+                    },
+                ))
+
+            figures_failed += changed.metadata.get("figures_failed", 0)
             n += 1
             ctx.progress(n, len(items), f"extracted {n}/{len(items)}")
 
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
+        ctx.items = [*ctx.items, *extracted]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items,
+                           metadata={"count": len(items), "figures": len(extracted), "figures_failed": figures_failed})
