@@ -9,6 +9,7 @@ import pickle
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
+from hashlib import md5
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
@@ -132,6 +133,101 @@ class PickleFileOutput(FileOutput):
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         return await self.write_many([ctx])
+
+
+def _as_jpeg(raw: bytes) -> tuple[bytes, str]:
+    """Re-encode a raster image as JPEG when possible, to shrink large PNGs."""
+    try:
+        import pymupdf
+        pix = pymupdf.Pixmap(raw)
+        if pix.alpha:
+            pix = pymupdf.Pixmap(pix, 0)
+        return pix.tobytes("jpeg", jpg_quality=85), "jpg"
+    except Exception:
+        return raw, "png"
+
+
+def _page_key(item: ByteContent) -> tuple[int, Any]:
+    page = (item.metadata or {}).get("page")
+    return (0, page) if page is not None else (1, 0)
+
+
+class MarkdownDirOutput(FileOutput):
+    """Writes finalized items as one Markdown file plus their images.
+
+    Given `--output out/doc.md`, writes `doc.md`, `doc_metadata.json`, and one
+    image file per image item into `out/`. Items are ordered by their `page`
+    metadata when present, otherwise by arrival order — page metadata is
+    optional, so any pipeline's output works, not only paged documents.
+
+    An item is embedded as a figure when its content type is `image/*`, and
+    written as text when it decodes as `text/*`. Any other content type is
+    skipped, since Markdown cannot represent it. Whatever a pipeline placed
+    under `item.metadata.accessibility` (e.g. `alt_text`) rides along into
+    the sidecar's image entry, unchanged and un-filtered.
+    """
+
+    def __init__(self, path: str) -> None:
+        super().__init__(path)
+        head, _, tail = path.replace("\\", "/").rpartition("/")
+        self.dir = head or "."
+        self.name = tail.rsplit(".", 1)[0]
+
+    def _write_sibling(self, filename: str, data: str | bytes, mode: str) -> str:
+        target = f"{self.dir}/{filename}"
+        with fsspec.open(target, mode, auto_mkdir=True) as f:
+            f.write(data)
+        return target
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        if not ctxs:
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+        entries = sorted(((ctx, item) for ctx in ctxs for item in ctx.items), key=lambda pair: _page_key(pair[1]))
+
+        md: list[str] = []
+        images: list[dict[str, Any]] = []
+        last_page: Any = object()
+
+        for ctx, item in entries:
+            page = (item.metadata or {}).get("page")
+            content_type = await item.content_type(ctx)
+
+            if page is not None and page != last_page:
+                md.append(f"<!-- page {page} -->")
+                last_page = page
+
+            if content_type.startswith("image/"):
+                raw = await item.content(ctx)
+                data, ext = _as_jpeg(raw)
+                filename = f"{md5(raw).hexdigest()}.{ext}"
+                await asyncio.to_thread(self._write_sibling, filename, data, "wb")
+                access = (item.metadata or {}).get("accessibility") or {}
+                alt = str(access.get("alt_text") or "Figure")
+                md.append(f"![{alt}]({filename})")
+                images.append({"file": filename, "page": page, **access})
+            elif content_type.startswith("text/"):
+                text = (await item.content(ctx)).decode(item.content_encoding, errors="replace").strip()
+                if text:
+                    md.append(text)
+
+        root = ctxs[0].metadata or {}
+        sidecar = {
+            "file_name": ctxs[0].resource.uri,
+            "item_count": len(entries),
+            "images": images,
+            **{k: v for k, v in root.items() if k not in {"file_name", "item_count", "images"}},
+        }
+
+        paths = {
+            "md": await asyncio.to_thread(self._write_sibling, f"{self.name}.md", "\n\n".join(md) + "\n", "wt"),
+            "metadata": await asyncio.to_thread(self._write_sibling, f"{self.name}_metadata.json", json.dumps(sidecar, ensure_ascii=False, indent=1), "wt"),
+        }
+        return OutputResult(status=StepStatus.SUCCESS, output_paths=paths,
+                            metadata={"items": len(entries), "images": len(images)})
 
 
 class StdoutOutput(Output):
@@ -296,6 +392,8 @@ def parse(value: str, format: str | None = None) -> Output:
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
     if format == "pkl":
         return PickleFileOutput(value)
+    if format in {"md", "markdown"}:
+        return MarkdownDirOutput(value)
     if format == "brf":
         return BrfFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")
