@@ -86,7 +86,7 @@ async def as_wav(path: str, stream: BinaryIO):
             yield tmp_dst.name
 
 
-async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]:
+async def parse_audio(path: str, stream: BinaryIO, *, src: str | None = None) -> tuple[str, dict[str, Any]]:
     key = settings.azure_speech_key.get_secret_value() if settings.azure_speech_key else None
     region = settings.azure_speech_region
     if not key or not region:
@@ -122,10 +122,13 @@ async def parse_audio(path: str, stream: BinaryIO) -> tuple[str, dict[str, Any]]
         else:
             loop.call_soon_threadsafe(finish)
 
-    speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-    speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
     async with as_wav(path, stream) as wav_path:
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
+
+        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+        speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
+        if src:
+            speech_config.speech_recognition_language = src
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
         recognizer.recognized.connect(handle_final)
