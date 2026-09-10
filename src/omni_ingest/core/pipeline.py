@@ -386,7 +386,7 @@ def create_pipeline_from_config(config_path: Path, factory: StepFactory | None =
 
 
 def _load_pipeline_config(path: Path) -> PipelineConfig:
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         return PipelineConfig.model_validate(yaml.safe_load(f))
 
 
