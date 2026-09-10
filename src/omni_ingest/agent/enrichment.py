@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jq
+
+logger = logging.getLogger(__name__)
 from datamodel_code_generator import GenerateConfig
 from datamodel_code_generator.dynamic import generate_dynamic_models
 from pydantic import BaseModel, Field, PositiveInt
@@ -189,10 +193,64 @@ class PromptAgent(BaseModel, Step, AgentMixin):
         return StepResult(status=StepStatus.SUCCESS)
 
 
+_LANG_MAP: dict[str, str] = {
+    "kn": "kn", "hi": "hi", "ta": "ta", "te": "te", "mr": "mr", "gu": "gu", "bn": "bn",
+    "ml": "ml", "pa": "pa", "or": "or", "ur": "ur", "as": "as", "en": "en",
+    "kannada": "kn", "hindi": "hi", "tamil": "ta", "telugu": "te", "marathi": "mr",
+    "gujarati": "gu", "bengali": "bn", "bangla": "bn", "malayalam": "ml", "punjabi": "pa",
+    "odia": "or", "oriya": "or", "urdu": "ur", "assamese": "as", "english": "en",
+    "french": "fr", "spanish": "es", "german": "de",
+    "ಕನ್ನಡ": "kn",
+    "हिन्दी": "hi",
+    "हिंदी": "hi",
+    "தமிழ்": "ta",
+    "తెలుగు": "te",
+    "मराठी": "mr",
+    "ગુજરાતી": "gu",
+    "বাংলা": "bn",
+    "മലയാളം": "ml",
+    "ਪੰਜਾਬੀ": "pa",
+    "ଓଡ଼ိଆ": "or",
+    "اردو": "ur",
+    "অসমীয়া": "as",
+}
+
+_SCRIPT_RANGES: list[tuple[int, int, str]] = [
+    (0x0C80, 0x0CFF, "kn"),  # Kannada
+    (0x0B80, 0x0BFF, "ta"),  # Tamil
+    (0x0C00, 0x0C7F, "te"),  # Telugu
+    (0x0D00, 0x0D7F, "ml"),  # Malayalam
+    (0x0A80, 0x0AFF, "gu"),  # Gujarati
+    (0x0A00, 0x0A7F, "pa"),  # Gurmukhi / Punjabi
+    (0x0B00, 0x0B7F, "or"),  # Odia
+    (0x0980, 0x09FF, "bn"),  # Bengali / Assamese
+    (0x0900, 0x097F, "hi"),  # Devanagari (Hindi)
+]
+
+
+def _resolve_lang(lang: str | None) -> str | None:
+    if not lang:
+        return None
+    cleaned = lang.strip().lower()
+    if cleaned in _LANG_MAP:
+        return _LANG_MAP[cleaned]
+    for name, code in _LANG_MAP.items():
+        if name in cleaned:
+            return code
+    for char in lang:
+        cp = ord(char)
+        for start, end, code in _SCRIPT_RANGES:
+            if start <= cp <= end:
+                return code
+    candidate = cleaned.split("-")[0].split("_")[0]
+    return candidate if re.match(r"^[a-z]{2,3}$", candidate) else None
+
+
 class TranslateAgent(BaseModel, Step):
     """Translates text or structured metadata in place."""
 
-    src: str | None = Field(..., description="Source language or null for automatic detection")
+    foreach: JqExpression | None = Field(default=None, description="jq expression selecting items to translate")
+    src: str | None = Field(default=None, description="Source language or null for automatic detection")
     dst: str = Field(..., description="Destination language")
     input: JqExpression = Field(..., description="jq expression selecting data to translate")
     path: JqExpression = Field(..., description="jq path where translated data is written")
@@ -201,10 +259,55 @@ class TranslateAgent(BaseModel, Step):
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         doc = await _doc(ctx, text=True)
+        dst = _resolve_lang(self.dst)
+        if not dst or dst == "auto":
+            book_lang = (doc.get("metadata") or {}).get("book", {}).get("language")
+            dst = _resolve_lang(book_lang)
+
+        src = _resolve_lang(self.src) or "en"
+
+        if not dst or dst in ("en", "auto") or dst == src:
+            return StepResult(status=StepStatus.SKIPPED, items=ctx.items)
+
         async with create_translator(self.model) as translator:
-            output = await translator.translate(self.src, self.dst, jq.compile(self.input).input_value(doc).first(), self.skip_fields)
-        ctx.metadata = _assign(doc, self.path, output)["metadata"]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
+            if self.foreach is not None:
+                selected_docs = jq.compile(self.foreach).input_value(doc).all()
+                if not selected_docs:
+                    return StepResult(status=StepStatus.SKIPPED, items=ctx.items)
+                item_by_id = {str(item.id): item for item in ctx.items}
+                total = len(selected_docs)
+                ctx.progress(0, total, "translating")
+                for n, item_doc in enumerate(selected_docs, 1):
+                    data = jq.compile(self.input).input_value(item_doc).first()
+                    if not data:
+                        continue
+                    try:
+                        output = await translator.translate(src, dst, data, self.skip_fields)
+                    except Exception as exc:
+                        logger.warning("TranslateAgent: translation failed for item %s: %s", item_doc.get("id"), exc)
+                        output = data
+                    if "id" in item_doc and item_doc["id"] in item_by_id:
+                        item = item_by_id[item_doc["id"]]
+                        current_item_doc = {
+                            "id": str(item.id),
+                            "source_uri": item.source_uri,
+                            "metadata": item.metadata,
+                        }
+                        item.metadata = _assign(current_item_doc, self.path, output)["metadata"]
+                    else:
+                        ctx.metadata = _assign(doc, self.path, output)["metadata"]
+                    ctx.progress(n, total, f"translated {n}/{total}")
+                return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path, "items_processed": total})
+            else:
+                data = jq.compile(self.input).input_value(doc).first()
+                if data:
+                    try:
+                        output = await translator.translate(src, dst, data, self.skip_fields)
+                        ctx.metadata = _assign(doc, self.path, output)["metadata"]
+                    except Exception as exc:
+                        logger.warning("TranslateAgent: translation failed: %s", exc)
+                return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
+
 
 
 class SpeechAgent(BaseModel, Step):

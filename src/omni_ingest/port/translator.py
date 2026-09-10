@@ -8,9 +8,12 @@ from random import sample
 from typing import TYPE_CHECKING, Any, TypeAlias, cast, overload
 from xml.etree import ElementTree
 
+import asyncio
+
 from azure.ai.translation.text.aio import TextTranslationClient
 from azure.ai.translation.text.models import TranslateInputItem, TranslationTarget
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import HttpResponseError
 
 from ..core.config import KnownTranslationModelName, settings
 
@@ -102,7 +105,15 @@ class AzureTranslator:
 
     async def _translate(self, src: str | None, dst: str, text: str, text_type: str) -> str:
         item = TranslateInputItem(text=text, language=src, text_type=text_type, targets=[TranslationTarget(language=dst)])
-        return (await self.client.translate(body=[item]))[0].translations[0].text
+        for attempt in range(5):
+            try:
+                return (await self.client.translate(body=[item]))[0].translations[0].text
+            except HttpResponseError as exc:
+                if getattr(exc, "status_code", None) == 429 and attempt < 4:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                raise
+        return ""
 
 
 def create_translator(model: KnownTranslationModelName = settings.default_translation_model) -> Translator:
