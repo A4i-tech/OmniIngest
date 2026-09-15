@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 from ..core.config import settings
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import OcrBuilderParams, OcrOutputFormat
+from ..core.ocr import Figure, OcrBuilderParams, OcrOutputFormat
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -206,22 +206,23 @@ class OcrAgent(BaseModel, Step):
             original.metadata["content_type"] = await changed.content_type(ctx)
 
             # Figures become items in their own right so later steps can address them by id.
-            for figure in changed.metadata.get("figures") or []:
-                if not figure.get("image"):
+            figures: list[Figure] = changed.metadata.get("figures") or []
+            for figure in figures:
+                if not figure.image:
                     continue
                 extracted.append(KnowledgeItem(
-                    raw_content=b64decode(figure["image"]),
+                    raw_content=b64decode(figure.image),
                     content_encoding="binary",
                     tenant_id=original.tenant_id,
                     source_uri=original.source_uri,
                     metadata={
                         "kind": "image",
                         "parent_id": str(original.id),
-                        "page": page if (page := original.metadata.get("page")) is not None else figure.get("page"),
-                        "caption": figure.get("caption"),
-                        "figure_id": figure.get("id"),
-                        "bbox": figure.get("bbox"),
-                        "content_type": figure.get("content_type", "image/png"),
+                        "page": page if (page := original.metadata.get("page")) is not None else figure.page,
+                        "caption": figure.caption,
+                        "figure_id": figure.id,
+                        "bbox": figure.bbox,
+                        "content_type": figure.content_type,
                         "source": "ocr_engine",
                     },
                 ))
