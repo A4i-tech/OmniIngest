@@ -135,36 +135,22 @@ class PickleFileOutput(FileOutput):
         return await self.write_many([ctx])
 
 
-def _as_jpeg(raw: bytes) -> tuple[bytes, str]:
-    """Re-encode a raster image as JPEG when possible, to shrink large PNGs."""
-    try:
-        import pymupdf
-        pix = pymupdf.Pixmap(raw)
-        if pix.alpha:
-            pix = pymupdf.Pixmap(pix, 0)
-        return pix.tobytes("jpeg", jpg_quality=85), "jpg"
-    except Exception:
-        return raw, "png"
-
-
-def _page_key(item: ByteContent) -> tuple[int, Any]:
+def _page_key(item: ByteContent) -> tuple[bool, Any]:
     page = (item.metadata or {}).get("page")
-    return (0, page) if page is not None else (1, 0)
+    return (page is None, page)
 
 
 class MarkdownDirOutput(FileOutput):
     """Writes finalized items as one Markdown file plus their images.
 
     Given `--output out/doc.md`, writes `doc.md`, `doc_metadata.json`, and one
-    image file per image item into `out/`. Items are ordered by their `page`
-    metadata when present, otherwise by arrival order — page metadata is
-    optional, so any pipeline's output works, not only paged documents.
+    image file per image item into `out/`. Items are ordered by `page`
+    metadata when present, otherwise by arrival order.
 
-    An item is embedded as a figure when its content type is `image/*`, and
-    written as text when it decodes as `text/*`. Any other content type is
-    skipped, since Markdown cannot represent it. Whatever a pipeline placed
-    under `item.metadata.accessibility` (e.g. `alt_text`) rides along into
-    the sidecar's image entry, unchanged and un-filtered.
+    An `image/*` item is embedded as a figure. A `text/*` item is written as
+    text. Any other content type is skipped. `item.metadata.accessibility`
+    (e.g. `alt_text`), when present, rides into the sidecar's image entry
+    unchanged.
     """
 
     def __init__(self, path: str) -> None:
@@ -202,9 +188,8 @@ class MarkdownDirOutput(FileOutput):
 
             if content_type.startswith("image/"):
                 raw = await item.content(ctx)
-                data, ext = _as_jpeg(raw)
-                filename = f"{md5(raw).hexdigest()}.{ext}"
-                await asyncio.to_thread(self._write_sibling, filename, data, "wb")
+                filename = f"{md5(raw).hexdigest()}.{content_type.split('/', 1)[-1]}"
+                await asyncio.to_thread(self._write_sibling, filename, raw, "wb")
                 access = (item.metadata or {}).get("accessibility") or {}
                 alt = str(access.get("alt_text") or "Figure")
                 md.append(f"![{alt}]({filename})")
