@@ -7,13 +7,16 @@ import json
 import os
 import pickle
 import sys
+import warnings
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from hashlib import md5
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
+import pymupdf
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
@@ -141,22 +144,19 @@ def _page_key(item: ByteContent) -> tuple[bool, Any]:
 
 
 class MarkdownDirOutput(FileOutput):
-    """Writes finalized items as one Markdown file plus their images.
+    """Writes Markdown to the given path, plus a `<name>_metadata.json` sidecar
+    and one file per image, as siblings in the same folder.
 
-    Given `--output out/doc.md`, writes `doc.md`, `doc_metadata.json`, and one
-    image file per image item into `out/`. Items are ordered by `page`
-    metadata when present, otherwise by arrival order.
-
-    An `image/*` item is embedded as a figure, a `text/*` item as text, any
-    other type skipped. Nested dicts in an image item's metadata flatten into
-    its sidecar entry. `alt_text` or `caption`, if found, becomes the alt text.
+    An `image/*` item becomes a figure, a `text/*` item becomes text, any other
+    type is skipped. `alt_text` or `caption`, if found in an image item's
+    metadata, becomes the Markdown alt text.
     """
 
     def __init__(self, path: str) -> None:
         super().__init__(path)
-        head, _, tail = path.replace("\\", "/").rpartition("/")
-        self.dir = head or "."
-        self.name = tail.rsplit(".", 1)[0]
+        p = PurePosixPath(path.replace("\\", "/"))
+        self.dir = str(p.parent)
+        self.name = p.stem
 
     def _write_sibling(self, filename: str, data: str | bytes, mode: str) -> str:
         target = f"{self.dir}/{filename}"
@@ -187,8 +187,12 @@ class MarkdownDirOutput(FileOutput):
 
             if content_type.startswith("image/"):
                 raw = await item.content(ctx)
-                filename = f"{md5(raw).hexdigest()}.{content_type.split('/', 1)[-1]}"
-                await asyncio.to_thread(self._write_sibling, filename, raw, "wb")
+                try:
+                    data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
+                except Exception:
+                    data, ext = raw, content_type.split("/", 1)[-1]
+                filename = f"out/{md5(data).hexdigest()}.{ext}"
+                await asyncio.to_thread(self._write_sibling, filename, data, "wb")
                 kwargs: dict[str, Any] = {}
                 for key, value in item.metadata.items():
                     if key in {"content_type", "page"}:
@@ -197,6 +201,8 @@ class MarkdownDirOutput(FileOutput):
                         kwargs.update(value)
                     else:
                         kwargs[key] = value
+                if kwargs.get("alt_text") and kwargs.get("caption"):
+                    warnings.warn(f"figure has both alt_text and caption in metadata, using alt_text: {filename}", stacklevel=2)
                 alt = str(kwargs.get("alt_text") or kwargs.get("caption") or "")
                 md.append(f"![{alt}]({filename})")
                 images.append({"file": filename, "page": page, **kwargs})
