@@ -9,10 +9,10 @@ import zipfile
 from collections.abc import AsyncIterator
 from string import Template
 
-import httpx
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentContentFormat
 from azure.core.credentials import AzureKeyCredential
+from mistralai.azure.client import MistralAzure
 from pydantic import BaseModel
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import SarvamAI
@@ -21,7 +21,7 @@ from omni_ingest.parser import read_resources
 
 from ..core.config import settings
 from ..core.model import AgentMixin, ByteContent
-from ..core.ocr import Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat, simple
+from ..core.ocr import Figure, Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat, simple
 
 
 class _DefaultAgentMixin(BaseModel, AgentMixin):
@@ -132,72 +132,39 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     return ocr
 
 
-def _mistral_ocr_url(endpoint: str) -> str:
-    base = endpoint.rstrip("/")
-    if base.endswith("/ocr"):
-        return base
-    # Azure AI Foundry serves Mistral Document AI on its own route, not on /v1.
-    if "ai.azure.com" in base:
-        return f"{base}/providers/mistral/azure/ocr"
-    return f"{base}/v1/ocr"
-
-
 def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
-    """OCR via Mistral Document AI. Returns Markdown per page, joined into one document. Extracted
-    figures ride along in the returned item's `metadata["figures"]`."""
+    """OCR via Mistral Document AI (Azure AI Foundry deployment). Returns Markdown per page,
+    joined into one document. Extracted figures ride along in the returned item's
+    `metadata["figures"]` as `Figure` objects."""
 
-    if params.format != OcrOutputFormat.MARKDOWN:
+    if params.format not in {OcrOutputFormat.MARKDOWN}:
         raise ValueError(f"Mistral Document AI only returns Markdown, got '{params.format.value}'")
     if params.dst_lang is not None:
         raise ValueError("Mistral Document AI does not support a destination language option")
     if settings.mistral_ocr_endpoint is None or settings.mistral_ocr_api_key is None:
         raise ValueError("MISTRAL_OCR_ENDPOINT/MISTRAL_OCR_API_KEY are not configured")
 
-    key = settings.mistral_ocr_api_key.get_secret_value()
-    url = _mistral_ocr_url(str(settings.mistral_ocr_endpoint))
-
-    async def one(client: httpx.AsyncClient, item: ByteContent, sem: asyncio.Semaphore):
+    async def one(client: MistralAzure, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             content_type = await item.content_type(params.ctx)
             uri = f"data:{content_type};base64,{base64.b64encode(await item.content(params.ctx)).decode()}"
             document = {"type": "image_url", "image_url": uri} if content_type.startswith("image/") else {"type": "document_url", "document_url": uri}
-            response = await client.post(url, json={"model": settings.mistral_ocr_model, "document": document, "include_image_base64": True})
-            if response.status_code >= 400:
-                raise RuntimeError(f"Mistral Document AI returned {response.status_code} for {url}: {response.text[:400]}")
-            pages = response.json().get("pages", [])
-        if not pages:
-            raise RuntimeError(f"Mistral Document AI returned no pages for {url}, cannot silently produce empty OCR output")
-        text = "\n\n".join(page.get("markdown", "") for page in pages)
+            result = await client.ocr.process_async(model=settings.mistral_ocr_model, document=document, include_image_base64=True)
+        if not result.pages:
+            raise RuntimeError(f"Mistral Document AI returned no pages for {settings.mistral_ocr_endpoint}, cannot silently produce empty OCR output")
+        text = "\n\n".join(page.markdown for page in result.pages)
         changed = ByteContent.from_bytes(text.encode("utf-8"), params.format.mime_type)
-        figures_list: list[dict] = []
-        for page in pages:
-            page_idx = page.get("index", 0)
-            for img in page.get("images", []):
-                img_b64 = img.get("image_base64")
-                if not img_b64:
-                    continue
-                if "," in img_b64:
-                    img_b64 = img_b64.split(",", 1)[1]
-                figures_list.append({
-                    "id": img.get("id"),
-                    "page": page_idx + 1,
-                    "caption": None,
-                    "bbox": [
-                        img.get("top_left_x"),
-                        img.get("top_left_y"),
-                        img.get("bottom_right_x"),
-                        img.get("bottom_right_y"),
-                    ],
-                    "image": img_b64,
-                    "content_type": "image/png",
-                })
+        figures_list = [
+            # image_base64 is a data: URI (e.g. "data:image/png;base64,...") per Mistral's OCR API, not raw base64.
+            Figure(id=img.id, page=page.index + 1, bbox=[img.top_left_x, img.top_left_y, img.bottom_right_x, img.bottom_right_y], image=img.image_base64.split(",", 1)[-1])
+            for page in result.pages for img in page.images if img.image_base64
+        ]
         if figures_list:
             changed.metadata["figures"] = figures_list
         return item, changed
 
     async def ocr(items: AsyncIterator[ByteContent]):
-        headers = {"Authorization": f"Bearer {key}", "api-key": key}
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600), headers=headers) as client:
+        async with MistralAzure(api_key=settings.mistral_ocr_api_key.get_secret_value(), server_url=str(settings.mistral_ocr_endpoint)) as client:
             sem = asyncio.Semaphore(params.concurrency)
             for task in asyncio.as_completed([one(client, item, sem) async for item in items]):
                 yield await task
