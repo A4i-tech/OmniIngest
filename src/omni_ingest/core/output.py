@@ -136,7 +136,7 @@ class PickleFileOutput(FileOutput):
 
 
 def _page_key(item: ByteContent) -> tuple[bool, Any]:
-    page = (item.metadata or {}).get("page")
+    page = item.metadata.get("page")
     return (page is None, page)
 
 
@@ -147,10 +147,9 @@ class MarkdownDirOutput(FileOutput):
     image file per image item into `out/`. Items are ordered by `page`
     metadata when present, otherwise by arrival order.
 
-    An `image/*` item is embedded as a figure. A `text/*` item is written as
-    text. Any other content type is skipped. `item.metadata.accessibility`
-    (e.g. `alt_text`), when present, rides into the sidecar's image entry
-    unchanged.
+    An `image/*` item is embedded as a figure, a `text/*` item as text, any
+    other type skipped. Nested dicts in an image item's metadata flatten into
+    its sidecar entry. `alt_text` or `caption`, if found, becomes the alt text.
     """
 
     def __init__(self, path: str) -> None:
@@ -179,7 +178,7 @@ class MarkdownDirOutput(FileOutput):
         last_page: Any = object()
 
         for ctx, item in entries:
-            page = (item.metadata or {}).get("page")
+            page = item.metadata.get("page")
             content_type = await item.content_type(ctx)
 
             if page is not None and page != last_page:
@@ -190,16 +189,23 @@ class MarkdownDirOutput(FileOutput):
                 raw = await item.content(ctx)
                 filename = f"{md5(raw).hexdigest()}.{content_type.split('/', 1)[-1]}"
                 await asyncio.to_thread(self._write_sibling, filename, raw, "wb")
-                access = (item.metadata or {}).get("accessibility") or {}
-                alt = str(access.get("alt_text") or "Figure")
+                kwargs: dict[str, Any] = {}
+                for key, value in item.metadata.items():
+                    if key in {"content_type", "page"}:
+                        continue
+                    if isinstance(value, dict):
+                        kwargs.update(value)
+                    else:
+                        kwargs[key] = value
+                alt = str(kwargs.get("alt_text") or kwargs.get("caption") or "")
                 md.append(f"![{alt}]({filename})")
-                images.append({"file": filename, "page": page, **access})
+                images.append({"file": filename, "page": page, **kwargs})
             elif content_type.startswith("text/"):
                 text = (await item.content(ctx)).decode(item.content_encoding, errors="replace").strip()
                 if text:
                     md.append(text)
 
-        root = ctxs[0].metadata or {}
+        root = ctxs[0].metadata
         sidecar = {
             "file_name": ctxs[0].resource.uri,
             "item_count": len(entries),
