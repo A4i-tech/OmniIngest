@@ -176,6 +176,6 @@ def default_factory() -> OcrFactory:
     return simple({
         "azure_di": azure_di_ocr_builder,
         "llm": llm_ocr_builder,
-        "mistral_ocr": mistral_ocr_builder,
+        "mistral": mistral_ocr_builder,
         "sarvam": sarvam_ocr_builder,
     })
