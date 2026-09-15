@@ -148,7 +148,7 @@ async def test_markdown_dir_output_omits_page_marker_when_unpaginated(vector_sto
 
 
 @pytest.mark.asyncio
-async def test_markdown_dir_output_orders_by_page_and_writes_sidecar(vector_store, tmp_path):
+async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_sidecar(vector_store, tmp_path):
     path = tmp_path / "doc.md"
     ctx = create_ctx(vector_store, "resource")
     ctx.items = [
@@ -160,7 +160,7 @@ async def test_markdown_dir_output_orders_by_page_and_writes_sidecar(vector_stor
 
     assert result.status == StepStatus.SUCCESS
     text = path.read_text()
-    assert text.index("first") < text.index("second")
+    assert text.index("second") < text.index("first")
     assert "<!-- page 1 -->" in text and "<!-- page 2 -->" in text
     sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
     assert sidecar["item_count"] == 2
@@ -177,7 +177,7 @@ async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vec
     ctx.items = [KnowledgeItem(raw_content=png_1x1, metadata={
         "content_type": "image/png",
         "page": 1,
-        "accessibility": {"alt_text": "A red dot.", "long_description": "Solid red pixel.", "confidence": 0.9},
+        "accessibility": {"caption": "A red dot.", "long_description": "Solid red pixel.", "confidence": 0.9},
     })]
 
     result = await MarkdownDirOutput(str(path)).write(ctx)
@@ -187,7 +187,7 @@ async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vec
     assert "![A red dot.]" in text
     sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
     [image] = sidecar["images"]
-    assert image["alt_text"] == "A red dot."
+    assert image["caption"] == "A red dot."
     assert image["long_description"] == "Solid red pixel."
     assert image["confidence"] == 0.9
     assert image["page"] == 1

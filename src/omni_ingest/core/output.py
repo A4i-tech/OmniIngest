@@ -7,7 +7,6 @@ import json
 import os
 import pickle
 import sys
-import warnings
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from hashlib import md5
@@ -138,18 +137,13 @@ class PickleFileOutput(FileOutput):
         return await self.write_many([ctx])
 
 
-def _page_key(item: ByteContent) -> tuple[bool, Any]:
-    page = item.metadata.get("page")
-    return (page is None, page)
-
-
 class MarkdownDirOutput(FileOutput):
     """Writes Markdown to the given path, plus a `<name>_metadata.json` sidecar
     and one file per image, as siblings in the same folder.
 
     An `image/*` item becomes a figure, a `text/*` item becomes text, any other
-    type is skipped. `alt_text` or `caption`, if found in an image item's
-    metadata, becomes the Markdown alt text.
+    type is skipped. `caption`, if found in an image item's metadata, becomes
+    the Markdown alt text.
     """
 
     def __init__(self, path: str) -> None:
@@ -171,7 +165,7 @@ class MarkdownDirOutput(FileOutput):
         if not ctxs:
             return OutputResult(status=StepStatus.SKIPPED, error="No items")
 
-        entries = sorted(((ctx, item) for ctx in ctxs for item in ctx.items), key=lambda pair: _page_key(pair[1]))
+        entries = [(ctx, item) for ctx in ctxs for item in ctx.items]
 
         md: list[str] = []
         images: list[dict[str, Any]] = []
@@ -201,9 +195,7 @@ class MarkdownDirOutput(FileOutput):
                         kwargs.update(value)
                     else:
                         kwargs[key] = value
-                if kwargs.get("alt_text") and kwargs.get("caption"):
-                    warnings.warn(f"figure has both alt_text and caption in metadata, using alt_text: {filename}", stacklevel=2)
-                alt = str(kwargs.get("alt_text") or kwargs.get("caption") or "")
+                alt = str(kwargs.get("caption") or "")
                 md.append(f"![{alt}]({filename})")
                 images.append({"file": filename, "page": page, **kwargs})
             elif content_type.startswith("text/"):
