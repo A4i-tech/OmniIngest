@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from base64 import b64decode
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Literal
 
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
 
 from ..core.config import settings
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import Figure, OcrBuilderParams, OcrOutputFormat
+from ..core.ocr import OcrBuilderParams, OcrOutputFormat
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -191,7 +190,6 @@ class OcrAgent(BaseModel, Step):
                 yield item
 
         n = 0
-        extracted: list[KnowledgeItem] = []
         async for original, changed in ocr(aitems()):
             if changed is original:  # 'is' is the right way to test for identical
                 continue
@@ -199,31 +197,11 @@ class OcrAgent(BaseModel, Step):
             original.raw_content = await changed.content(ctx)
             original.content_uri = None
             original.content_encoding = changed.content_encoding
-            extra = {k: v for k, v in changed.metadata.items() if k not in {"content_type", "figures"}}
+            extra = {k: v for k, v in changed.metadata.items() if k not in {"content_type"}}
             original.metadata.update(extra)
             original.metadata["content_type"] = await changed.content_type(ctx)
-
-            figures: list[Figure] = changed.metadata.get("figures") or []
-            for figure in figures:
-                extracted.append(KnowledgeItem(
-                    raw_content=b64decode(figure.image),
-                    content_encoding="binary",
-                    tenant_id=original.tenant_id,
-                    source_uri=original.source_uri,
-                    metadata={
-                        "kind": "image",
-                        "parent_id": str(original.id),
-                        "page": original.metadata.get("page") or figure.page,
-                        "caption": figure.caption,
-                        "figure_id": figure.id,
-                        "bbox": figure.bbox,
-                        "content_type": figure.content_type,
-                        "source": "ocr_engine",
-                    },
-                ))
 
             n += 1
             ctx.progress(n, len(items), f"extracted {n}/{len(items)}")
 
-        ctx.items = [*ctx.items, *extracted]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "figures": len(extracted)})
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
