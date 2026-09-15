@@ -13,6 +13,7 @@ from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentContentFormat
 from azure.core.credentials import AzureKeyCredential
 from mistralai.azure.client import MistralAzure
+from mistralai.azure.client import models as mistral_models
 from pydantic import BaseModel
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import SarvamAI
@@ -144,11 +145,14 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if settings.mistral_ocr_endpoint is None or settings.mistral_ocr_api_key is None:
         raise ValueError("MISTRAL_OCR_ENDPOINT/MISTRAL_OCR_API_KEY are not configured")
 
+    key = settings.mistral_ocr_api_key.get_secret_value()
+    endpoint = str(settings.mistral_ocr_endpoint)
+
     async def one(client: MistralAzure, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             content_type = await item.content_type(params.ctx)
             uri = f"data:{content_type};base64,{base64.b64encode(await item.content(params.ctx)).decode()}"
-            document = {"type": "image_url", "image_url": uri} if content_type.startswith("image/") else {"type": "document_url", "document_url": uri}
+            document = mistral_models.ImageURLChunk(image_url=uri) if content_type.startswith("image/") else mistral_models.DocumentURLChunk(document_url=uri)
             result = await client.ocr.process_async(model=settings.mistral_ocr_model, document=document, include_image_base64=True)
         if not result.pages:
             raise RuntimeError(f"Mistral Document AI returned no pages for {settings.mistral_ocr_endpoint}, cannot silently produce empty OCR output")
@@ -164,7 +168,7 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
         return item, changed
 
     async def ocr(items: AsyncIterator[ByteContent]):
-        async with MistralAzure(api_key=settings.mistral_ocr_api_key.get_secret_value(), server_url=str(settings.mistral_ocr_endpoint)) as client:
+        async with MistralAzure(api_key=key, server_url=endpoint) as client:
             sem = asyncio.Semaphore(params.concurrency)
             for task in asyncio.as_completed([one(client, item, sem) async for item in items]):
                 yield await task
