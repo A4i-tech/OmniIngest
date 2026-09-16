@@ -197,8 +197,6 @@ class OcrAgent(BaseModel, Step):
             original.raw_content = await changed.content(ctx)
             original.content_uri = None
             original.content_encoding = changed.content_encoding
-            extra = {k: v for k, v in changed.metadata.items() if k not in {"content_type"}}
-            original.metadata.update(extra)
             original.metadata["content_type"] = await changed.content_type(ctx)
 
             n += 1
