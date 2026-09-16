@@ -10,7 +10,7 @@ import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
 from hashlib import md5
-from pathlib import PurePosixPath
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
@@ -138,22 +138,17 @@ class PickleFileOutput(FileOutput):
 
 
 class MarkdownDirOutput(FileOutput):
-    """Writes Markdown to the given path, plus a `<name>_metadata.json` sidecar
-    and one file per image, as siblings in the same folder.
-
-    An `image/*` item becomes a figure, a `text/*` item becomes text, any other
-    type is skipped. `caption`, if found in an image item's metadata, becomes
-    the Markdown alt text.
+    """Writes Markdown to the supplied folder, as `doc.md`. Images go to an
+    `out/` subfolder and are referenced from the Markdown. Also writes
+    `doc_metadata.json` with page and image metadata.
     """
 
     def __init__(self, path: str) -> None:
         super().__init__(path)
-        p = PurePosixPath(path.replace("\\", "/"))
-        self.dir = str(p.parent)
-        self.name = p.stem
+        self.dir = Path(path)
 
     def _write_sibling(self, filename: str, data: str | bytes, mode: str) -> str:
-        target = f"{self.dir}/{filename}"
+        target = str(self.dir / filename)
         with fsspec.open(target, mode, auto_mkdir=True) as f:
             f.write(data)
         return target
@@ -212,8 +207,8 @@ class MarkdownDirOutput(FileOutput):
         }
 
         paths = {
-            "md": await asyncio.to_thread(self._write_sibling, f"{self.name}.md", "\n\n".join(md) + "\n", "wt"),
-            "metadata": await asyncio.to_thread(self._write_sibling, f"{self.name}_metadata.json", json.dumps(sidecar, ensure_ascii=False, indent=1), "wt"),
+            "md": await asyncio.to_thread(self._write_sibling, "doc.md", "\n\n".join(md) + "\n", "wt"),
+            "metadata": await asyncio.to_thread(self._write_sibling, "doc_metadata.json", json.dumps(sidecar, ensure_ascii=False, indent=1), "wt"),
         }
         return OutputResult(status=StepStatus.SUCCESS, output_paths=paths,
                             metadata={"items": len(entries), "images": len(images)})

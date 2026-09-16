@@ -135,31 +135,29 @@ async def test_vector_store_output(vector_store):
 
 @pytest.mark.asyncio
 async def test_markdown_dir_output_omits_page_marker_when_unpaginated(vector_store, tmp_path):
-    path = tmp_path / "doc.md"
     ctx = create_ctx(vector_store, "resource")
     ctx.items = [KnowledgeItem(raw_content=b"Title", metadata={"content_type": "text/plain"})]
 
-    result = await MarkdownDirOutput(str(path)).write(ctx)
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    text = path.read_text()
+    text = (tmp_path / "doc.md").read_text()
     assert "page" not in text
     assert "Title" in text
 
 
 @pytest.mark.asyncio
 async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_sidecar(vector_store, tmp_path):
-    path = tmp_path / "doc.md"
     ctx = create_ctx(vector_store, "resource")
     ctx.items = [
         KnowledgeItem(raw_content=b"second", metadata={"content_type": "text/plain", "page": 2}),
         KnowledgeItem(raw_content=b"first", metadata={"content_type": "text/plain", "page": 1}),
     ]
 
-    result = await MarkdownDirOutput(str(path)).write(ctx)
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    text = path.read_text()
+    text = (tmp_path / "doc.md").read_text()
     assert text.index("second") < text.index("first")
     assert "<!-- page 1 -->" in text and "<!-- page 2 -->" in text
     sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
@@ -168,7 +166,6 @@ async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_side
 
 @pytest.mark.asyncio
 async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vector_store, tmp_path):
-    path = tmp_path / "doc.md"
     ctx = create_ctx(vector_store, "resource")
     png_1x1 = bytes.fromhex(
         "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
@@ -180,10 +177,10 @@ async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vec
         "accessibility": {"caption": "A red dot.", "long_description": "Solid red pixel.", "confidence": 0.9},
     })]
 
-    result = await MarkdownDirOutput(str(path)).write(ctx)
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
 
     assert result.status == StepStatus.SUCCESS
-    text = path.read_text()
+    text = (tmp_path / "doc.md").read_text()
     assert "![A red dot.]" in text
     sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
     [image] = sidecar["images"]
