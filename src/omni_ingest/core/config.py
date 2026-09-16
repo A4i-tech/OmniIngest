@@ -171,9 +171,6 @@ class Settings(BaseSettings):
     documentintelligence_api_key: SecretStr | None = None
     """Azure Document Intelligence API key"""
 
-    mistral_ocr_endpoint: AnyHttpUrl | None = None
-    """Azure AI Foundry endpoint that serves Mistral Document AI. Unset uses Mistral's own cloud instead."""
-
     mistral_ocr_api_key: SecretStr | None = None
     """API key for the Mistral Document AI endpoint"""
 
