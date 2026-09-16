@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import io
 import zipfile
-from base64 import b64encode
 from collections.abc import AsyncIterator
 from string import Template
 
@@ -110,28 +109,29 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if settings.documentintelligence_endpoint is None or settings.documentintelligence_api_key is None:
         raise ValueError("DOCUMENTINTELLIGENCE_ENDPOINT/DOCUMENTINTELLIGENCE_API_KEY are not configured")
 
-    async def figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> list[Figure]:
+    async def figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> tuple[list[Figure], int]:
         """Collect the figures the layout model found, with their cropped images."""
         collected: list[Figure] = []
+        failed = 0
         for figure in result.figures or []:
+            if not (result_id and figure.id):
+                continue
+            try:
+                stream = await client.get_analyze_result_figure(
+                    model_id=result.model_id, result_id=result_id, figure_id=figure.id
+                )
+                image = b"".join([chunk async for chunk in stream])
+            except Exception:
+                # A crop is a bonus; losing one must not lose the page text.
+                failed += 1
+                continue
             region = (figure.bounding_regions or [None])[0]
-            entry = Figure(
-                id=figure.id,
-                page=region.page_number if region else None,
-                caption=figure.caption.content if figure.caption else None,
-                bbox=region.polygon if region else None,
-            )
-            if result_id and figure.id:
-                try:
-                    stream = await client.get_analyze_result_figure(
-                        model_id=result.model_id, result_id=result_id, figure_id=figure.id
-                    )
-                    entry.image = b64encode(b"".join([chunk async for chunk in stream])).decode("ascii")
-                except Exception:
-                    # A crop is a bonus; losing one must not lose the page text.
-                    entry.crop_failed = True
-            collected.append(entry)
-        return collected
+            content = ByteContent.from_bytes(image, "image/png")
+            content.metadata["id"] = figure.id
+            content.metadata["page"] = region.page_number if region else None
+            content.metadata["bbox"] = region.polygon if region else None
+            collected.append(Figure(content=content, caption=figure.caption.content if figure.caption else None))
+        return collected, failed
 
     async def one(client: DocumentIntelligenceClient, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
@@ -142,11 +142,11 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
                 output=[AnalyzeOutputOption.FIGURES],
             )
             result = await poller.result()
-            found = await figures(client, result, poller.details.get("operation_id"))
+            found, failed = await figures(client, result, poller.details.get("operation_id"))
         changed = ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
         if found:
             changed.metadata["figures"] = found
-        if failed := sum(1 for f in found if f.crop_failed):
+        if failed:
             changed.metadata["figures_failed"] = failed
         return item, changed
 

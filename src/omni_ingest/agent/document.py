@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from base64 import b64decode
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Literal
 
@@ -208,21 +207,19 @@ class OcrAgent(BaseModel, Step):
             # Figures become items in their own right so later steps can address them by id.
             figures: list[Figure] = changed.metadata.get("figures") or []
             for figure in figures:
-                if not figure.image:
-                    continue
                 extracted.append(KnowledgeItem(
-                    raw_content=b64decode(figure.image),
+                    raw_content=figure.content.raw_content,
                     content_encoding="binary",
                     tenant_id=original.tenant_id,
                     source_uri=original.source_uri,
                     metadata={
                         "kind": "image",
                         "parent_id": str(original.id),
-                        "page": page if (page := original.metadata.get("page")) is not None else figure.page,
+                        "page": page if (page := original.metadata.get("page")) is not None else figure.content.metadata.get("page"),
                         "caption": figure.caption,
-                        "figure_id": figure.id,
-                        "bbox": figure.bbox,
-                        "content_type": figure.content_type,
+                        "figure_id": figure.content.metadata.get("id"),
+                        "bbox": figure.content.metadata.get("bbox"),
+                        "content_type": figure.content.metadata.get("content_type"),
                         "source": "ocr_engine",
                     },
                 ))

@@ -7,24 +7,18 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, TypeAlias, TypeVar
 
-from pydantic import BaseModel
-
 from .model import ByteContent, ResolvedResource
 
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 
-class Figure(BaseModel):
+@dataclass
+class Figure:
     """A figure extracted from a document by an OCR engine, ready to become a `KnowledgeItem`."""
 
-    id: str | None = None
-    page: int | None = None
+    content: ByteContent
     caption: str | None = None
-    bbox: list[float] | None = None
-    image: str | None = None  # base64-encoded; None if the crop failed
-    content_type: str = "image/png"
-    crop_failed: bool = False
 
 
 class OcrOutputFormat(StrEnum):
