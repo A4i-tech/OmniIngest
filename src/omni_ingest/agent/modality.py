@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 from pydantic_ai import BinaryContent
 
+from ..core.config import settings
+
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
@@ -30,7 +32,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
     encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
-    lang: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
+    stt_engine: str = Field(default=settings.default_stt_model, description="Speech-to-text engine name")
 
     image_conversion_prompt: str = Field(default=(
         "Convert the image into a complete, accessibility-focused text description for someone who cannot see it. "
@@ -62,7 +64,8 @@ class TextAgent(BaseModel, Step, AgentMixin):
         content_type = await obj.content_type(ctx)
         stream = io.BytesIO(await obj.content(ctx))
         if content_type.startswith("audio/"):
-            content, metadata = await parse_audio(uri, stream, src=self.lang)
+            stt = ctx.stt_factory(self.stt_engine)
+            content, metadata = await parse_audio(uri, stream, stt)
             metadata["selected_parser"] = "audio"
             return content, metadata
         if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):

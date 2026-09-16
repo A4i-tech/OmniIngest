@@ -2,22 +2,20 @@
 
 import asyncio
 import io
-import json
 import re
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, BinaryIO, Literal
+from typing import Any, BinaryIO
 
-import azure.cognitiveservices.speech as speechsdk
 import fsspec  # type: ignore[import-untyped]
 from docx import Document
 from pypdf import PdfReader
 
-from .core.config import settings
 from .core.model import ResolvedResource
+from .core.speech import Stt
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -86,63 +84,9 @@ async def as_wav(path: str, stream: BinaryIO):
             yield tmp_dst.name
 
 
-async def parse_audio(path: str, stream: BinaryIO, *, src: str | None = None) -> tuple[str, dict[str, Any]]:
-    key = settings.azure_speech_key.get_secret_value() if settings.azure_speech_key else None
-    region = settings.azure_speech_region
-    if not key or not region:
-        raise RuntimeError("Azure Speech credentials missing")
-
-    loop = asyncio.get_running_loop()
-    done, transcript, words = asyncio.Future[Literal[True]](), [], []
-
-    def finish(error: RuntimeError | None = None):
-        if done.done():
-            return
-        if error:
-            done.set_exception(error)
-        else:
-            done.set_result(True)
-
-    def handle_final(evt):
-        nonlocal transcript, words
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            transcript.append(evt.result.text)
-            obj = json.loads(evt.result.json)
-            if "NBest" in obj and obj["NBest"]:
-                words.extend(obj["NBest"][0].get("Words", []))
-
-    def stop_cb(evt):
-        loop.call_soon_threadsafe(finish)
-
-    def cancel_cb(evt):
-        if evt.result and evt.result.cancellation_details and evt.result.cancellation_details.reason != speechsdk.CancellationReason.EndOfStream:
-            cancellation = evt.result.cancellation_details
-            details = cancellation.error_details if cancellation.error_details else str(cancellation.reason)
-            loop.call_soon_threadsafe(finish, RuntimeError(details))
-        else:
-            loop.call_soon_threadsafe(finish)
-
+async def parse_audio(path: str, stream: BinaryIO, stt: Stt) -> tuple[str, dict[str, Any]]:
     async with as_wav(path, stream) as wav_path:
-        audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
-
-        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-        speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
-        if src:
-            speech_config.speech_recognition_language = src
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-
-        recognizer.recognized.connect(handle_final)
-        recognizer.session_stopped.connect(stop_cb)
-        recognizer.canceled.connect(cancel_cb)
-
-        recognizer.start_continuous_recognition()
-        try:
-            await done
-        finally:
-            recognizer.stop_continuous_recognition()
-
-    full_text = " ".join(transcript)
-    return full_text, {"text_len": len(full_text), "word_count": len(words), "word_timestamps": words}
+        return await stt(wav_path)
 
 
 async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
