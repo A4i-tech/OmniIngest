@@ -181,6 +181,12 @@ class Settings(BaseSettings):
     openai_translation_base_url: AnyHttpUrl | None = None
     """OpenAI-compatible endpoint for translation"""
 
+    mistral_ocr_api_key: SecretStr | None = None
+    """API key for the Mistral Document AI endpoint"""
+
+    mistral_ocr_model: str = "mistral-ocr-4-0"
+    """Mistral Document AI model or deployment name"""
+
     default_speech_model: KnownSpeechModelName = "azure"
     """Default speech synthesis model to use during pipeline execution"""
 

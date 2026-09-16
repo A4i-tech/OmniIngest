@@ -2930,7 +2930,7 @@ wheels = [
 
 [[package]]
 name = "mistralai"
-version = "2.5.0"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "eval-type-backport" },
@@ -2942,9 +2942,9 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/88/960acba5e95998b4a09998d14ff95a25ada8c96ce8670091e3bf85f25696/mistralai-2.5.0.tar.gz", hash = "sha256:b2724154f62f6505d22027cbdb414e2bb143474bb51f89dc362afb1b141d2bae", size = 504089, upload-time = "2026-06-23T17:05:22.687Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/db/a80c4ab96b1fec9529115dafaa3f14b28d0407fe1cb9b051ec2df9336fb7/mistralai-2.10.1.tar.gz", hash = "sha256:43b61643ba4f120463e5faf7305a6f40eb29f8e3a21321893969e56c20ed3fbc", size = 590127, upload-time = "2026-09-15T08:12:30.79Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/31/472fa3c766aa9b7869dceb6804344cc9945115ae2ee871258b404d0e7c84/mistralai-2.5.0-py3-none-any.whl", hash = "sha256:f29813f1c2e4c19d24707cb5f74ea5c071d106fcaa84dd856a7e4f2d36d908b2", size = 1216614, upload-time = "2026-06-23T17:05:20.819Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/98/f64b54166a607ece4e5c8494c843ac1f9c7c0af6f1014272cc420fe1d519/mistralai-2.10.1-py3-none-any.whl", hash = "sha256:443b306392ae1e86edaec39dbafcf79deb735799a00abef4611531004e22b1b2", size = 1392946, upload-time = "2026-09-15T08:12:28.704Z" },
 ]
 
 [[package]]
@@ -3701,6 +3701,7 @@ dependencies = [
     { name = "liblouis", version = "3.38.0", source = { path = "dependencies/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl" }, marker = "sys_platform == 'linux'" },
     { name = "liblouis", version = "3.38.0", source = { path = "dependencies/liblouis-3.38.0-py3-none-win_amd64.whl" }, marker = "sys_platform == 'win32'" },
     { name = "logfire" },
+    { name = "mistralai" },
     { name = "openpyxl" },
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
@@ -3798,6 +3799,7 @@ requires-dist = [
     { name = "liblouis", marker = "sys_platform == 'linux'", path = "dependencies/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl" },
     { name = "liblouis", marker = "sys_platform == 'win32'", path = "dependencies/liblouis-3.38.0-py3-none-win_amd64.whl" },
     { name = "logfire", specifier = ">=4.37.0" },
+    { name = "mistralai", specifier = ">=2.10.1" },
     { name = "neo4j", marker = "extra == 'storage'", specifier = ">=6.2.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pydantic", specifier = ">=2.13.4" },
