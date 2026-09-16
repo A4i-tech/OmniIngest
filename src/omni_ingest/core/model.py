@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 import jq
 import magic
-from fastmcp.mcp_config import MCPServerTypes
+from fastmcp.utilities.mcp_config import MCPServerTypes
 from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, Field, StrictBytes
 from pydantic_ai import Agent, AgentCapability
 from pydantic_ai.models import KnownModelName
