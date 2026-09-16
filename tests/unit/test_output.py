@@ -165,7 +165,7 @@ async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_side
 
 
 @pytest.mark.asyncio
-async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vector_store, tmp_path):
+async def test_markdown_dir_output_carries_caption_for_images(vector_store, tmp_path):
     ctx = create_ctx(vector_store, "resource")
     png_1x1 = bytes.fromhex(
         "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
@@ -174,7 +174,7 @@ async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vec
     ctx.items = [KnowledgeItem(raw_content=png_1x1, metadata={
         "content_type": "image/png",
         "page": 1,
-        "accessibility": {"caption": "A red dot.", "long_description": "Solid red pixel.", "confidence": 0.9},
+        "caption": "A red dot.",
     })]
 
     result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
@@ -185,8 +185,6 @@ async def test_markdown_dir_output_carries_accessibility_metadata_for_images(vec
     sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
     [image] = sidecar["images"]
     assert image["caption"] == "A red dot."
-    assert image["long_description"] == "Solid red pixel."
-    assert image["confidence"] == 0.9
     assert image["page"] == 1
 
 

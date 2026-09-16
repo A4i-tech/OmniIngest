@@ -180,30 +180,24 @@ class MarkdownDirOutput(FileOutput):
                     data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
                 except Exception:
                     data, ext = raw, content_type.split("/", 1)[-1]
-                filename = f"out/{md5(data).hexdigest()}.{ext}"
+                filename = str(Path("out") / f"{md5(data).hexdigest()}.{ext}")
                 await asyncio.to_thread(self._write_sibling, filename, data, "wb")
-                kwargs: dict[str, Any] = {}
-                for key, value in item.metadata.items():
-                    if key in {"content_type", "page"}:
-                        continue
-                    if isinstance(value, dict):
-                        kwargs.update(value)
-                    else:
-                        kwargs[key] = value
-                alt = str(kwargs.get("caption") or "")
-                md.append(f"![{alt}]({filename})")
-                images.append({"file": filename, "page": page, **kwargs})
+                caption = item.metadata.get("caption")
+                md.append(f"![{caption or ''}]({filename})")
+                images.append({"file": filename, "page": page, "caption": caption})
             elif content_type.startswith("text/"):
-                text = (await item.content(ctx)).decode(item.content_encoding, errors="replace").strip()
+                text = (await item.decode(ctx)).strip()
                 if text:
                     md.append(text)
 
-        root = ctxs[0].metadata
+        runs = [{
+            "file_name": ctx.resource.uri,
+            **{k: v for k, v in ctx.metadata.items() if k not in {"file_name"}},
+        } for ctx in ctxs]
         sidecar = {
-            "file_name": ctxs[0].resource.uri,
             "item_count": len(entries),
             "images": images,
-            **{k: v for k, v in root.items() if k not in {"file_name", "item_count", "images"}},
+            **(runs[0] if len(runs) == 1 else {"runs": runs}),
         }
 
         paths = {
