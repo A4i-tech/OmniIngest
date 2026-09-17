@@ -1,10 +1,12 @@
 import io
+from unittest.mock import patch
 
+import openpyxl
 import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse_brf, parse_document, parse_text
+from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_text
 
 
 @pytest.mark.parametrize(
@@ -43,6 +45,34 @@ async def test_document_parser_docx():
 
     content, _ = await parse_document(out)
     assert "Hello from DOCX" in content
+
+
+@pytest.mark.asyncio
+async def test_document_parser_xlsx():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["Name", "Value"])
+    ws.append(["Alpha", 1])
+    ws.append([None, 2])
+    ws.merge_cells("A2:A3")
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+
+    content, metadata = await parse_document(out)
+    assert "Name" in content
+    assert "Value" in content
+    assert "Alpha" in content
+    assert metadata["sheets"]["Sheet1"][0]["Name"] == "Alpha"
+    assert metadata["sheets"]["Sheet1"][1]["Name"] == "Alpha"
+
+
+@pytest.mark.asyncio
+async def test_audio_parser_failure():
+    with pytest.raises(RuntimeError), patch("omni_ingest.core.config.settings") as mock_settings:
+        mock_settings.azure_speech_key = None
+        await parse_audio("/tmp/test.wav", io.BytesIO())
 
 
 @pytest.mark.asyncio

@@ -26,6 +26,7 @@ def profiles_dir():
     "precision_v1",
     "noisy_v1",
     "custom_prompt_v1",
+    "audio_translation_v2",
 ])
 def test_profiles_instantiation(p, profiles_dir):
     path = profiles_dir / f"{p}.yaml"
@@ -65,6 +66,25 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, resources
     assert ctx.items
     texts = [await item.decode(ctx) for item in ctx.items]
     assert all(text.strip() for text in texts)
+
+
+@pytest.mark.asyncio
+async def test_audio_translation_v2_pipeline(metadata_store, tenant, profiles_dir, resources_dir):
+    path = profiles_dir / "audio_translation_v2.yaml"
+    runner = create_pipeline_from_config(path)
+
+    audio_path = resources_dir / "sample.mp3"
+    with audio_path.open("rb") as stream:
+        ctx = IngestionContext(
+            tenant_id=tenant.id,
+            store=metadata_store,
+            domain_profile="accessibility",
+            resource=ResolvedResource(uri=str(audio_path), raw_content=stream.read()),
+        )
+
+    results = await runner.run(ctx)
+    assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
+    assert "translated_transcript" in ctx.metadata
 
 
 @pytest.mark.asyncio

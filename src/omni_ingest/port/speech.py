@@ -35,7 +35,7 @@ def azure_stt_builder() -> Stt:
     key = settings.azure_speech_key.get_secret_value()
     region = settings.azure_speech_region
 
-    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
+    async def transcribe(wav_path: str, lang: str | None = None) -> tuple[str, dict[str, Any]]:
         loop = asyncio.get_running_loop()
         done, transcript, words = asyncio.Future[Literal[True]](), [], []
 
@@ -68,6 +68,8 @@ def azure_stt_builder() -> Stt:
 
         speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
         speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
+        if lang:
+            speech_config.speech_recognition_language = lang
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
@@ -91,9 +93,10 @@ def openai_stt_builder() -> Stt:
     """Transcribes via an OpenAI-compatible Whisper endpoint."""
     client = AsyncOpenAI(base_url=str(settings.stt_base_url) if settings.stt_base_url else None)
 
-    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
+    async def transcribe(wav_path: str, lang: str | None = None) -> tuple[str, dict[str, Any]]:
         with open(wav_path, "rb") as f:
-            result = await client.audio.transcriptions.create(file=f, model="whisper-1")
+            kwargs = {"language": lang} if lang else {}
+            result = await client.audio.transcriptions.create(file=f, model="whisper-1", **kwargs)
         text = result.text
         return text, {"text_len": len(text), "word_count": len(text.split())}
 
@@ -103,9 +106,10 @@ def openai_stt_builder() -> Stt:
 def sarvam_stt_builder() -> Stt:
     client = AsyncSarvamAI()
 
-    async def transcribe(wav_path: str) -> tuple[str, dict[str, Any]]:
+    async def transcribe(wav_path: str, lang: str | None = None) -> tuple[str, dict[str, Any]]:
         with open(wav_path, "rb") as f:
-            result = await client.speech_to_text.transcribe(file=f)
+            kwargs = {"language_code": lang} if lang else {}
+            result = await client.speech_to_text.transcribe(file=f, **kwargs)
         text = result.transcript
         return text, {"text_len": len(text), "word_count": len(text.split())}
 

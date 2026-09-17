@@ -33,6 +33,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
     encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
     stt_engine: str = Field(default=settings.default_stt_model, description="Speech-to-text engine name")
+    lang: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
 
     image_conversion_prompt: str = Field(default=(
         "Convert the image into a complete, accessibility-focused text description for someone who cannot see it. "
@@ -65,7 +66,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
         stream = io.BytesIO(await obj.content(ctx))
         if content_type.startswith("audio/"):
             stt = ctx.stt_factory(self.stt_engine)
-            content, metadata = await parse_audio(uri, stream, stt)
+            content, metadata = await parse_audio(uri, stream, stt, lang=self.lang)
             metadata["selected_parser"] = "audio"
             return content, metadata
         if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):
@@ -77,7 +78,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
             metadata["selected_parser"] = "text"
             return content, metadata
         if content_type.startswith("application/"):
-            content, metadata = await parse_document(stream, encoding=self.encoding)
+            content, metadata = await parse_document(stream, content_type=content_type, encoding=self.encoding)
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):

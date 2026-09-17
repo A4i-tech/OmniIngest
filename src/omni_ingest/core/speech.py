@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 
-Stt: TypeAlias = Callable[[str], Awaitable[tuple[str, dict[str, Any]]]]
+Stt: TypeAlias = Callable[[str, str | None], Awaitable[tuple[str, dict[str, Any]]]]
 SttBuilder: TypeAlias = Callable[[], Stt]
 SttFactory: TypeAlias = Callable[[str], Stt]
 
@@ -30,8 +30,8 @@ def simple_stt_factory(mapping: dict[str, SttBuilder]) -> SttFactory:
         from omni_ingest.core.speech import simple_stt_factory
 
         def llm_stt_builder() -> Stt:
-            async def transcribe(wav_path):
-                text = await whisper(wav_path)
+            async def transcribe(wav_path, lang=None):
+                text = await whisper(wav_path, language=lang)
                 return text, {}
             return transcribe
 

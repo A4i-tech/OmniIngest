@@ -1,0 +1,22 @@
+pipeline_id: audio_translation_v2
+domain_profile: accessibility
+input_modality: audio
+description: "Chained speech-to-text then text-translation pipeline (Approach B): transcribe audio, then translate the transcript"
+parameters:
+  properties:
+    dst_language:
+      type: string
+      default: "es"
+steps:
+  - agent: text
+  - agent: prompt
+    config:
+      prompt: "Return the given text exactly as-is, with no changes."
+      input: '.items | map(.text) | join("\n")'
+      path: ".metadata.transcript"
+  - agent: translate
+    config:
+      src: null
+      dst: "${.config.dst_language}"
+      input: ".metadata.transcript"
+      path: ".metadata.translated_transcript"
