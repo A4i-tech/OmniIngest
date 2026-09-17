@@ -43,6 +43,7 @@ dependencies = [
     "azure-core[aio]>=1.41.0",
     "sarvamai>=0.1.30",
     "mistralai>=2.10.1",
+    "openpyxl>=3.1.5",
     "liblouis>=3.38.0; sys_platform == 'linux' or sys_platform == 'win32'",
 ]
 
@@ -137,5 +138,6 @@ module = [
     "lancedb.*",
     "pyarrow.*",
     "louis.*",
+    "openpyxl.*",
 ]
 ignore_missing_imports = true

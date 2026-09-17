@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 from ..core.config import KnownSpeechModelName, KnownTranslationModelName, settings
 from ..core.model import AgentMixin, ByteContent, JqExpression, KnowledgeItem, Step, StepResult, StepStatus
-from ..core.tts import SpeechBuilderParams, SpeechFormat
+from ..core.speech import SpeechFormat, TTSBuilderParams
 from ..port.translator import create_translator
 
 
@@ -229,11 +229,11 @@ class SpeechAgent(BaseModel, Step):
         if any(not isinstance(value, str) for value in values):
             raise ValueError("Speech input must resolve to text")
 
-        speech_model = ctx.speech_factory(self.model, SpeechBuilderParams(ctx=ctx, voice=self.voice))
+        tts_model = ctx.tts_factory(self.model, TTSBuilderParams(ctx=ctx, voice=self.voice))
         ctx.progress(0, len(selected), "synthesizing audio")
         for n, (item_doc, text) in enumerate(zip(selected, values, strict=True), 1):
             item = item_by_id[item_doc["id"]]
-            audio = await speech_model(ByteContent.from_bytes(text.encode(), content_type="text/plain"), self.format)
+            audio = await tts_model(ByteContent.from_bytes(text.encode(), content_type="text/plain"), self.format)
             item.raw_content = audio.raw_content
             item.content_uri = None
             item.metadata["content_type"] = self.format.mime_type
