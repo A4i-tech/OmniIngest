@@ -54,6 +54,7 @@ async def test_text_agent_parse_routes_by_mime_type(uri, content_type, parser, e
 
     monkeypatch.setattr(modality, parser, parse)
     ctx = IngestionContext(resource=ResolvedResource(uri=uri, raw_content=b""))
+    monkeypatch.setattr(ctx, "stt_factory", lambda *_: None)
     obj = ByteContent.from_bytes(b"", content_type=content_type)
 
     _, metadata = await TextAgent().parse(ctx, obj, uri)

@@ -9,6 +9,7 @@ from pydantic_ai.models import KnownModelName
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 KnownTranslationModelName: TypeAlias = Literal["azure", "openai", "sarvam"]
+KnownSTTModelName: TypeAlias = Literal["azure", "openai", "sarvam"]
 KnownSpeechModelName: TypeAlias = Literal["azure"]
 
 
@@ -171,6 +172,9 @@ class Settings(BaseSettings):
     documentintelligence_api_key: SecretStr | None = None
     """Azure Document Intelligence API key"""
 
+    default_stt_model: KnownSTTModelName = "azure"
+    """Default speech-to-text model to use during pipeline execution"""
+
     openai_translation_model: str = "gpt-4o-mini"
     """Chat completion model used for OpenAI-compatible translation"""
 
@@ -179,6 +183,9 @@ class Settings(BaseSettings):
 
     default_speech_model: KnownSpeechModelName = "azure"
     """Default speech synthesis model to use during pipeline execution"""
+
+    stt_base_url: AnyHttpUrl | None = None
+    """Base URL override for an OpenAI-compatible speech-to-text endpoint"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__", extra="ignore")
 
