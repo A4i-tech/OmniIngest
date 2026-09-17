@@ -6,7 +6,8 @@ import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from omni_ingest.parser import parse_audio, parse_brf, parse_document, parse_text
+from omni_ingest.parser import parse_brf, parse_document, parse_text
+from omni_ingest.port.speech import azure_stt_builder
 
 
 @pytest.mark.parametrize(
@@ -69,10 +70,10 @@ async def test_document_parser_xlsx():
 
 
 @pytest.mark.asyncio
-async def test_audio_parser_failure():
-    with pytest.raises(RuntimeError), patch("omni_ingest.core.config.settings") as mock_settings:
+async def test_azure_stt_builder_missing_credentials():
+    with pytest.raises(ValueError), patch("omni_ingest.port.speech.settings") as mock_settings:
         mock_settings.azure_speech_key = None
-        await parse_audio("/tmp/test.wav", io.BytesIO())
+        azure_stt_builder()
 
 
 @pytest.mark.asyncio

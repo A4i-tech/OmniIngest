@@ -7,7 +7,7 @@ import json
 from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, omit
 from sarvamai import AsyncSarvamAI
 
 from ..core.config import settings
@@ -95,8 +95,7 @@ def openai_stt_builder() -> Stt:
 
     async def transcribe(wav_path: str, lang: str | None = None) -> tuple[str, dict[str, Any]]:
         with open(wav_path, "rb") as f:
-            kwargs = {"language": lang} if lang else {}
-            result = await client.audio.transcriptions.create(file=f, model="whisper-1", **kwargs)
+            result = await client.audio.transcriptions.create(file=f, model="whisper-1", language=lang or omit)
         text = result.text
         return text, {"text_len": len(text), "word_count": len(text.split())}
 
