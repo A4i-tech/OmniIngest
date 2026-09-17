@@ -6,7 +6,7 @@ import fsspec
 import pytest
 
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, MongoDocumentOutput, StdoutOutput, VectorStoreOutput, parse
+from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, MarkdownDirOutput, MongoDocumentOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.graph_store import InMemoryGraphStore
 
@@ -131,6 +131,61 @@ async def test_vector_store_output(vector_store):
 
     assert result.status == StepStatus.SUCCESS
     assert await vector_store.count() == 1
+
+
+@pytest.mark.asyncio
+async def test_markdown_dir_output_omits_page_marker_when_unpaginated(vector_store, tmp_path):
+    ctx = create_ctx(vector_store, "resource")
+    ctx.items = [KnowledgeItem(raw_content=b"Title", metadata={"content_type": "text/plain"})]
+
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    text = (tmp_path / "doc.md").read_text()
+    assert "page" not in text
+    assert "Title" in text
+
+
+@pytest.mark.asyncio
+async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_sidecar(vector_store, tmp_path):
+    ctx = create_ctx(vector_store, "resource")
+    ctx.items = [
+        KnowledgeItem(raw_content=b"second", metadata={"content_type": "text/plain", "page": 2}),
+        KnowledgeItem(raw_content=b"first", metadata={"content_type": "text/plain", "page": 1}),
+    ]
+
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    text = (tmp_path / "doc.md").read_text()
+    assert text.index("second") < text.index("first")
+    assert "<!-- page 1 -->" in text and "<!-- page 2 -->" in text
+    sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
+    assert sidecar["item_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_markdown_dir_output_carries_caption_for_images(vector_store, tmp_path):
+    ctx = create_ctx(vector_store, "resource")
+    png_1x1 = bytes.fromhex(
+        "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
+        "de0000000c4944415478da6360606060000000050001a5f645400000000049454e44ae426082"
+    )
+    ctx.items = [KnowledgeItem(raw_content=png_1x1, metadata={
+        "content_type": "image/png",
+        "page": 1,
+        "caption": "A red dot.",
+    })]
+
+    result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    text = (tmp_path / "doc.md").read_text()
+    assert "![A red dot.]" in text
+    sidecar = json.loads((tmp_path / "doc_metadata.json").read_text())
+    [image] = sidecar["images"]
+    assert image["caption"] == "A red dot."
+    assert image["page"] == 1
 
 
 @pytest.mark.asyncio

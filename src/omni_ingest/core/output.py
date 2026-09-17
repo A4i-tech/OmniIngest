@@ -9,10 +9,13 @@ import pickle
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
+from hashlib import md5
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
+import pymupdf
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
@@ -132,6 +135,77 @@ class PickleFileOutput(FileOutput):
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         return await self.write_many([ctx])
+
+
+class MarkdownDirOutput(FileOutput):
+    """Writes Markdown to the supplied folder, as `doc.md`. Images go to an
+    `out/` subfolder and are referenced from the Markdown. Also writes
+    `doc_metadata.json` with page and image metadata.
+    """
+
+    def __init__(self, path: str) -> None:
+        super().__init__(path)
+        self.dir = Path(path)
+
+    def _write_sibling(self, filename: str, data: str | bytes, mode: str) -> str:
+        target = str(self.dir / filename)
+        with fsspec.open(target, mode, auto_mkdir=True) as f:
+            f.write(data)
+        return target
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        if not ctxs:
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+        entries = [(ctx, item) for ctx in ctxs for item in ctx.items]
+
+        md: list[str] = []
+        images: list[dict[str, Any]] = []
+        last_page: Any = object()
+
+        for ctx, item in entries:
+            page = item.metadata.get("page")
+            content_type = await item.content_type(ctx)
+
+            if page is not None and page != last_page:
+                md.append(f"<!-- page {page} -->")
+                last_page = page
+
+            if content_type.startswith("image/"):
+                raw = await item.content(ctx)
+                try:
+                    data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
+                except Exception:
+                    data, ext = raw, content_type.split("/", 1)[-1]
+                filename = str(Path("out") / f"{md5(data).hexdigest()}.{ext}")
+                await asyncio.to_thread(self._write_sibling, filename, data, "wb")
+                caption = item.metadata.get("caption")
+                md.append(f"![{caption or ''}]({filename})")
+                images.append({"file": filename, "page": page, "caption": caption})
+            elif content_type.startswith("text/"):
+                text = (await item.decode(ctx)).strip()
+                if text:
+                    md.append(text)
+
+        runs = [{
+            "file_name": ctx.resource.uri,
+            **{k: v for k, v in ctx.metadata.items() if k not in {"file_name"}},
+        } for ctx in ctxs]
+        sidecar = {
+            "item_count": len(entries),
+            "images": images,
+            **(runs[0] if len(runs) == 1 else {"runs": runs}),
+        }
+
+        paths = {
+            "md": await asyncio.to_thread(self._write_sibling, "doc.md", "\n\n".join(md) + "\n", "wt"),
+            "metadata": await asyncio.to_thread(self._write_sibling, "doc_metadata.json", json.dumps(sidecar, ensure_ascii=False, indent=1), "wt"),
+        }
+        return OutputResult(status=StepStatus.SUCCESS, output_paths=paths,
+                            metadata={"items": len(entries), "images": len(images)})
 
 
 class StdoutOutput(Output):
@@ -296,6 +370,8 @@ def parse(value: str, format: str | None = None) -> Output:
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
     if format == "pkl":
         return PickleFileOutput(value)
+    if format in {"md", "markdown"}:
+        return MarkdownDirOutput(value)
     if format == "brf":
         return BrfFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")
