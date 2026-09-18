@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
 import jq
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 from pypdf import PdfReader, PdfWriter
 
 if TYPE_CHECKING:

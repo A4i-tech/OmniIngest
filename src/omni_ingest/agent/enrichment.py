@@ -180,11 +180,15 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             return item_doc, res.output.model_dump(mode="json")["output"]
 
 
+def _default_update() -> list[Literal["metadata", "items"]]:
+    return ["metadata"]
+
+
 class TransformAgent(BaseModel, Step):
     """Applies a jq transform to the pipeline document and writes back selected keys."""
 
     value: JqExpression = Field(..., description="jq expression producing the transformed document")
-    update: list[Literal["metadata", "items"]] = Field(default_factory=lambda: ["metadata"], description="Document keys written back to the pipeline")
+    update: list[Literal["metadata", "items"]] = Field(default_factory=_default_update, description="Document keys written back to the pipeline")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
         result = jq.compile(self.value).input_value(await _doc(ctx, text=True)).first()
