@@ -170,6 +170,81 @@ async def test_sentence_chunking_selects_items_and_custom_boundaries():
 
 
 @pytest.mark.asyncio
+async def test_chunking_fits_whole_text_under_chunk_size_in_one_chunk():
+    agent = SentenceChunkingAgent(chunk_size=1000, overlap=0)
+
+    text = "Dr. Smith measured 3.14 meters. He was pleased with the result."
+    ctx = create_ctx(text.encode())
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(result.items) == 1
+    assert await result.items[0].content(ctx) == text.encode()
+
+
+@pytest.mark.asyncio
+async def test_chunking_hard_splits_unpunctuated_table_row():
+    agent = SentenceChunkingAgent(chunk_size=50, overlap=10)
+
+    row = "|" + "|".join(f"cell{i}" for i in range(40)) + "|"  # single line, no punctuation
+    ctx = create_ctx(row.encode())
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(result.items) > 1
+    for item in result.items:
+        assert len(await item.content(ctx)) <= 50
+
+
+@pytest.mark.asyncio
+async def test_chunking_prefers_line_break_over_hard_cut():
+    agent = SentenceChunkingAgent(chunk_size=30, overlap=0)
+
+    text = "abcdefghijklmnop\nqrstuvwxyz1234"
+    ctx = create_ctx(text.encode())
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert await result.items[0].content(ctx) == b"abcdefghijklmnop"
+
+
+@pytest.mark.asyncio
+async def test_chunking_multilingual_indic_boundaries():
+    agent = SentenceChunkingAgent(chunk_size=25, overlap=0)
+
+    hi_text = "यह पहला वाक्य है। यह दूसरा वाक्य है।"
+    ctx = create_ctx(hi_text.encode())
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(result.items) == 2
+    assert (await result.items[0].decode(ctx)).endswith("।")
+
+    kn_text = "ಇದು ಮೊದಲ ವಾಕ್ಯ. ಇದು ಎರಡನೇ ವಾಕ್ಯ."
+    kn_ctx = create_ctx(kn_text.encode())
+    kn_result = await agent.run(kn_ctx)
+
+    assert kn_result.status == StepStatus.SUCCESS
+    assert len(kn_result.items) == 2
+    assert (await kn_result.items[0].decode(ctx)).endswith(".")
+
+
+@pytest.mark.asyncio
+async def test_chunking_preserves_internal_newlines():
+    agent = SentenceChunkingAgent(chunk_size=500, overlap=50)
+
+    table = "| Col 1 | Col 2 |\n|---|---|\n| Val 1 | Val 2 |"
+    ctx = create_ctx(table.encode())
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    content = await result.items[0].decode(ctx)
+    assert "\n" in content
+    assert "| Col 1 | Col 2 |" in content
+
+
+
+@pytest.mark.asyncio
 async def test_page_chunking_pdf_mode_emits_virtual_page_items():
     with PdfWriter() as writer, io.BytesIO() as pdf:
         writer.add_blank_page(width=72, height=72)
