@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import re
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -16,128 +15,6 @@ if TYPE_CHECKING:
 
 from ..core.content import content_chain_uri, resource_pages_uri
 from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from .enrichment import _doc
-
-DEFAULT_SEPARATORS: list[str] = [
-    r"\n\s*\n",
-    r"(?<=[.!?।॥۔؟])\s+|(?<=[。！？])\s*",
-    r"\n",
-    r"\s+",
-]
-
-
-def _split_text_with_pos(text: str, separators: list[str], is_regex: bool, chunk_size: int) -> list[tuple[str, int]]:
-    text = re.sub(r"[ \t]+", " ", text).strip()
-    compiled = [re.compile(s if is_regex else re.escape(s)) for s in separators]
-
-    def _split(s: str, offset: int, sep_idx: int) -> list[tuple[str, int]]:
-        if len(s) <= chunk_size or sep_idx >= len(compiled):
-            if len(s) > chunk_size:
-                return [(s[i : i + chunk_size], offset + i) for i in range(0, len(s), chunk_size)]
-            return [(s, offset)] if s else []
-
-        pattern = compiled[sep_idx]
-        splits: list[tuple[str, int]] = []
-        last = 0
-        for m in pattern.finditer(s):
-            if m.end() > last:
-                splits.append((s[last : m.end()], offset + last))
-                last = m.end()
-        if last < len(s):
-            splits.append((s[last:], offset + last))
-
-        if len(splits) <= 1:
-            return _split(s, offset, sep_idx + 1)
-
-        final_splits: list[tuple[str, int]] = []
-        for piece, piece_offset in splits:
-            if len(piece) > chunk_size:
-                final_splits.extend(_split(piece, piece_offset, sep_idx + 1))
-            else:
-                final_splits.append((piece, piece_offset))
-        return final_splits
-
-    return _split(text, 0, 0)
-
-
-def _merge_splits_with_pos(splits: list[tuple[str, int]], chunk_size: int, overlap: int) -> list[tuple[str, int]]:
-    chunks: list[tuple[str, int]] = []
-    current_doc: list[tuple[str, int]] = []
-    total_len = 0
-    for split, offset in splits:
-        if not split:
-            continue
-        split_len = len(split)
-        if total_len + split_len > chunk_size and current_doc:
-            doc_str = "".join(s for s, _ in current_doc).strip()
-            if doc_str:
-                chunks.append((doc_str, current_doc[0][1]))
-            while current_doc and (total_len > overlap or total_len + split_len > chunk_size):
-                dropped_s, _ = current_doc.pop(0)
-                total_len -= len(dropped_s)
-        current_doc.append((split, offset))
-        total_len += split_len
-    if current_doc:
-        doc_str = "".join(s for s, _ in current_doc).strip()
-        if doc_str:
-            chunks.append((doc_str, current_doc[0][1]))
-    return chunks
-
-
-class SentenceChunkingAgent(BaseModel, Step):
-    """
-    Segments text into discrete chunks while maintaining sentence boundaries.
-
-    Large documents are partitioned into smaller segments of a specified
-    character count. The agent prioritizes breaks at paragraph, sentence,
-    and line boundaries to preserve contextual integrity.
-    """
-
-    chunk_size: PositiveInt = Field(default=512, description="Maximum number of characters per chunk")
-    overlap: NonNegativeInt = Field(default=50, description="Character overlap between adjacent chunks")
-    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items to chunk")
-    input: JqExpression = Field(default=".text", description="jq expression selecting text to chunk")
-    separators: list[str] = Field(
-        default=DEFAULT_SEPARATORS,
-        description="Hierarchy of boundary regex or literal patterns in descending order of priority",
-    )
-    is_separator_regex: bool = Field(default=True, description="Whether separators are treated as regex patterns")
-
-    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No text")
-        doc = await _doc(ctx, text=True)
-        item_by_id = {str(item.id): item for item in ctx.items}
-        chunks = []
-        for source_idx, item_doc in enumerate(jq.compile(self.foreach).input_value(doc).all()):
-            source = item_by_id[item_doc["id"]]
-            text = jq.compile(self.input).input_value(item_doc).first()
-            if text is None:
-                continue
-            if not isinstance(text, str):
-                raise ValueError("Sentence chunking input must resolve to text")
-            splits = _split_text_with_pos(text, self.separators, self.is_separator_regex, self.chunk_size)
-            merged = _merge_splits_with_pos(splits, self.chunk_size, self.overlap)
-            for content, char_start in merged:
-                chunks.append(
-                    KnowledgeItem(
-                        raw_content=content.encode(source.content_encoding),
-                        tenant_id=source.tenant_id,
-                        source_uri=source.source_uri,
-                        content_encoding=source.content_encoding,
-                        metadata=source.metadata | {"source_idx": source_idx, "char_start": char_start},
-                    )
-                )
-        ctx.items = chunks
-        if not chunks:
-            return StepResult(status=StepStatus.SKIPPED, error="No text")
-        return StepResult(
-            status=StepStatus.SUCCESS,
-            items=ctx.items,
-            metadata={"count": len(ctx.items), "chunk_size": self.chunk_size, "overlap": self.overlap},
-        )
-
-
 
 
 class PageChunkingAgent(BaseModel, Step):
@@ -236,7 +113,7 @@ class TimedChunkingAgent(BaseModel, Step):
     """
 
     segment_duration: timedelta = Field(default=timedelta(seconds=30), description="Target duration of each time block")
-    overlap: timedelta = Field(default=timedelta(0), description="Overlap between adjacent time blocks")
+    overlap: timedelta = Field(default=timedelta(seconds=0), description="Overlap between adjacent time blocks")
     pause_threshold: timedelta | None = Field(default=None, description="Silence threshold to split blocks")
     tokens: JqExpression = Field(default=".metadata.word_timestamps[]?", description="jq expression selecting timed tokens")
     text: JqExpression = Field(default=".Word", description="jq expression selecting token text")

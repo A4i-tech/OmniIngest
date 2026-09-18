@@ -4,7 +4,7 @@ input_modality: document
 description: "Standard pipeline with mandatory data lineage audit"
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: lineage
   - agent: embedding
   - agent: ingestion_logger

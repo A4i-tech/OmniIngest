@@ -234,7 +234,7 @@ async def test_extract_agent_assertion_retries_with_feedback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_transform_agent_writes_jq_output_to_metadata():
-    agent = TransformAgent(value=".metadata.items | map(.name)", path=".metadata.names")
+    agent = TransformAgent(value=".metadata.names = (.metadata.items | map(.name))")
     ctx = create_ctx()
     ctx.metadata["items"] = [{"name": "a"}, {"name": "b"}]
 
@@ -245,17 +245,31 @@ async def test_transform_agent_writes_jq_output_to_metadata():
 
 
 @pytest.mark.asyncio
+async def test_transform_agent_emits_items():
+    agent = TransformAgent(value=".items |= map(. + {text: (.text | ascii_upcase)})", update=["items"])
+    ctx = create_ctx()
+    ctx.items = [KnowledgeItem(raw_content=b"hello", metadata={"content_type": "text/plain"})]
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(ctx.items) == 1
+    assert await ctx.items[0].decode(ctx) == "HELLO"
+
+
+@pytest.mark.asyncio
 async def test_transform_agent_maps_nested_metadata():
     agent = TransformAgent(
-        path=".metadata.records",
         value=r"""
-        .metadata.book as $book
-        | .metadata.chapters
-        | map({
-            id: "\($book.board)-\(.no)",
-            title: .name,
-            topics: (.topics | map(.numbering + ". " + .title))
-            })
+        .metadata.records = (
+            .metadata.book as $book
+            | .metadata.chapters
+            | map({
+                id: "\($book.board)-\(.no)",
+                title: .name,
+                topics: (.topics | map(.numbering + ". " + .title))
+                })
+        )
     """,
     )
     ctx = create_ctx()
@@ -272,4 +286,4 @@ async def test_transform_agent_maps_nested_metadata():
 
 def test_transform_agent_rejects_invalid_jq():
     with pytest.raises(ValidationError):
-        TransformAgent(value=".metadata |", path=".metadata.records")
+        TransformAgent(value=".metadata |")

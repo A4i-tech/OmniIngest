@@ -154,9 +154,8 @@ After fan-out, fold item results into ordered root output with `transform`:
 - agent: transform
   description: Assemble chapter answers
   config:
-    path: ".metadata.chapter_answers"
     value: |
-      [
+      .metadata.chapter_answers = ([
         .items[]
         | select(.metadata.model_answers != null)
         | {
@@ -164,7 +163,7 @@ After fan-out, fold item results into ordered root output with `transform`:
             answers: .metadata.model_answers
           }
       ]
-      | sort_by(.chapter)
+      | sort_by(.chapter))
 ```
 
 Always sort when output order is part of contract. Concurrent extraction finishes in completion order rather than source order.

@@ -1,0 +1,29 @@
+pipeline_id: sentence_chunking
+domain_profile: default
+input_modality: document
+description: Splits text items into chunks under a character limit, preferring paragraph and line breaks.
+parameters:
+  properties:
+    chunk_size:
+      type: integer
+      default: 1024
+      description: Maximum characters per chunk.
+steps:
+  - agent: transform
+    description: Split each text item into chunks
+    config:
+      update: [items]
+      value: >
+        def hard($n): if length > $n then [range(0; length; $n) as $i | .[$i:$i+$n]] else [.] end;
+        .items |= [
+          .[] as $item
+          | ($item.text // "") as $t
+          | ([ $t | scan("[^\n]*\n|[^\n]+") ] | map(hard(${.config.chunk_size})) | add // []) as $pieces
+          | reduce $pieces[] as $p ({chunks: [], cur: ""};
+              if ((.cur | length) + ($p | length)) > ${.config.chunk_size} and (.cur | length) > 0
+              then {chunks: (.chunks + [.cur]), cur: $p}
+              else {chunks: .chunks, cur: (.cur + $p)}
+              end)
+          | (.chunks + (if (.cur | length) > 0 then [.cur] else [] end))[] as $c
+          | $item + {id: null, text: $c}
+        ]

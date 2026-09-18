@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from omni_ingest.agent.chunking import SentenceChunkingAgent
+from omni_ingest.agent.enrichment import TransformAgent
 from omni_ingest.core.model import KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
@@ -38,7 +38,7 @@ async def test_parallel_pipeline_execution(metadata_store, tenant):
             store=metadata_store,
             resource=ResolvedResource(uri="", raw_content=f"Parallel content {idx}".encode()),
         )
-        runner = PipelineRunner(steps=[SentenceChunkingAgent(chunk_size=10, overlap=0)])
+        runner = PipelineRunner(steps=[TransformAgent(value=".items |= map(. + {text: (.text | ascii_upcase)})", update=["items"])])
         results = await runner.run(ctx)
         return results
 

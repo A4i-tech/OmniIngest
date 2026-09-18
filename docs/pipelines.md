@@ -17,7 +17,7 @@ input_modality: document
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: embedding
 ```
 
@@ -57,7 +57,7 @@ description: "Prepare textbook pages for retrieval and lesson planning"
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: embedding
 ```
 
@@ -73,7 +73,7 @@ Each step has an `agent`. Config goes under `config`.
 steps:
   - agent: text
 
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 900
       overlap: 120
@@ -106,7 +106,7 @@ parameters:
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: ${.config.chunk_size}
       overlap: ${.config.overlap}
@@ -146,7 +146,7 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 1200
       overlap: 150
@@ -218,7 +218,7 @@ parameters:
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
 
   - agent: extract
     config:
@@ -341,13 +341,12 @@ That example says trusted sources do not need quality validation. If `trusted_so
 steps:
   - agent: transform
     config:
-      path: ".metadata.all_key_terms"
-      value: '[.items[].metadata.lesson.key_terms[]?] | unique | sort'
+      value: '.metadata.all_key_terms = ([.items[].metadata.lesson.key_terms[]?] | unique | sort)'
 ```
 
 This is ideal after item-level extraction. Let model extract key terms per chunk. Let jq fold them into one clean list.
 
-Implementation detail: transform uses same assignment helper as extract. If existing target and new value are both objects, fields merge. Otherwise target is replaced.
+Implementation detail: transform writes back `metadata` and/or `items`. Default is `metadata`.
 
 ## Translating structured output
 
@@ -374,7 +373,7 @@ Stages let adjacent independent steps run together.
 ```yaml
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
 
   - agent: extract
     stage: analysis
@@ -420,7 +419,7 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: quality
     config:
       min_quality_score: 0.6
@@ -552,7 +551,7 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: kg_builder
 ```
 
@@ -580,7 +579,7 @@ tool_vendors:
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: extract
     config:
       toolsets: [curriculum_api]

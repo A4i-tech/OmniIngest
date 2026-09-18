@@ -4,7 +4,7 @@ input_modality: document
 description: "Education-focused pipeline for textbook ingestion with LO extraction and graph indexing"
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 1024
       overlap: 100

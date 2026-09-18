@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
+from uuid import UUID, uuid4
 
 import jq
 from datamodel_code_generator import GenerateConfig
@@ -31,11 +32,29 @@ async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
     return {
         "metadata": ctx.metadata,
         "items": [
-            {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
+            {
+                "id": str(item.id),
+                "source_uri": item.source_uri,
+                "tenant_id": str(item.tenant_id) if item.tenant_id else None,
+                "content_encoding": item.content_encoding,
+                "metadata": item.metadata,
+            }
             | ({"text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} if text else {})
             for item in ctx.items
         ],
     }
+
+
+def _item_from_doc(doc: dict[str, Any]) -> KnowledgeItem:
+    encoding = doc.get("content_encoding") or "utf-8"
+    return KnowledgeItem(
+        id=UUID(doc["id"]) if doc.get("id") else uuid4(),
+        raw_content=str(doc.get("text") or "").encode(encoding),
+        content_encoding=encoding,
+        tenant_id=UUID(doc["tenant_id"]) if doc.get("tenant_id") else None,
+        source_uri=doc.get("source_uri"),
+        metadata=doc.get("metadata") or {},
+    )
 
 
 async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryContent:
@@ -162,15 +181,20 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
 
 
 class TransformAgent(BaseModel, Step):
-    """Applies jq transforms to root metadata."""
+    """Applies a jq transform to the pipeline document and writes back selected keys."""
 
-    value: JqExpression = Field(..., description="jq expression producing transformed output")
-    path: JqExpression = Field(..., description="jq path where transformed output is written")
+    value: JqExpression = Field(..., description="jq expression producing the transformed document")
+    update: list[Literal["metadata", "items"]] = Field(default_factory=lambda: ["metadata"], description="Document keys written back to the pipeline")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        doc = await _doc(ctx)
-        ctx.metadata = _assign(doc, self.path, jq.compile(self.value).input_value(doc).first())["metadata"]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
+        result = jq.compile(self.value).input_value(await _doc(ctx, text=True)).first()
+        if not isinstance(result, dict):
+            raise ValueError("Transform value must produce an object")
+        if "metadata" in self.update:
+            ctx.metadata = result.get("metadata", {})
+        if "items" in self.update:
+            ctx.items = [_item_from_doc(item) for item in result.get("items", [])]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update})
 
 
 class PromptAgent(BaseModel, Step, AgentMixin):

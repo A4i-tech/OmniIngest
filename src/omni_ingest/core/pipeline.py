@@ -106,7 +106,6 @@ StepFactory: TypeAlias = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
     "text": agent.modality.TextAgent,
 
-    "chunking": agent.chunking.SentenceChunkingAgent,
     "image_extraction": agent.document.ImageExtractionAgent,
     "rasterize": agent.document.RasterizeAgent,
     "ocr": agent.document.OcrAgent,

@@ -4,7 +4,7 @@ input_modality: document
 description: "Advanced education pipeline with quality verification and FAQ generation"
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: learning_outcome
   - agent: quality
     config:
