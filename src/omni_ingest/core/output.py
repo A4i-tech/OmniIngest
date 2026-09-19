@@ -28,21 +28,21 @@ if TYPE_CHECKING:
 
 
 async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
-    data = obj.model_dump(mode="json", exclude={"raw_content"})
-    content = await obj.content(ctx)
+    data = obj.model_dump(mode="json", exclude={"data"})
+    content = await obj.read(ctx)
     try:
-        data["content"] = content.decode(obj.content_encoding)
+        data["content"] = content.decode(obj.encoding)
     except (LookupError, UnicodeDecodeError):
         data["content"] = b64encode(content).decode("ascii")
-        data["content_encoding"] = "base64"
+        data["encoding"] = "base64"
     return data
 
 
 async def json_dump_context(ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
     return {
-        "resource": await _json_dump_content(ctx.resource, ctx),
+        "resource": {**await _json_dump_content(ctx.resource.content, ctx), **ctx.resource.model_dump(mode="json", exclude={"content"})},
         "metadata": ctx.metadata,
-        "items": [await _json_dump_content(item, ctx) for item in ctx.items],
+        "items": [{**await _json_dump_content(item.content, ctx), **item.model_dump(mode="json", exclude={"content"})} for item in ctx.items],
     }
 
 
@@ -114,7 +114,7 @@ class BrfFileOutput(FileOutput):
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         import louis
-        texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
+        texts = [(await item.content.read(ctx)).decode(item.content.encoding) for ctx in ctxs for item in ctx.items]
         braille = "\n".join(str(louis.translateString(list(self.tables), text)) for text in texts)
         await asyncio.to_thread(self._write, braille, mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
@@ -125,9 +125,9 @@ class PickleFileOutput(FileOutput):
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         runs: list[dict[str, Any]] = [{
-            "resource": {**ctx.resource.model_dump(mode="python", exclude={"raw_content"}), "content": await ctx.resource.content(ctx)},
+            "resource": {**ctx.resource.content.model_dump(mode="python", exclude={"data"}), **ctx.resource.model_dump(mode="python", exclude={"content"}), "content": await ctx.resource.content.read(ctx)},
             "metadata": ctx.metadata,
-            "items": [{**item.model_dump(mode="python", exclude={"raw_content"}), "content": await item.content(ctx)} for item in ctx.items],
+            "items": [{**item.content.model_dump(mode="python", exclude={"data"}), **item.model_dump(mode="python", exclude={"content"}), "content": await item.content.read(ctx)} for item in ctx.items],
         } for ctx in ctxs]
         data = runs[0] if len(runs) == 1 else {"runs": runs}
         await asyncio.to_thread(self._write, pickle.dumps(data), mode="wb")
@@ -168,14 +168,14 @@ class MarkdownDirOutput(FileOutput):
 
         for ctx, item in entries:
             page = item.metadata.get("page")
-            content_type = await item.content_type(ctx)
+            content_type = await item.content.content_type(ctx)
 
             if page is not None and page != last_page:
                 md.append(f"<!-- page {page} -->")
                 last_page = page
 
             if content_type.startswith("image/"):
-                raw = await item.content(ctx)
+                raw = await item.content.read(ctx)
                 try:
                     data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
                 except Exception:
@@ -186,7 +186,7 @@ class MarkdownDirOutput(FileOutput):
                 md.append(f"![{caption or ''}]({filename})")
                 images.append({"file": filename, "page": page, "caption": caption})
             elif content_type.startswith("text/"):
-                text = (await item.decode(ctx)).strip()
+                text = (await item.content.decode(ctx)).strip()
                 if text:
                     md.append(text)
 
@@ -261,7 +261,7 @@ class VectorStoreOutput(Output):
                         domain_profile=ctx.domain_profile,
                         modality="text",
                         source_uri=item.source_uri or ctx.resource.uri,
-                        content=await item.content(ctx),
+                        content=await item.content.read(ctx),
                         metadata=metadata,
                     )
 
@@ -315,7 +315,7 @@ class MongoDocumentOutput(Output):
         ops = [
             self._ReplaceOne(
                 {"_id": str(item.id)},
-                {"_id": str(item.id), "source_uri": item.source_uri, "content": await item.decode(ctx), "metadata": item.metadata},
+                {"_id": str(item.id), "source_uri": item.source_uri, "content": await item.content.decode(ctx), "metadata": item.metadata},
                 upsert=True,
             )
             for item in ctx.items

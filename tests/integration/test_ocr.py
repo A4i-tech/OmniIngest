@@ -28,8 +28,8 @@ async def test_ocr_engine(engine, out_fmt, metadata_store, resources_dir):
     assert all(r.status == StepStatus.SUCCESS for r in results)
 
     item = results[-1].items[2]
-    content = await item.content(ctx)
-    assert await item.content_type(ctx) == out_fmt.mime_type
+    content = await item.content.read(ctx)
+    assert await item.content.content_type(ctx) == out_fmt.mime_type
     assert "Theoretical Foundation" in content.decode()
     assert "shared commitment to the reversal." in content.decode()
 

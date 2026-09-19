@@ -2,7 +2,7 @@ import pytest
 from pymongo import AsyncMongoClient
 
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import BrfFileOutput, MongoDocumentOutput
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 
@@ -22,10 +22,10 @@ async def mongo_collection():
 async def test_mongo_output_inserts_documents(mongo_collection, metadata_store):
     output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
     items = [
-        KnowledgeItem(raw_content=b"Question 1", metadata={"subject": "math"}),
-        KnowledgeItem(raw_content=b"Question 2", metadata={"subject": "science"}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"Question 1"), metadata={"subject": "math"}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"Question 2"), metadata={"subject": "science"}),
     ]
-    ctx = IngestionContext(resource=ResolvedResource(uri="test://doc.pdf", raw_content=b""), store=metadata_store, items=items)
+    ctx = IngestionContext(resource=ResolvedResource(uri="test://doc.pdf", content=ByteContent.from_bytes(b"")), store=metadata_store, items=items)
 
     result = await output.write(ctx)
 
@@ -36,8 +36,8 @@ async def test_mongo_output_inserts_documents(mongo_collection, metadata_store):
 
 async def test_mongo_output_upsert_is_idempotent(mongo_collection, metadata_store):
     output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
-    item = KnowledgeItem(raw_content=b"Same content")
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store, items=[item])
+    item = KnowledgeItem(content=ByteContent.from_bytes(b"Same content"))
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), store=metadata_store, items=[item])
 
     await output.write(ctx)
     await output.write(ctx)
@@ -47,8 +47,8 @@ async def test_mongo_output_upsert_is_idempotent(mongo_collection, metadata_stor
 
 async def test_mongo_output_stores_expected_fields(mongo_collection, metadata_store):
     output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
-    item = KnowledgeItem(raw_content=b"hello world", metadata={"grade": 6})
-    ctx = IngestionContext(resource=ResolvedResource(uri="file://test.pdf", raw_content=b""), store=metadata_store, items=[item])
+    item = KnowledgeItem(content=ByteContent.from_bytes(b"hello world"), metadata={"grade": 6})
+    ctx = IngestionContext(resource=ResolvedResource(uri="file://test.pdf", content=ByteContent.from_bytes(b"")), store=metadata_store, items=[item])
 
     await output.write(ctx)
 
@@ -58,7 +58,7 @@ async def test_mongo_output_stores_expected_fields(mongo_collection, metadata_st
 
 async def test_mongo_output_skips_when_no_items(mongo_collection, metadata_store):
     output = MongoDocumentOutput(_MONGO_OUTPUT_URI)
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store)
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), store=metadata_store)
 
     result = await output.write(ctx)
 

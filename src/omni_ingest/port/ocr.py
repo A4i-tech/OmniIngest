@@ -45,7 +45,7 @@ def llm_ocr_builder(params: OcrBuilderParams) -> Ocr:
 
     async def one(agent: Agent[object, str], item: ByteContent, sem: asyncio.Semaphore):
         content_type = await item.content_type(params.ctx)
-        result = await agent.run(instructions=instructions, user_prompt=(BinaryContent(data=await item.content(params.ctx), media_type=content_type),))
+        result = await agent.run(instructions=instructions, user_prompt=(BinaryContent(data=await item.read(params.ctx), media_type=content_type),))
         return item, ByteContent.from_bytes(result.output.encode("utf-8"), params.format.mime_type)
 
     agent = _DefaultAgentMixin()._agent(params.ctx)
@@ -71,7 +71,7 @@ def sarvam_ocr_builder(params: OcrBuilderParams) -> Ocr:
         raise ValueError("SarvamAI does not support a destination language option")
 
     async def one(client: SarvamAI, item: ByteContent, sem: asyncio.Semaphore):
-        data = await item.content(params.ctx)
+        data = await item.read(params.ctx)
         job = client.doc_ai.digitise(file=[data], output_format=output_format, **({"language": params.src_lang} if params.src_lang is not None else {}))
         while True:
             st = client.doc_ai.get_status(job_id=job.job_id)
@@ -88,7 +88,7 @@ def sarvam_ocr_builder(params: OcrBuilderParams) -> Ocr:
         if len(resources) != 1:
             raise RuntimeError(f"SarvamAI returned unexpected number of resources ({len(resources)})")
 
-        with zipfile.ZipFile(io.BytesIO(await resources[0].content(params.ctx))) as output:
+        with zipfile.ZipFile(io.BytesIO(await resources[0].content.read(params.ctx))) as output:
             return item, ByteContent.from_bytes(output.read(f"upload/upload.{output_format}"), params.format.mime_type)
 
     client = SarvamAI()
@@ -116,7 +116,7 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
         async with sem:
             poller = await client.begin_analyze_document(
                 "prebuilt-layout",
-                AnalyzeDocumentRequest(bytes_source=await item.content(params.ctx)),
+                AnalyzeDocumentRequest(bytes_source=await item.read(params.ctx)),
                 locale=params.src_lang, output_content_format=output_content_format
             )
             result = await poller.result()
@@ -146,7 +146,7 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
     async def one(client: Mistral, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             content_type = await item.content_type(params.ctx)
-            uri = f"data:{content_type};base64,{base64.b64encode(await item.content(params.ctx)).decode()}"
+            uri = f"data:{content_type};base64,{base64.b64encode(await item.read(params.ctx)).decode()}"
             document = mistral_models.ImageURLChunk(image_url=uri) if content_type.startswith("image/") else mistral_models.DocumentURLChunk(document_url=uri)
             result = await client.ocr.process_async(model=settings.mistral_ocr_model, document=document)
         if not result.pages:

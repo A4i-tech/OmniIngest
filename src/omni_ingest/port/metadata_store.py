@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, col
 
 from ..core.config import settings
-from ..core.model import KnowledgeItem, KnowledgeItemRecord, Pipeline, PipelineCheckpoint, PipelineCheckpointRecord, PipelineRunRecord, PipelineStepRunRecord, PipelineVersion, Tenant
+from ..core.model import ByteContent, KnowledgeItem, KnowledgeItemRecord, Pipeline, PipelineCheckpoint, PipelineCheckpointRecord, PipelineRunRecord, PipelineStepRunRecord, PipelineVersion, Tenant
 from ..core.protocol import JsonObject, MetadataStore
 
 
@@ -163,7 +163,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
         await self._init_db()
         async with self.session_factory() as s:
             if r := await s.get(KnowledgeItemRecord, item_id):
-                return KnowledgeItem.model_validate(r)
+                return KnowledgeItem(id=r.id, tenant_id=r.tenant_id, source_uri=r.source_uri, content=ByteContent.from_bytes(r.content), metadata=r.metadata_)
             return None
 
     async def list_knowledge_items(self, tenant_id: UUID, domain_profile: str | None = None, **filters: object) -> list[KnowledgeItem]:
@@ -175,7 +175,7 @@ class SQLAlchemyMetadataStore(MetadataStore):
             for k, v in filters.items():
                 q = q.where(getattr(KnowledgeItemRecord, k) == v)
             records = (await s.execute(q)).scalars().all()
-            return [KnowledgeItem.model_validate(r) for r in records]
+            return [KnowledgeItem(id=r.id, tenant_id=r.tenant_id, source_uri=r.source_uri, content=ByteContent.from_bytes(r.content), metadata=r.metadata_) for r in records]
 
     async def get_pipeline_version(self, pipeline_name: str, version: str) -> PipelineVersion | None:
         await self._init_db()

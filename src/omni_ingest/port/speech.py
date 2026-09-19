@@ -135,7 +135,7 @@ def azure_tts_builder(params: TTSBuilderParams) -> TTSModel:
 
     async def model(content: ByteContent, format: SpeechFormat) -> ByteContent:
         speech_config.set_speech_synthesis_output_format(_SDK_OUTPUT_FORMAT[format])
-        text = (await content.content(params.ctx)).decode(content.content_encoding)
+        text = (await content.read(params.ctx)).decode(content.encoding)
         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
         result = await asyncio.to_thread(synthesizer.speak_text_async(text).get)
         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:

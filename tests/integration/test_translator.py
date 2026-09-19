@@ -4,7 +4,7 @@ import pytest
 
 from omni_ingest.agent.enrichment import TranslateAgent
 from omni_ingest.core.config import settings
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.translator import create_translator
 
@@ -64,7 +64,7 @@ async def test_azure_translator_batches_large_structured_input(translator):
 
 
 async def test_translate_agent_translates_metadata_in_place():
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), metadata={"lesson": {"title": "Hello", "count": 2}})
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), metadata={"lesson": {"title": "Hello", "count": 2}})
 
     result = await TranslateAgent(src="en", dst="fr", input=".metadata.lesson", path=".metadata.translated").run(ctx)
 
@@ -74,8 +74,8 @@ async def test_translate_agent_translates_metadata_in_place():
 
 async def test_translate_agent_translates_item_text():
     ctx = IngestionContext(
-        resource=ResolvedResource(uri="", raw_content=b""),
-        items=[KnowledgeItem(raw_content=b"The dog runs.")],
+        resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")),
+        items=[KnowledgeItem(content=ByteContent.from_bytes(b"The dog runs."))],
     )
 
     result = await TranslateAgent(src="en", dst="fr", input=".items[0].text", path=".metadata.translated").run(ctx)

@@ -9,7 +9,7 @@ from omni_ingest.agent.deduplication import (
     NoDeduplicationStrategy,
     ShingleJaccardDeduplicationStrategy,
 )
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.core.protocol import VectorStore
@@ -57,12 +57,12 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[
-            KnowledgeItem(raw_content=b"  HELLO   WORLD  ", metadata={"embedding": [0.1, 0.2, 0.3]}),
-            KnowledgeItem(raw_content=b"Fresh content", metadata={"embedding": [0.4, 0.5, 0.6]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"  HELLO   WORLD  "), metadata={"embedding": [0.1, 0.2, 0.3]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"Fresh content"), metadata={"embedding": [0.4, 0.5, 0.6]}),
         ],
         store=metadata_store,
         metadata={"knowledge_item_id": new_item_id},
-        resource=ResolvedResource(uri=source_uri, raw_content=b""),
+        resource=ResolvedResource(uri=source_uri, content=ByteContent.from_bytes(b"")),
     )
 
     result = await output.write(ctx)
@@ -72,7 +72,7 @@ async def test_vector_store_output_defaults_to_normalized_text_hash(metadata_sto
     assert result.metadata["deduplicated_count"] == 1
     assert result.metadata["deduplication_strategy"] == "normalized_text_hash"
     assert len(vector_store.upsert_calls) == 1
-    assert [await item.content(ctx) for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
+    assert [await item.content.read(ctx) for item in vector_store.upsert_calls[0]] == [b"Fresh content"]
 
     indexed_items = [
         item
@@ -90,10 +90,10 @@ async def test_vector_store_output_no_deduplication_strategy_keeps_duplicates():
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(raw_content=b"Same chunk", metadata={"embedding": [0.1]}),
-            KnowledgeItem(raw_content=b"Same chunk", metadata={"embedding": [0.2]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"Same chunk"), metadata={"embedding": [0.1]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"Same chunk"), metadata={"embedding": [0.2]}),
         ],
-        resource=ResolvedResource(uri="file://same.txt", raw_content=b""),
+        resource=ResolvedResource(uri="file://same.txt", content=ByteContent.from_bytes(b"")),
     )
 
     result = await output.write(ctx)
@@ -120,13 +120,13 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
     )
     first_store = RecordingVectorStore()
     first_output = VectorStoreOutput(store=cast(VectorStore, first_store), deduplication_strategy=strategy)
-    first_item = KnowledgeItem(raw_content=b"Stable chunk", metadata={"embedding": [0.1], "section": "intro"})
+    first_item = KnowledgeItem(content=ByteContent.from_bytes(b"Stable chunk"), metadata={"embedding": [0.1], "section": "intro"})
     first_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[first_item],
         store=metadata_store,
         metadata={"knowledge_item_id": initial_item_id},
-        resource=ResolvedResource(uri=source_uri, raw_content=b""),
+        resource=ResolvedResource(uri=source_uri, content=ByteContent.from_bytes(b"")),
     )
 
     first_result = await first_output.write(first_ctx)
@@ -142,13 +142,13 @@ async def test_vector_store_output_deterministic_id_strategy_skips_existing_sour
     )
     second_store = RecordingVectorStore()
     second_output = VectorStoreOutput(store=cast(VectorStore, second_store), deduplication_strategy=DeterministicIdDeduplicationStrategy(identity="[.source_uri, .metadata.section, .text]"))
-    replay_item = KnowledgeItem(raw_content=b"Stable chunk", metadata={"embedding": [0.2], "section": "intro"})
+    replay_item = KnowledgeItem(content=ByteContent.from_bytes(b"Stable chunk"), metadata={"embedding": [0.2], "section": "intro"})
     replay_ctx = IngestionContext(
         tenant_id=tenant.id,
         items=[replay_item],
         store=metadata_store,
         metadata={"knowledge_item_id": replay_item_id},
-        resource=ResolvedResource(uri=source_uri, raw_content=b""),
+        resource=ResolvedResource(uri=source_uri, content=ByteContent.from_bytes(b"")),
     )
 
     second_result = await second_output.write(replay_ctx)
@@ -177,11 +177,11 @@ async def test_vector_store_output_shingle_jaccard_strategy_skips_near_duplicate
     ctx = IngestionContext(
         tenant_id=uuid4(),
         items=[
-            KnowledgeItem(raw_content=b"alpha beta gamma delta epsilon zeta", metadata={"embedding": [0.1]}),
-            KnowledgeItem(raw_content=b"alpha beta gamma delta epsilon zeta eta", metadata={"embedding": [0.2]}),
-            KnowledgeItem(raw_content=b"completely different content here", metadata={"embedding": [0.3]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"alpha beta gamma delta epsilon zeta"), metadata={"embedding": [0.1]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"alpha beta gamma delta epsilon zeta eta"), metadata={"embedding": [0.2]}),
+            KnowledgeItem(content=ByteContent.from_bytes(b"completely different content here"), metadata={"embedding": [0.3]}),
         ],
-        resource=ResolvedResource(uri="file://near-duplicates.txt", raw_content=b""),
+        resource=ResolvedResource(uri="file://near-duplicates.txt", content=ByteContent.from_bytes(b"")),
     )
 
     result = await output.write(ctx)
@@ -191,7 +191,7 @@ async def test_vector_store_output_shingle_jaccard_strategy_skips_near_duplicate
     assert result.metadata["deduplicated_count"] == 1
     assert result.metadata["deduplication_strategy"] == "shingle_jaccard"
     assert len(vector_store.upsert_calls) == 1
-    assert [await item.content(ctx) for item in vector_store.upsert_calls[0]] == [
+    assert [await item.content.read(ctx) for item in vector_store.upsert_calls[0]] == [
         b"alpha beta gamma delta epsilon zeta",
         b"completely different content here",
     ]

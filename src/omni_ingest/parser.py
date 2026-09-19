@@ -17,7 +17,7 @@ import openpyxl
 from docx import Document
 from pypdf import PdfReader
 
-from .core.model import ResolvedResource
+from .core.model import ByteContent, ResolvedResource
 from .core.speech import Stt
 
 
@@ -46,7 +46,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
-        return ResolvedResource(uri=path, raw_content=stream.read())
+        return ResolvedResource(uri=path, content=ByteContent.from_bytes(stream.read()))
 
 
 async def read_resources(path: str, parse_limit: int | None = None, headers: dict[str, str] | None = None, **kwargs):
@@ -57,7 +57,7 @@ async def read_resources(path: str, parse_limit: int | None = None, headers: dic
 
     if parse_limit is not None and len(paths) > parse_limit:
         for path in paths[parse_limit:]:
-            yield ResolvedResource(uri=path, raw_content=b"")
+            yield ResolvedResource(uri=path, content=ByteContent.from_bytes(b""))
 
 
 @asynccontextmanager

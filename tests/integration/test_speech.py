@@ -14,5 +14,5 @@ async def test_speech_agent(output_format, metadata_store, resources_dir):
     assert all(r.status == StepStatus.SUCCESS for r in results)
 
     item = results[-1].items[0]
-    assert await item.content_type(ctx) == output_format.mime_type
-    assert len(await item.content(ctx)) > 0
+    assert await item.content.content_type(ctx) == output_format.mime_type
+    assert len(await item.content.read(ctx)) > 0

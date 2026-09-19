@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter
 
 
@@ -26,10 +26,10 @@ async def test_tenant_isolation_vector_search(metadata_store, vector_store):
 
     t1_id, t2_id = uuid4(), uuid4()
 
-    ki1 = KnowledgeItem(id=uuid4(), tenant_id=t1_id, raw_content=b"T1 Content", metadata={"embedding": [0.1] * 1536})
-    ki2 = KnowledgeItem(id=uuid4(), tenant_id=t2_id, raw_content=b"T2 Content", metadata={"embedding": [0.1] * 1536})
+    ki1 = KnowledgeItem(id=uuid4(), tenant_id=t1_id, content=ByteContent.from_bytes(b"T1 Content"), metadata={"embedding": [0.1] * 1536})
+    ki2 = KnowledgeItem(id=uuid4(), tenant_id=t2_id, content=ByteContent.from_bytes(b"T2 Content"), metadata={"embedding": [0.1] * 1536})
 
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
     await vector_store.upsert([ki1, ki2], ctx)
 
     res1 = await adapter.query(tenant_id=t1_id, query=[0.1] * 1536, k=10)

@@ -8,7 +8,7 @@ import yaml
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from omni_ingest.core.model import AgentMixin, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from omni_ingest.core.model import AgentMixin, ByteContent, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config
 
 
@@ -20,10 +20,10 @@ class MCPCallingAgent(BaseModel, Step, AgentMixin):
         async with self._agent(ctx) as agent:
             response = await agent.run(
                 instructions="You are a bark agent. Bark is a custom homegrown format. Convert the user input to bark format.",
-                user_prompt=await ctx.items[0].decode(ctx),
+                user_prompt=await ctx.items[0].content.decode(ctx),
                 output_type=CleanedBarkdownModel,
             )
-        return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(raw_content=response.output.bark.encode())], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
+        return StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=ByteContent.from_bytes(response.output.bark.encode()))], metadata={"messages": response.all_messages_json().decode("utf-8")}, error=None)
 
 def create_runner(config: dict[str, Any]):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as tmp:
@@ -53,10 +53,10 @@ async def test_pipeline_with_mcp_toolsets(metadata_store):
 
     text = "The framework is meow designed to feel wrong on purpose. You read the measurements, they meow look fine, but then the interpretation is meow completely backwards. That's the point, meow-does the system follow what's written or what it expects?"
 
-    ctx = IngestionContext(items=[KnowledgeItem(raw_content=text.encode())], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
+    ctx = IngestionContext(items=[KnowledgeItem(content=ByteContent.from_bytes(text.encode()))], store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
     results = await runner.run(ctx)
     assert all(r.status == StepStatus.SUCCESS for r in results), "Pipeline failed: " + ",".join(r.error or "" for r in results)
-    assert await results[0].items[0].decode(ctx) == text.replace("meow", "BARK BARK")
+    assert await results[0].items[0].content.decode(ctx) == text.replace("meow", "BARK BARK")
 
     messages = json.loads(results[0].metadata["messages"])
     assert any("tool_name" in m["parts"][0] and m["parts"][0]["tool_name"] == "to_bark" for m in messages)
@@ -81,7 +81,7 @@ async def test_pipeline_with_mcp_unreachable(metadata_store):
         }],
     })
 
-    ctx = IngestionContext(items=[KnowledgeItem(raw_content=b"")], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b""))
+    ctx = IngestionContext(items=[KnowledgeItem(content=ByteContent.from_bytes(b""))], store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
     results = await runner.run(ctx)
     assert all(r.status == StepStatus.FAILURE for r in results)
 

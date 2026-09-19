@@ -1,7 +1,9 @@
 import pymupdf
+import pytest
 
 from omni_ingest.agent.document import ImageExtractionAgent
-from omni_ingest.core.model import KnowledgeItem
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
+from omni_ingest.core.pipeline import IngestionContext
 
 
 def pdf_with_image() -> bytes:
@@ -13,34 +15,42 @@ def pdf_with_image() -> bytes:
         return bytes(pdf.tobytes())
 
 
-def test_image_extraction_preserves_parent_by_default():
+@pytest.mark.asyncio
+async def test_image_extraction_preserves_parent_by_default():
     original = pdf_with_image()
-    parent = KnowledgeItem(raw_content=original)
+    parent = KnowledgeItem(content=ByteContent.from_bytes(original))
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
 
     assert len(extracted) == 1
-    assert parent.raw_content == original
+    assert await parent.content.read(ctx) == original
 
 
-def test_image_extraction_redacts_parent_with_extracted_item_id():
+@pytest.mark.asyncio
+async def test_image_extraction_redacts_parent_with_extracted_item_id():
     original = pdf_with_image()
-    parent = KnowledgeItem(raw_content=original)
+    parent = KnowledgeItem(content=ByteContent.from_bytes(original))
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(mode="redact", include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
 
     assert len(extracted) == 1
-    assert parent.raw_content != original
-    with pymupdf.open(stream=parent.raw_content, filetype="pdf") as redacted:
+    content = await parent.content.read(ctx)
+    assert content != original
+    with pymupdf.open(stream=content, filetype="pdf") as redacted:
         assert f'<image id="{extracted[0].id}"/>' in redacted[0].get_text()
         assert redacted[0].get_image_info() == []
 
 
-def test_image_extraction_captions_parent_with_extracted_item_id():
+@pytest.mark.asyncio
+async def test_image_extraction_captions_parent_with_extracted_item_id():
     original = pdf_with_image()
-    parent = KnowledgeItem(raw_content=original)
+    parent = KnowledgeItem(content=ByteContent.from_bytes(original))
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(mode="caption", include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
 
     assert len(extracted) == 1
-    assert parent.raw_content != original
-    with pymupdf.open(stream=parent.raw_content, filetype="pdf") as captioned:
+    content = await parent.content.read(ctx)
+    assert content != original
+    with pymupdf.open(stream=content, filetype="pdf") as captioned:
         assert f'<image id="{extracted[0].id}"/>' in captioned[0].get_text()
         assert len(captioned[0].get_image_info()) == 1

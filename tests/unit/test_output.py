@@ -5,14 +5,14 @@ from uuid import uuid4
 import fsspec
 import pytest
 
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, MarkdownDirOutput, MongoDocumentOutput, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.graph_store import InMemoryGraphStore
 
 
 def create_ctx(store, content: str) -> IngestionContext:
-    return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", raw_content=content.encode()), store=store)
+    return IngestionContext(tenant_id=uuid4(), resource=ResolvedResource(uri="", content=ByteContent.from_bytes(content.encode())), store=store)
 
 
 def test_parse_detects_mongodb_scheme():
@@ -68,7 +68,7 @@ async def test_json_file_output(vector_store, tmp_path):
     output = JsonFileOutput(path=str(path))
     ctx = create_ctx(vector_store, "resource")
     ctx.metadata["source"] = "unit"
-    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tag": "x"}), KnowledgeItem(raw_content=b"\xff", content_encoding="binary")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"test"), metadata={"tag": "x"}), KnowledgeItem(content=ByteContent.from_bytes(b"\xff", content_encoding="binary"))]
 
     result = await output.write(ctx)
     data = json.loads(path.read_text())
@@ -80,14 +80,14 @@ async def test_json_file_output(vector_store, tmp_path):
     assert data["items"][0]["content"] == "test"
     assert data["items"][0]["metadata"] == {"tag": "x"}
     assert data["items"][1]["content"] == "/w=="
-    assert data["items"][1]["content_encoding"] == "base64"
+    assert data["items"][1]["encoding"] == "base64"
 
 
 @pytest.mark.asyncio
 async def test_pickle_file_output(vector_store, tmp_path):
     path = tmp_path / "items.pkl"
     ctx = create_ctx(vector_store, "resource")
-    ctx.items = [KnowledgeItem(raw_content=b"\xff", content_encoding="binary")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"\xff", content_encoding="binary"))]
 
     result = await parse(str(path)).write(ctx)
     data = pickle.loads(path.read_bytes())
@@ -125,7 +125,7 @@ async def test_json_file_output_supports_fsspec_urls(vector_store):
 @pytest.mark.asyncio
 async def test_vector_store_output(vector_store):
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"embedding": [0.1] * 1536})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"test"), metadata={"embedding": [0.1] * 1536})]
 
     result = await VectorStoreOutput(store=vector_store).write(ctx)
 
@@ -136,7 +136,7 @@ async def test_vector_store_output(vector_store):
 @pytest.mark.asyncio
 async def test_markdown_dir_output_omits_page_marker_when_unpaginated(vector_store, tmp_path):
     ctx = create_ctx(vector_store, "resource")
-    ctx.items = [KnowledgeItem(raw_content=b"Title", metadata={"content_type": "text/plain"})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"Title", content_type="text/plain"))]
 
     result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
 
@@ -150,8 +150,8 @@ async def test_markdown_dir_output_omits_page_marker_when_unpaginated(vector_sto
 async def test_markdown_dir_output_keeps_natural_traversal_order_and_writes_sidecar(vector_store, tmp_path):
     ctx = create_ctx(vector_store, "resource")
     ctx.items = [
-        KnowledgeItem(raw_content=b"second", metadata={"content_type": "text/plain", "page": 2}),
-        KnowledgeItem(raw_content=b"first", metadata={"content_type": "text/plain", "page": 1}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"second", content_type="text/plain"), metadata={"page": 2}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"first", content_type="text/plain"), metadata={"page": 1}),
     ]
 
     result = await MarkdownDirOutput(str(tmp_path)).write(ctx)
@@ -171,8 +171,7 @@ async def test_markdown_dir_output_carries_caption_for_images(vector_store, tmp_
         "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
         "de0000000c4944415478da6360606060000000050001a5f645400000000049454e44ae426082"
     )
-    ctx.items = [KnowledgeItem(raw_content=png_1x1, metadata={
-        "content_type": "image/png",
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(png_1x1, content_type="image/png", content_encoding="binary"), metadata={
         "page": 1,
         "caption": "A red dot.",
     })]
@@ -192,7 +191,7 @@ async def test_markdown_dir_output_carries_caption_for_images(vector_store, tmp_
 async def test_graph_store_output(vector_store):
     store = InMemoryGraphStore()
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"test"), metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": []}
 
     result = await GraphStoreOutput(store=store).write(ctx)
@@ -205,7 +204,7 @@ async def test_graph_store_output(vector_store):
 async def test_graph_store_output_with_edges(vector_store):
     store = InMemoryGraphStore()
     ctx = create_ctx(vector_store, "")
-    ctx.items = [KnowledgeItem(raw_content=b"test", metadata={"tags": ["tag1"]})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"test"), metadata={"tags": ["tag1"]})]
     ctx.metadata["kg_data"] = {"nodes": [{"id": "n1"}], "edges": [{"source": "n1", "target": "n2"}]}
 
     result = await GraphStoreOutput(store=store).write(ctx)

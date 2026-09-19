@@ -32,15 +32,15 @@ async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
         "metadata": ctx.metadata,
         "items": [
             {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
-            | ({"text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} if text else {})
+            | ({"text": await item.content.decode(ctx) if (await item.content.content_type(ctx)).startswith("text/") else None} if text else {})
             for item in ctx.items
         ],
     }
 
 
 async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryContent:
-    content_type = await item.content_type(ctx)
-    return await item.decode(ctx) if content_type.startswith("text/") else BinaryContent(data=await item.content(ctx), media_type=content_type)
+    content_type = await item.content.content_type(ctx)
+    return await item.content.decode(ctx) if content_type.startswith("text/") else BinaryContent(data=await item.content.read(ctx), media_type=content_type)
 
 
 class ExtractAssertion(BaseModel):
@@ -234,9 +234,7 @@ class SpeechAgent(BaseModel, Step):
         for n, (item_doc, text) in enumerate(zip(selected, values, strict=True), 1):
             item = item_by_id[item_doc["id"]]
             audio = await tts_model(ByteContent.from_bytes(text.encode(), content_type="text/plain"), self.format)
-            item.raw_content = audio.raw_content
-            item.content_uri = None
-            item.metadata["content_type"] = self.format.mime_type
+            item.content = audio
             ctx.progress(n, len(selected), f"synthesized {n}/{len(selected)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"synthesized_count": len(selected), "format": self.format.value})

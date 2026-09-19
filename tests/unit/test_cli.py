@@ -19,7 +19,7 @@ def test_read_stdin(monkeypatch):
     resource = _read_stdin("notes.md")
 
     assert resource.uri == "notes.md"
-    assert resource.raw_content == b"stdin content"
+    assert resource.content.data == b"stdin content"
 
 
 def test_read_stdin_uses_virtual_uri_without_name(monkeypatch):

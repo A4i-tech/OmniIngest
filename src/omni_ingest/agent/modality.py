@@ -46,24 +46,15 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         for item in ctx.items:
-            await self.convert(ctx, item, item.source_uri or ctx.resource.uri)
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"content_types": [await item.content_type(ctx) for item in ctx.items]})
-
-
-    async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        text, metadata = await self.parse(ctx, obj, uri)
-        obj.metadata.update(metadata)
-        obj.metadata["content_type"] = "text/plain"
-        obj.raw_content = text.encode(self.encoding)
-        obj.content_uri = None
-        if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
-            raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
-        obj.content_encoding = self.encoding
+            text, metadata = await self.parse(ctx, item.content, item.source_uri or ctx.resource.uri)
+            item.content = ByteContent.from_bytes(text.encode(self.encoding), content_type="text/plain", content_encoding=self.encoding)
+            item.metadata.update(metadata)
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"content_types": [await item.content.content_type(ctx) for item in ctx.items]})
 
 
     async def parse(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> tuple[str, dict[str, Any]]:
         content_type = await obj.content_type(ctx)
-        stream = io.BytesIO(await obj.content(ctx))
+        stream = io.BytesIO(await obj.read(ctx))
         if content_type.startswith("audio/"):
             stt = ctx.stt_factory(self.stt_engine)
             content, metadata = await parse_audio(uri, stream, stt, lang=self.lang)

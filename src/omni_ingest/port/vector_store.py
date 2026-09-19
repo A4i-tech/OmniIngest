@@ -12,7 +12,7 @@ from pydantic import PositiveInt
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
 
-from ..core.model import KnowledgeItem
+from ..core.model import ByteContent, KnowledgeItem
 from ..core.protocol import VectorStore
 
 DOCUMENT_ID_FIELD = "id"
@@ -62,7 +62,7 @@ class LanceDBVectorStore(VectorStore):
                     {
                         "id": str(i.id),
                         "vector": emb,
-                        "content": await i.decode(ctx),
+                        "content": await i.content.decode(ctx),
                         "tenant_id": "" if i.tenant_id is None else str(i.tenant_id),
                         "source_uri": i.source_uri or "",
                         "metadata": json.dumps(i.metadata),
@@ -85,7 +85,7 @@ class LanceDBVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row["id"])),
-                    raw_content=str(row["content"] or "").encode(),
+                    content=ByteContent.from_bytes(str(row["content"] or "").encode(), content_type="text/plain"),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -159,7 +159,7 @@ class QdrantVectorStore(VectorStore):
                 id=str(i.id),
                 vector=i.metadata["embedding"],
                 payload={
-                    DOCUMENT_CONTENT_FIELD: await i.decode(ctx),
+                    DOCUMENT_CONTENT_FIELD: await i.content.decode(ctx),
                     DOCUMENT_TENANT_ID_FIELD: "" if i.tenant_id is None else str(i.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: i.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(i.metadata),
@@ -183,7 +183,7 @@ class QdrantVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(row.id)),
-                    raw_content=str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    content=ByteContent.from_bytes(str(row.payload.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(), content_type="text/plain"),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -245,7 +245,7 @@ class MongoVectorStore(VectorStore):
                     {
                         DOCUMENT_ID_FIELD: str(item.id),
                         DOCUMENT_VECTOR_FIELD: embedding,
-                        DOCUMENT_CONTENT_FIELD: await item.decode(ctx),
+                        DOCUMENT_CONTENT_FIELD: await item.content.decode(ctx),
                         DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                         DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                         DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -288,7 +288,7 @@ class MongoVectorStore(VectorStore):
             results.append(
                 KnowledgeItem(
                     id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                    raw_content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    content=ByteContent.from_bytes(str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(), content_type="text/plain"),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -341,7 +341,7 @@ class AzureVectorSearchStore(VectorStore):
                 {
                     DOCUMENT_ID_FIELD: str(item.id),
                     DOCUMENT_VECTOR_FIELD: embedding,
-                    DOCUMENT_CONTENT_FIELD: await item.decode(ctx),
+                    DOCUMENT_CONTENT_FIELD: await item.content.decode(ctx),
                     DOCUMENT_TENANT_ID_FIELD: "" if item.tenant_id is None else str(item.tenant_id),
                     DOCUMENT_SOURCE_URI_FIELD: item.source_uri or "",
                     DOCUMENT_METADATA_FIELD: json.dumps(item.metadata),
@@ -385,7 +385,7 @@ class AzureVectorSearchStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(document[DOCUMENT_ID_FIELD])),
-                    raw_content=str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(),
+                    content=ByteContent.from_bytes(str(document.get(DOCUMENT_CONTENT_FIELD, "") or "").encode(), content_type="text/plain"),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(metadata) if isinstance(metadata, str) else dict(metadata),
@@ -438,7 +438,7 @@ class ChromaVectorStore(VectorStore):
             if embedding is None:
                 continue
             ids.append(str(item.id))
-            documents.append(await item.decode(ctx))
+            documents.append(await item.content.decode(ctx))
             embeddings.append(embedding)
             metadatas.append(
                 {
@@ -469,7 +469,7 @@ class ChromaVectorStore(VectorStore):
             items.append(
                 KnowledgeItem(
                     id=UUID(str(item_id)),
-                    raw_content=str(content or "").encode(),
+                    content=ByteContent.from_bytes(str(content or "").encode(), content_type="text/plain"),
                     tenant_id=None if not tenant_value else UUID(str(tenant_value)),
                     source_uri=None if not source_uri else str(source_uri),
                     metadata=json.loads(raw_metadata) if isinstance(raw_metadata, str) else dict(raw_metadata),
