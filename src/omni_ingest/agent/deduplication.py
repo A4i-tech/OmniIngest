@@ -114,13 +114,13 @@ class NormalizedTextHashDeduplicationStrategy(ScopedDeduplicationStrategy):
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
         seen_hashes = {
-            _normalized_text_hash(await item.decode(ctx), cast(str | None, item.metadata.get(_NORMALIZED_TEXT_HASH_KEY)))
+            _normalized_text_hash(await item.content.decode(ctx), cast(str | None, item.metadata.get(_NORMALIZED_TEXT_HASH_KEY)))
             for item in await self._existing_items(ctx)
         }
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            normalized_hash = _normalized_text_hash(await item.decode(ctx))
+            normalized_hash = _normalized_text_hash(await item.content.decode(ctx))
             item.metadata[_NORMALIZED_TEXT_HASH_KEY] = normalized_hash
             if normalized_hash in seen_hashes:
                 continue
@@ -144,11 +144,11 @@ class ShingleJaccardDeduplicationStrategy(ScopedDeduplicationStrategy):
     shingle_size: PositiveInt = Field(default=3, description="Token shingle size used for near-duplicate detection")
 
     async def deduplicate(self, items: list[KnowledgeItem], ctx: IngestionContext[Any]) -> DeduplicationResult:
-        seen_shingles = [_shingles(await item.decode(ctx), self.shingle_size) for item in await self._existing_items(ctx)]
+        seen_shingles = [_shingles(await item.content.decode(ctx), self.shingle_size) for item in await self._existing_items(ctx)]
         kept_items: list[KnowledgeItem] = []
 
         for item in items:
-            item_shingles = _shingles(await item.decode(ctx), self.shingle_size)
+            item_shingles = _shingles(await item.content.decode(ctx), self.shingle_size)
             item.metadata[_SHINGLE_SIZE_KEY] = self.shingle_size
             if any(_jaccard_similarity(item_shingles, existing) >= self.threshold for existing in seen_shingles):
                 continue
@@ -171,7 +171,7 @@ DeduplicationStrategyConfig: TypeAlias = Annotated[
 
 
 async def _item_document(items: list[KnowledgeItem], ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
-    return {"items": [{"id": str(item.id), "tenant_id": str(ctx.tenant_id), "source_uri": item.source_uri or ctx.resource.uri, "metadata": item.metadata, "text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} for item in items]}
+    return {"items": [{"id": str(item.id), "tenant_id": str(ctx.tenant_id), "source_uri": item.source_uri or ctx.resource.uri, "metadata": item.metadata, "text": await item.content.decode(ctx) if (await item.content.content_type(ctx)).startswith("text/") else None} for item in items]}
 
 
 def _normalize_text(text: str) -> str:

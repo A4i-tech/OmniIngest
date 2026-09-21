@@ -1,23 +1,24 @@
 """Resource readers for turning local or remote inputs into resolved content."""
 
 import asyncio
+import csv
 import io
-import json
 import re
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, BinaryIO, Literal
+from typing import Any, BinaryIO
 
-import azure.cognitiveservices.speech as speechsdk
 import fsspec  # type: ignore[import-untyped]
+import magic
+import openpyxl
 from docx import Document
 from pypdf import PdfReader
 
-from .core.config import settings
-from .core.model import ResolvedResource
+from .core.model import ByteContent, ResolvedResource
+from .core.speech import Stt
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -45,7 +46,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 async def _parse_resource(fs: Any, path: str) -> ResolvedResource:
     with fs.open(path, "rb") as stream:
-        return ResolvedResource(uri=path, raw_content=stream.read())
+        return ResolvedResource(uri=path, content=ByteContent.from_bytes(stream.read()))
 
 
 async def read_resources(path: str, parse_limit: int | None = None, headers: dict[str, str] | None = None, **kwargs):
@@ -56,7 +57,7 @@ async def read_resources(path: str, parse_limit: int | None = None, headers: dic
 
     if parse_limit is not None and len(paths) > parse_limit:
         for path in paths[parse_limit:]:
-            yield ResolvedResource(uri=path, raw_content=b"")
+            yield ResolvedResource(uri=path, content=ByteContent.from_bytes(b""))
 
 
 @asynccontextmanager
@@ -86,63 +87,9 @@ async def as_wav(path: str, stream: BinaryIO):
             yield tmp_dst.name
 
 
-async def parse_audio(path: str, stream: BinaryIO, *, src: str | None = None) -> tuple[str, dict[str, Any]]:
-    key = settings.azure_speech_key.get_secret_value() if settings.azure_speech_key else None
-    region = settings.azure_speech_region
-    if not key or not region:
-        raise RuntimeError("Azure Speech credentials missing")
-
-    loop = asyncio.get_running_loop()
-    done, transcript, words = asyncio.Future[Literal[True]](), [], []
-
-    def finish(error: RuntimeError | None = None):
-        if done.done():
-            return
-        if error:
-            done.set_exception(error)
-        else:
-            done.set_result(True)
-
-    def handle_final(evt):
-        nonlocal transcript, words
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            transcript.append(evt.result.text)
-            obj = json.loads(evt.result.json)
-            if "NBest" in obj and obj["NBest"]:
-                words.extend(obj["NBest"][0].get("Words", []))
-
-    def stop_cb(evt):
-        loop.call_soon_threadsafe(finish)
-
-    def cancel_cb(evt):
-        if evt.result and evt.result.cancellation_details and evt.result.cancellation_details.reason != speechsdk.CancellationReason.EndOfStream:
-            cancellation = evt.result.cancellation_details
-            details = cancellation.error_details if cancellation.error_details else str(cancellation.reason)
-            loop.call_soon_threadsafe(finish, RuntimeError(details))
-        else:
-            loop.call_soon_threadsafe(finish)
-
+async def parse_audio(path: str, stream: BinaryIO, stt: Stt, *, lang: str | None = None) -> tuple[str, dict[str, Any]]:
     async with as_wav(path, stream) as wav_path:
-        audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
-
-        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-        speech_config.set_property(speechsdk.PropertyId.SpeechServiceResponse_RequestWordLevelTimestamps, "true")
-        if src:
-            speech_config.speech_recognition_language = src
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-
-        recognizer.recognized.connect(handle_final)
-        recognizer.session_stopped.connect(stop_cb)
-        recognizer.canceled.connect(cancel_cb)
-
-        recognizer.start_continuous_recognition()
-        try:
-            await done
-        finally:
-            recognizer.stop_continuous_recognition()
-
-    full_text = " ".join(transcript)
-    return full_text, {"text_len": len(full_text), "word_count": len(words), "word_timestamps": words}
+        return await stt(wav_path, lang)
 
 
 async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: bool = True, normalize_whitespace: bool = True) -> tuple[str, dict[str, Any]]:
@@ -160,13 +107,45 @@ async def parse_text(stream: BinaryIO, *, encoding: str = "utf-8", strip_html: b
     return content, {"original_length": len(content), "parsed_length": len(content)}
 
 
-async def parse_document(stream: BinaryIO, *, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
+async def parse_document(stream: BinaryIO, *, content_type: str | None = None, encoding: str = "utf-8") -> tuple[str, dict[str, Any]]:
     content = stream.read()
     if content.startswith(b"%PDF"):
         return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(content)).pages), {}
-    if content.startswith(b"PK\x03\x04"):
+    content_type = content_type or magic.from_buffer(content, mime=True)
+    if content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        return _parse_xlsx(content)
+    if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs), {}
     return content.decode(encoding), {}
+
+
+def _parse_xlsx(content: bytes) -> tuple[str, dict[str, Any]]:
+    workbook = openpyxl.load_workbook(io.BytesIO(content))
+    sheets: dict[str, list[dict[str, Any]]] = {}
+    csv_parts: list[str] = []
+
+    for sheet_name in workbook.sheetnames:
+        ws = workbook[sheet_name]
+        merge_fill = {
+            (row, col): ws.cell(row=merged.min_row, column=merged.min_col).value
+            for merged in ws.merged_cells.ranges
+            for row in range(merged.min_row, merged.max_row + 1)
+            for col in range(merged.min_col, merged.max_col + 1)
+        }
+
+        rows = [[merge_fill.get((r, c), v) for c, v in enumerate(row, ws.min_column)] for r, row in enumerate(ws.iter_rows(values_only=True), ws.min_row)]
+        if not rows:
+            sheets[sheet_name] = []
+            continue
+
+        headers = [str(h) if h is not None else "" for h in rows[0]]
+        buf = io.StringIO()
+        csv.writer(buf).writerows([headers, *(["" if v is None else v for v in row] for row in rows[1:])])
+
+        csv_parts.append(f"# {sheet_name}\n{buf.getvalue().strip()}")
+        sheets[sheet_name] = [dict(zip(headers, row, strict=True)) for row in rows[1:]]
+
+    return "\n\n".join(csv_parts), {"sheets": sheets}
 
 
 async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[str, ...] | None = None) -> tuple[str, dict[str, Any]]:

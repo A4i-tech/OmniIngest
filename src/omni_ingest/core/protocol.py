@@ -42,10 +42,10 @@ class Translator(Protocol):
 class ContentResolver(Protocol):
     """Resolve virtual content URIs into bytes during ingestion.
 
-    `ByteContent.content(ctx)` delegates to `ctx.content_resolver` whenever an
-    item has `content_uri` instead of inline `raw_content`. Implementations can
-    use full ingestion context to resolve routes against source resources,
-    object stores, caches, or other pipeline-scoped state.
+    `ByteContent.read(ctx)` delegates to `ctx.content_resolver` whenever an
+    item has `uri` instead of inline `data`. Implementations can use full
+    ingestion context to resolve routes against source resources, object
+    stores, caches, or other pipeline-scoped state.
     """
 
     async def resolve(self, uri: str, ctx: IngestionContext[ResolvedResource]) -> bytes:

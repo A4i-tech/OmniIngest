@@ -9,10 +9,13 @@ import pickle
 import sys
 from abc import ABC, abstractmethod
 from base64 import b64encode
+from hashlib import md5
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
+import pymupdf
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
@@ -25,21 +28,21 @@ if TYPE_CHECKING:
 
 
 async def _json_dump_content(obj: ByteContent, ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
-    data = obj.model_dump(mode="json", exclude={"raw_content"})
-    content = await obj.content(ctx)
+    data = obj.model_dump(mode="json", exclude={"data"})
+    content = await obj.read(ctx)
     try:
-        data["content"] = content.decode(obj.content_encoding)
+        data["content"] = content.decode(obj.encoding)
     except (LookupError, UnicodeDecodeError):
         data["content"] = b64encode(content).decode("ascii")
-        data["content_encoding"] = "base64"
+        data["encoding"] = "base64"
     return data
 
 
 async def json_dump_context(ctx: IngestionContext[ResolvedResource]) -> dict[str, Any]:
     return {
-        "resource": await _json_dump_content(ctx.resource, ctx),
+        "resource": {**await _json_dump_content(ctx.resource.content, ctx), **ctx.resource.model_dump(mode="json", exclude={"content"})},
         "metadata": ctx.metadata,
-        "items": [await _json_dump_content(item, ctx) for item in ctx.items],
+        "items": [{**await _json_dump_content(item.content, ctx), **item.model_dump(mode="json", exclude={"content"})} for item in ctx.items],
     }
 
 
@@ -111,7 +114,7 @@ class BrfFileOutput(FileOutput):
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         import louis
-        texts = [(await item.content(ctx)).decode(item.content_encoding) for ctx in ctxs for item in ctx.items]
+        texts = [(await item.content.read(ctx)).decode(item.content.encoding) for ctx in ctxs for item in ctx.items]
         braille = "\n".join(str(louis.translateString(list(self.tables), text)) for text in texts)
         await asyncio.to_thread(self._write, braille, mode="wt")
         return OutputResult(status=StepStatus.SUCCESS, output_paths={"brf": self.path})
@@ -122,9 +125,9 @@ class PickleFileOutput(FileOutput):
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
         runs: list[dict[str, Any]] = [{
-            "resource": {**ctx.resource.model_dump(mode="python", exclude={"raw_content"}), "content": await ctx.resource.content(ctx)},
+            "resource": {**ctx.resource.content.model_dump(mode="python", exclude={"data"}), **ctx.resource.model_dump(mode="python", exclude={"content"}), "content": await ctx.resource.content.read(ctx)},
             "metadata": ctx.metadata,
-            "items": [{**item.model_dump(mode="python", exclude={"raw_content"}), "content": await item.content(ctx)} for item in ctx.items],
+            "items": [{**item.content.model_dump(mode="python", exclude={"data"}), **item.model_dump(mode="python", exclude={"content"}), "content": await item.content.read(ctx)} for item in ctx.items],
         } for ctx in ctxs]
         data = runs[0] if len(runs) == 1 else {"runs": runs}
         await asyncio.to_thread(self._write, pickle.dumps(data), mode="wb")
@@ -132,6 +135,77 @@ class PickleFileOutput(FileOutput):
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
         return await self.write_many([ctx])
+
+
+class MarkdownDirOutput(FileOutput):
+    """Writes Markdown to the supplied folder, as `doc.md`. Images go to an
+    `out/` subfolder and are referenced from the Markdown. Also writes
+    `doc_metadata.json` with page and image metadata.
+    """
+
+    def __init__(self, path: str) -> None:
+        super().__init__(path)
+        self.dir = Path(path)
+
+    def _write_sibling(self, filename: str, data: str | bytes, mode: str) -> str:
+        target = str(self.dir / filename)
+        with fsspec.open(target, mode, auto_mkdir=True) as f:
+            f.write(data)
+        return target
+
+    async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
+        return await self.write_many([ctx])
+
+    async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
+        if not ctxs:
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+        entries = [(ctx, item) for ctx in ctxs for item in ctx.items]
+
+        md: list[str] = []
+        images: list[dict[str, Any]] = []
+        last_page: Any = object()
+
+        for ctx, item in entries:
+            page = item.metadata.get("page")
+            content_type = await item.content.content_type(ctx)
+
+            if page is not None and page != last_page:
+                md.append(f"<!-- page {page} -->")
+                last_page = page
+
+            if content_type.startswith("image/"):
+                raw = await item.content.read(ctx)
+                try:
+                    data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
+                except Exception:
+                    data, ext = raw, content_type.split("/", 1)[-1]
+                filename = str(Path("out") / f"{md5(data).hexdigest()}.{ext}")
+                await asyncio.to_thread(self._write_sibling, filename, data, "wb")
+                caption = item.metadata.get("caption")
+                md.append(f"![{caption or ''}]({filename})")
+                images.append({"file": filename, "page": page, "caption": caption})
+            elif content_type.startswith("text/"):
+                text = (await item.content.decode(ctx)).strip()
+                if text:
+                    md.append(text)
+
+        runs = [{
+            "file_name": ctx.resource.uri,
+            **{k: v for k, v in ctx.metadata.items() if k not in {"file_name"}},
+        } for ctx in ctxs]
+        sidecar = {
+            "item_count": len(entries),
+            "images": images,
+            **(runs[0] if len(runs) == 1 else {"runs": runs}),
+        }
+
+        paths = {
+            "md": await asyncio.to_thread(self._write_sibling, "doc.md", "\n\n".join(md) + "\n", "wt"),
+            "metadata": await asyncio.to_thread(self._write_sibling, "doc_metadata.json", json.dumps(sidecar, ensure_ascii=False, indent=1), "wt"),
+        }
+        return OutputResult(status=StepStatus.SUCCESS, output_paths=paths,
+                            metadata={"items": len(entries), "images": len(images)})
 
 
 class StdoutOutput(Output):
@@ -187,7 +261,7 @@ class VectorStoreOutput(Output):
                         domain_profile=ctx.domain_profile,
                         modality="text",
                         source_uri=item.source_uri or ctx.resource.uri,
-                        content=await item.content(ctx),
+                        content=await item.content.read(ctx),
                         metadata=metadata,
                     )
 
@@ -241,7 +315,7 @@ class MongoDocumentOutput(Output):
         ops = [
             self._ReplaceOne(
                 {"_id": str(item.id)},
-                {"_id": str(item.id), "source_uri": item.source_uri, "content": await item.decode(ctx), "metadata": item.metadata},
+                {"_id": str(item.id), "source_uri": item.source_uri, "content": await item.content.decode(ctx), "metadata": item.metadata},
                 upsert=True,
             )
             for item in ctx.items
@@ -296,6 +370,8 @@ def parse(value: str, format: str | None = None) -> Output:
         return StdoutOutput() if value == "-" else JsonFileOutput(value)
     if format == "pkl":
         return PickleFileOutput(value)
+    if format in {"md", "markdown"}:
+        return MarkdownDirOutput(value)
     if format == "brf":
         return BrfFileOutput(value)
     raise ValueError(f"Unsupported output format: {format}")

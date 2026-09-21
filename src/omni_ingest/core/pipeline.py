@@ -32,12 +32,12 @@ from ..core.config import settings
 from ..parser import read_resources
 from ..port.content import default_content_resolver
 from ..port.ocr import default_factory as default_ocr_factory
-from ..port.tts import default_factory as default_speech_factory
+from ..port.speech import default_stt_factory, default_tts_factory
 from .model import KnowledgeItem, PipelineCheckpoint, PipelineConfig, ResolvedResource, Resource, Step, StepConfig, StepResult, StepStatus, ValidationCheck, ValidationMode
 from .ocr import OcrFactory
 from .output import Output, OutputResult
 from .protocol import ContentResolver, MetadataStore, VectorStore
-from .tts import SpeechFactory
+from .speech import SttFactory, TTSFactory
 
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
@@ -75,8 +75,11 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     ocr_factory: OcrFactory = field(default_factory=default_ocr_factory)
     """OCR factory to vend OCR engines from"""
 
-    speech_factory: SpeechFactory = field(default_factory=default_speech_factory)
-    """Speech factory to vend speech synthesis engines from"""
+    stt_factory: SttFactory = field(default_factory=default_stt_factory)
+    """STT factory to vend speech-to-text engines from"""
+
+    tts_factory: TTSFactory = field(default_factory=default_tts_factory)
+    """TTS factory to vend text-to-speech engines from"""
 
     run_id: UUID = field(default_factory=uuid4)
     """Unique identifier for the current pipeline run"""
@@ -167,7 +170,7 @@ class PipelineRunner:
 
         ctx = await self._resolve_resource_single(ctx)
         if not ctx.items:
-            ctx.items = [KnowledgeItem(raw_content=ctx.resource.raw_content, content_uri=ctx.resource.content_uri, content_encoding=ctx.resource.content_encoding, metadata=ctx.resource.metadata.copy(), tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)]
+            ctx.items = [KnowledgeItem(content=ctx.resource.content.model_copy(deep=True), tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)]
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
         await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, 0))
         return await self._execute(ctx, output, 0)
@@ -285,7 +288,7 @@ class PipelineRunner:
             "items": [{"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata} for item in ctx.items],
         }
         if result is not None:
-            doc["result"] = result.model_dump(mode="json", exclude={"items": {"__all__": {"raw_content"}}})
+            doc["result"] = result.model_dump(mode="json", exclude={"items": {"__all__": {"content"}}})
         for check in validation:
             if check.mode not in modes:
                 continue

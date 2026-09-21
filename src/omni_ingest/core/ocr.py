@@ -26,7 +26,7 @@ class OcrOutputFormat(StrEnum):
     # because making this a proper extendable reegistry confuses the implementation boundry
     # a bit. In future, each output format must also have their own post-validator function.
 
-    HTML = "html", "Standalone HTML", "text/html"
+    HTML = "html", "Standalone HTML beginning with <!DOCTYPE html>", "text/html"
     JSON = "json", "JSON", "application/json"
     MARKDOWN = "markdown", "Markdown", "text/markdown"
     TEXT = "text", "plain text", "text/plain"
@@ -71,7 +71,7 @@ def simple(mapping: dict[str, OcrBuilder]) -> OcrFactory:
         def llm_ocr_builder(params: OcrBuilderParams) -> Ocr:
             async def ocr(items):
                 async for item in items:
-                    data = await item.decode(ctx)
+                    data = await item.decode(params.ctx)
                     ocr = await llm("Transcribe to markdown", data)
                     yield item, ByteContent.from_bytes(ocr.encode("utf-8"), "text/markdown")
             return ocr

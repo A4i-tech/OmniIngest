@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, ResolvedResource, StepStatus
 from omni_ingest.core.output import VectorStoreOutput
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter, PipelineRunner, create_pipeline_from_config
 
@@ -43,7 +43,7 @@ async def test_education_v2_pipeline(metadata_store, tenant, profiles_dir):
         tenant_id=tenant.id,
         store=metadata_store,
         domain_profile="education",
-        resource=ResolvedResource(uri="", raw_content=b"Students will learn the advanced concepts of Physics."),
+        resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"Students will learn the advanced concepts of Physics.")),
     )
 
     results = await runner.run(ctx)
@@ -64,7 +64,7 @@ async def test_audio_v2_pipeline(metadata_store, tenant, profiles_dir, resources
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
     assert ctx.metadata["transcript"].strip()
     assert ctx.items
-    texts = [await item.decode(ctx) for item in ctx.items]
+    texts = [await item.content.decode(ctx) for item in ctx.items]
     assert all(text.strip() for text in texts)
 
 
@@ -79,7 +79,7 @@ async def test_audio_translation_v2_pipeline(metadata_store, tenant, profiles_di
             tenant_id=tenant.id,
             store=metadata_store,
             domain_profile="accessibility",
-            resource=ResolvedResource(uri=str(audio_path), raw_content=stream.read()),
+            resource=ResolvedResource(uri=str(audio_path), content=ByteContent.from_bytes(stream.read())),
         )
 
     results = await runner.run(ctx)
@@ -91,7 +91,7 @@ async def test_audio_translation_v2_pipeline(metadata_store, tenant, profiles_di
 async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "governance_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"Audit this file for compliance."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"Audit this file for compliance.")))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
@@ -103,7 +103,7 @@ async def test_governance_v1_pipeline(metadata_store, tenant, profiles_dir):
 async def test_health_v1_pipeline(metadata_store, tenant, profiles_dir):
     path = profiles_dir / "health_v1.yaml"
     runner = create_pipeline_from_config(path)
-    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"The patient was diagnosed with type 2 diabetes."))
+    ctx = IngestionContext(tenant_id=tenant.id, store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"The patient was diagnosed with type 2 diabetes.")))
 
     results = await runner.run(ctx)
     assert results[-1].status == StepStatus.SUCCESS, f"Pipeline failed: {results[-1].error}"
@@ -138,26 +138,26 @@ async def test_semantic_ingestion_and_search(tmp_path, metadata_store, vector_st
 
     adapter = KnowledgeBaseAdapter(metadata_store=metadata_store, vector_store=vector_store)
 
-    query_ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
+    query_ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
     results = await adapter.query_text(tenant_id=tid, query="what color are blueberries", k=3)
     assert len(results) > 0
-    assert any(["blueberries" in (await r.decode(query_ctx)).lower() for r in results])
-    assert not any(["jaipur" in (await r.decode(query_ctx)).lower() for r in results])
+    assert any(["blueberries" in (await r.content.decode(query_ctx)).lower() for r in results])
+    assert not any(["jaipur" in (await r.content.decode(query_ctx)).lower() for r in results])
 
     results_j = await adapter.query_text(tenant_id=tid, query="Jaipur Protocol", k=3)
     assert len(results_j) > 0
-    assert any(["jaipur" in (await r.decode(query_ctx)).lower() for r in results_j])
-    assert not any(["blueberries" in (await r.decode(query_ctx)).lower() for r in results_j])
+    assert any(["jaipur" in (await r.content.decode(query_ctx)).lower() for r in results_j])
+    assert not any(["blueberries" in (await r.content.decode(query_ctx)).lower() for r in results_j])
 
 
 @pytest.mark.asyncio
 async def test_image_to_text_pipeline(metadata_store, resources_dir):
     image_path = resources_dir / "supermarket-shelf.webp"
-    ctx = IngestionContext(resource=ResolvedResource(uri=str(image_path), raw_content=image_path.read_bytes()), store=metadata_store)
+    ctx = IngestionContext(resource=ResolvedResource(uri=str(image_path), content=ByteContent.from_bytes(image_path.read_bytes())), store=metadata_store)
 
     result = (await PipelineRunner([TextAgent()]).run(ctx))[0]
     assert result.status == StepStatus.SUCCESS, f"Pipeline failed: {result.error}"
 
-    text = (await ctx.items[0].decode(ctx)).lower()
+    text = (await ctx.items[0].content.decode(ctx)).lower()
     assert ctx.items[0].metadata["selected_parser"] == "image"
     assert any(word in text for word in ["shelf", "store", "supermarket", "product", "package"])

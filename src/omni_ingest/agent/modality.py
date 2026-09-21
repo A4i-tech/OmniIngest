@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 from pydantic_ai import BinaryContent
 
+from ..core.config import settings
+
 if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
@@ -30,6 +32,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
     encoding: str = Field(default="utf-8", description="Encoding used for decoded text bytes")
 
+    stt_engine: str = Field(default=settings.default_stt_model, description="Speech-to-text engine name")
     lang: str | None = Field(default=None, description="Source spoken language for audio (e.g. 'en-US'), or None to auto-detect")
 
     image_conversion_prompt: str = Field(default=(
@@ -43,26 +46,18 @@ class TextAgent(BaseModel, Step, AgentMixin):
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         for item in ctx.items:
-            await self.convert(ctx, item, item.source_uri or ctx.resource.uri)
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"content_types": [await item.content_type(ctx) for item in ctx.items]})
-
-
-    async def convert(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> None:
-        text, metadata = await self.parse(ctx, obj, uri)
-        obj.metadata.update(metadata)
-        obj.metadata["content_type"] = "text/plain"
-        obj.raw_content = text.encode(self.encoding)
-        obj.content_uri = None
-        if not (ct := await obj.content_type(ctx)).startswith("text/") and ct != "application/x-empty":
-            raise ValueError(f"Could not transform content to text, resulting content-type was {ct}")
-        obj.content_encoding = self.encoding
+            text, metadata = await self.parse(ctx, item.content, item.source_uri or ctx.resource.uri)
+            item.content = ByteContent.from_bytes(text.encode(self.encoding), content_type="text/plain", content_encoding=self.encoding)
+            item.metadata.update(metadata)
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"content_types": [await item.content.content_type(ctx) for item in ctx.items]})
 
 
     async def parse(self, ctx: IngestionContext[ResolvedResource], obj: ByteContent, uri: str) -> tuple[str, dict[str, Any]]:
         content_type = await obj.content_type(ctx)
-        stream = io.BytesIO(await obj.content(ctx))
+        stream = io.BytesIO(await obj.read(ctx))
         if content_type.startswith("audio/"):
-            content, metadata = await parse_audio(uri, stream, src=self.lang)
+            stt = ctx.stt_factory(self.stt_engine)
+            content, metadata = await parse_audio(uri, stream, stt, lang=self.lang)
             metadata["selected_parser"] = "audio"
             return content, metadata
         if content_type == "text/plain" and uri.split("?")[0].lower().endswith(".brf"):
@@ -74,7 +69,7 @@ class TextAgent(BaseModel, Step, AgentMixin):
             metadata["selected_parser"] = "text"
             return content, metadata
         if content_type.startswith("application/"):
-            content, metadata = await parse_document(stream, encoding=self.encoding)
+            content, metadata = await parse_document(stream, content_type=content_type, encoding=self.encoding)
             metadata["selected_parser"] = "document"
             return content, metadata
         if content_type.startswith("image/"):

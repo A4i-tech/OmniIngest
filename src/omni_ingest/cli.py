@@ -17,7 +17,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings
 
 from omni_ingest.core import event  # noqa: E402
-from omni_ingest.core.model import PipelineConfig, ResolvedResource, Resource, StepStatus  # noqa: E402
+from omni_ingest.core.model import ByteContent, PipelineConfig, ResolvedResource, Resource, StepStatus  # noqa: E402
 from omni_ingest.core.output import parse as parse_output  # noqa: E402
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id  # noqa: E402
 
@@ -39,7 +39,7 @@ def _parse_args() -> argparse.Namespace:
     source.add_argument("--resume", nargs="+", type=UUID, help="Pipeline run ID to resume")
     parser.add_argument("--input-name", help="Filename hint for stdin input")
     parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
-    parser.add_argument("--format", choices=["brf", "json", "pkl"], help="Output format, overrides filename extension")
+    parser.add_argument("--format", choices=["brf", "json", "md", "pkl"], help="Output format, overrides filename extension")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
     for name, schema in properties.items():
         value_type = schema.get("type", "VALUE")
@@ -63,7 +63,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _read_stdin(name: str | None) -> ResolvedResource:
-    return ResolvedResource(uri=name or "stdin://", raw_content=sys.stdin.buffer.read())
+    return ResolvedResource(uri=name or "stdin://", content=ByteContent.from_bytes(sys.stdin.buffer.read()))
 
 
 async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]], summary: TaskID) -> None:
