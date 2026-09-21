@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.config import settings
-from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from ..core.ocr import OcrBuilderParams, OcrOutputFormat
 
 
@@ -52,7 +52,7 @@ class ImageExtractionAgent(BaseModel, Step):
 
         sem, extracted = asyncio.Semaphore(self.workers), []
         ctx.progress(0, len(parents), "extracting images")
-        pdf_parents = [(parent, await parent.content(ctx)) for parent in parents if await parent.content_type(ctx) == "application/pdf"]
+        pdf_parents = [(parent, await parent.content.read(ctx)) for parent in parents if await parent.content.content_type(ctx) == "application/pdf"]
         for i, task in enumerate(asyncio.as_completed([self._extract(parent, content, sem) for parent, content in pdf_parents]), 1):
             extracted.extend(await task)
             ctx.progress(i, len(parents), f"extracted {i}/{len(parents)}")
@@ -95,15 +95,14 @@ class ImageExtractionAgent(BaseModel, Step):
                     elif self.mode == "caption":
                         page.insert_text((rect.x0, rect.y1 + 7), marker, fontsize=6)
 
-                    metadata = {"kind": "image", "parent_id": str(parent.id), "page": page_number, "bbox": [round(value, 3) for value in rect], "content_type": "image/png"}
-                    extracted.append(KnowledgeItem(id=id, raw_content=content, content_encoding="binary", tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
+                    metadata = {"kind": "image", "parent_id": str(parent.id), "page": page_number, "bbox": [round(value, 3) for value in rect]}
+                    extracted.append(KnowledgeItem(id=id, content=ByteContent.from_bytes(content, content_type="image/png", content_encoding="binary"), tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
 
                 if self.mode == "redact":
                     page.apply_redactions()
 
             if self.mode != "preserve":
-                parent.raw_content = pdf.tobytes(deflate=True)
-                parent.content_uri = None
+                parent.content = ByteContent.from_bytes(pdf.tobytes(deflate=True), content_type="application/pdf", content_encoding=parent.content.encoding)
 
         return extracted
 
@@ -133,12 +132,12 @@ class RasterizeAgent(BaseModel, Step):
                 raise ValueError("RasterizeAgent input must resolve to known item ids")
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
-        if any([await item.content_type(ctx) != "application/pdf" for item in items]):
+        if any([await item.content.content_type(ctx) != "application/pdf" for item in items]):
             raise ValueError("RasterizeAgent only supports application/pdf items")
 
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "rasterizing PDFs")
-        tasks = [self._rasterize(item, await item.content(ctx), sem) for item in items]
+        tasks = [self._rasterize(item, await item.content.read(ctx), sem) for item in items]
         for i, task in enumerate(asyncio.as_completed(tasks), 1):
             await task
             ctx.progress(i, len(items), f"rasterized {i}/{len(items)}")
@@ -154,8 +153,7 @@ class RasterizeAgent(BaseModel, Step):
             for page in source:
                 target = output.new_page(width=page.rect.width, height=page.rect.height)
                 target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
-            item.raw_content = output.tobytes(deflate=True)
-            item.content_uri = None
+            item.content = ByteContent.from_bytes(output.tobytes(deflate=True), content_type="application/pdf", content_encoding=item.content.encoding)
 
 
 class OcrAgent(BaseModel, Step):
@@ -185,19 +183,19 @@ class OcrAgent(BaseModel, Step):
         ctx.progress(0, len(items), "extracting text")
         ocr = ctx.ocr_factory(self.engine, OcrBuilderParams(ctx=ctx, format=self.format, concurrency=self.concurrency, src_lang=self.src_lang, dst_lang=self.dst_lang))
 
-        async def aitems() -> AsyncIterator[KnowledgeItem]:
+        item_by_content_id = {id(item.content): item for item in items}
+
+        async def contents() -> AsyncIterator[ByteContent]:
             for item in items:
-                yield item
+                yield item.content
 
         n = 0
-        async for original, changed in ocr(aitems()):
-            if changed is original:  # 'is' is the right way to test for identical
+        async for source, changed in ocr(contents()):
+            if changed is source:  # 'is' is the right way to test for identical
                 continue
 
-            original.raw_content = await changed.content(ctx)
-            original.content_uri = None
-            original.content_encoding = changed.content_encoding
-            original.metadata["content_type"] = await changed.content_type(ctx)
+            original = item_by_content_id[id(source)]
+            original.content = changed
 
             n += 1
             ctx.progress(n, len(items), f"extracted {n}/{len(items)}")

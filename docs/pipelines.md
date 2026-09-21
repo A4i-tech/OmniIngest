@@ -499,11 +499,11 @@ steps:
     config:
       foreach: ".metadata.chapter_pages[]"
       input: ".item_ids"
-      metadata: "{chapter: .chapter, title: .title, content_type: \"application/pdf\"}"
+      metadata: "{chapter: .chapter, title: .title}"
       replace: true
 ```
 
-`mode: pdf` does not copy page bytes into every item. It emits virtual page items with `content_uri` like `omni-ingest://resource/pages/7`. Actual one-page PDF bytes are materialised only when a later step calls `await item.content(ctx)`. That keeps memory sane for fat textbooks.
+`mode: pdf` does not copy page bytes into every item. It emits virtual page content with a URI like `omni-ingest://resource/pages/7`. Actual one-page PDF bytes are materialised only when a later step calls `await item.content.read(ctx)`. That keeps memory sane for fat textbooks.
 
 !!! note
     `page_stitching` can replace page items with stitched chapter PDFs. Leave `replace: true` when you only care about chapters. Set it false only if downstream work needs both pages and stitched outputs.

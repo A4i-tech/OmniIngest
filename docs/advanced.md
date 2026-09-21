@@ -252,13 +252,14 @@ Provider package and credentials must be installed for every model named by pipe
 
 ## Virtual items
 
-A normal knowledge item carries bytes in `raw_content`. A virtual item carries a `content_uri` instead. Its `raw_content` stays empty until something needs actual bytes.
+A knowledge item contains a `ByteContent`. The byte content can hold inline bytes or a virtual content URI. It keeps `content_type` in its internal metadata.
 
 ```python
 KnowledgeItem(
-    raw_content=b"",
-    content_uri="omni-ingest://resource/pages/7,8,9,10",
-    metadata={"content_type": "application/pdf"},
+    content=ByteContent.from_uri(
+        "omni-ingest://resource/pages/7,8,9,10",
+        content_type="application/pdf",
+    ),
 )
 ```
 
@@ -267,10 +268,10 @@ URI describes how content can be rebuilt. It is not final output path and does n
 Consumers use same API for inline and virtual items:
 
 ```python
-content = await item.content(ctx)
+content = await item.content.read(ctx)
 ```
 
-`ByteContent.content(ctx)` returns `raw_content` for ordinary items. For virtual items it passes URI to context's `ContentResolver`. This keeps virtual routing out of agents which read content. Extractor, rasteriser, and output writer need not branch on item type.
+`ByteContent.read(ctx)` returns inline bytes or passes the URI to the context's `ContentResolver`. This keeps virtual routing out of agents that read content. Extractor, rasteriser, and output writer need not branch on item type.
 
 PDF pipelines benefit because same source pages often appear in page items, chapter PDFs, metadata samples, and prompts. Copying each version wastes memory.
 
@@ -299,7 +300,7 @@ steps:
           ]
         }
       input: ".ids"
-      metadata: '{chapter: .chapter, content_type: "application/pdf"}'
+      metadata: '{chapter: .chapter}'
       replace: true
 ```
 

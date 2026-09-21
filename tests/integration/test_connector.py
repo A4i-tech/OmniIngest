@@ -12,7 +12,7 @@ async def test_https_fetch():
     resources = [r async for r in read_resources("https://httpbingo.org/robots.txt")]
     ctx = IngestionContext(resource=resources[0])
     assert len(resources) == 1
-    assert "User-agent" in await resources[0].decode(ctx)
+    assert "User-agent" in await resources[0].content.decode(ctx)
 
 
 @pytest.mark.asyncio
@@ -20,7 +20,7 @@ async def test_azure_blob_storage_fetch():
     resources = [r async for r in read_resources("abfs://test-ingestion/when-tomorrow-was-yesterday.pdf")]
     ctx = IngestionContext(resource=resources[0])
     assert len(resources) == 1
-    assert await resources[0].content_type(ctx) == "application/pdf"
+    assert await resources[0].content.content_type(ctx) == "application/pdf"
 
 
 @pytest.mark.asyncio
@@ -32,7 +32,7 @@ async def test_filesystem_fetch():
 
     assert len(resources) == 1
     ctx = IngestionContext(resource=resources[0])
-    assert await resources[0].content(ctx) == b"hello world"
+    assert await resources[0].content.read(ctx) == b"hello world"
 
 
 @pytest.mark.asyncio
@@ -41,4 +41,4 @@ async def test_filesystem_detects_mp3(resources_dir):
 
     assert len(resources) == 1
     ctx = IngestionContext(resource=resources[0])
-    assert (await resources[0].content_type(ctx)).startswith("audio/")
+    assert (await resources[0].content.content_type(ctx)).startswith("audio/")

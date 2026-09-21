@@ -12,7 +12,7 @@ from pydantic_ai.embeddings import TestEmbeddingModel
 import omni_ingest.core.pipeline as pipeline_module
 from omni_ingest.agent.enrichment import ExtractAgent, TransformAgent
 from omni_ingest.agent.modality import TextAgent
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, _resolve_step_kwargs, create_pipeline_from_config
 from omni_ingest.port.metadata_store import NullMetadataStore
 
@@ -99,7 +99,7 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
         f.flush()
 
         pipeline = create_pipeline_from_config(Path(f.name))
-        ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence. Second sentence. Third sentence."), store=metadata_store)
+        ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence. Second sentence. Third sentence.")), store=metadata_store)
 
         results = await pipeline.run(ctx)
 
@@ -114,7 +114,7 @@ async def test_pipeline_before_validation_prevents_step_execution(metadata_store
     path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "before", "expr": "false", "message": "blocked"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
-    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
 
     assert results[0].status == StepStatus.FAILURE
     assert results[0].error == "blocked"
@@ -125,7 +125,7 @@ async def test_pipeline_condition_skips_step(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
     path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "condition", "expr": "false", "message": "not requested"}]}]}))
 
-    results = await create_pipeline_from_config(path).run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+    results = await create_pipeline_from_config(path).run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
 
     assert results[0].status == StepStatus.SKIPPED
     assert results[0].error == "not requested"
@@ -137,7 +137,7 @@ async def test_pipeline_after_validation_fails_with_interpolated_message(metadat
     path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "after", "expr": "false", "message": "bad update ${.result.metadata.update}"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
-    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store))
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
 
     assert results[0].status == StepStatus.FAILURE
     assert results[0].error == "bad update ['metadata']"
@@ -145,10 +145,10 @@ async def test_pipeline_after_validation_fails_with_interpolated_message(metadat
 
 def test_pipeline_validation_does_not_serialize_item_content():
     runner = PipelineRunner([])
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""))
-    result = StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(raw_content=b"%PDF-\xe2", metadata={"page": 1})])
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
+    result = StepResult(status=StepStatus.SUCCESS, items=[KnowledgeItem(content=ByteContent.from_bytes(b"%PDF-\xe2"), metadata={"page": 1})])
 
-    check = ValidationCheck(mode="after", expr='.result.items[0].metadata.page == 1 and (.result.items[0] | has("raw_content") | not)', message="bad")
+    check = ValidationCheck(mode="after", expr='.result.items[0].metadata.page == 1 and (.result.items[0] | has("content") | not)', message="bad")
     assert runner._validate(ctx, [check], {"after"}, result) == (None, False)
 
 
@@ -158,7 +158,7 @@ async def test_pipeline_after_validation_skips_skipped_step(metadata_store, tmp_
     path.write_text(yaml.dump({"steps": [{"agent": "timed_chunking", "validation": [{"mode": "after", "expr": "false", "message": "should not run"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
-    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), store=metadata_store))
+    results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), store=metadata_store))
 
     assert results[0].status == StepStatus.SKIPPED
 
@@ -168,7 +168,7 @@ async def test_pipeline_plain_validation_terminates_validation_chain(metadata_st
     path = tmp_path / "pipeline.yaml"
     path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "plain", "expr": ".metadata.ok == true", "message": "missing ok"}, {"mode": "after", "expr": "false", "message": "should not run"}]}]}))
     pipeline = create_pipeline_from_config(path)
-    ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b"First sentence."), store=metadata_store)
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store)
     ctx.metadata["ok"] = True
 
     results = await pipeline.run(ctx)
@@ -362,6 +362,6 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
         yaml.dump(config, tmp)
         runner = create_pipeline_from_config(Path(tmp.name))
 
-    result = await runner.run(IngestionContext(items=[KnowledgeItem(raw_content=b"I am clueless about the current state of LLMs.")], store=metadata_store, resource=ResolvedResource(uri="", raw_content=b"")))
+    result = await runner.run(IngestionContext(items=[KnowledgeItem(content=ByteContent.from_bytes(b"I am clueless about the current state of LLMs."))], store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b""))))
     assert all(r.status == StepStatus.FAILURE for r in result)
     assert all(r.error == "Toolsets not configured in context: ['converter']" for r in result)

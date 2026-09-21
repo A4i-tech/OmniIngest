@@ -47,44 +47,48 @@ class StepStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+@final
 class ByteContent(BaseModel):
-    raw_content: StrictBytes = Field(default=b"")
-    content_uri: str | None = Field(default=None)
-    content_encoding: str = Field(default="utf-8")
+    model_config = ConfigDict(frozen=True)
+
+    data: StrictBytes = Field(default=b"")
+    uri: str | None = Field(default=None)
+    encoding: str = Field(default="utf-8")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @staticmethod
     def from_bytes(content: StrictBytes, content_type: str | None = None, content_encoding: str = "utf-8") -> ByteContent:
-        return ByteContent(raw_content=content, content_encoding=content_encoding, metadata={"content_type": content_type})
+        return ByteContent(data=content, encoding=content_encoding, metadata={"content_type": content_type})
 
     @staticmethod
     def from_uri(uri: str, content_type: str | None = None, content_encoding: str = "utf-8") -> ByteContent:
-        return ByteContent(content_uri=uri, content_encoding=content_encoding, metadata={"content_type": content_type})
+        return ByteContent(uri=uri, encoding=content_encoding, metadata={"content_type": content_type})
 
-    async def content(self, ctx: IngestionContext[ResolvedResource]) -> bytes:
-        if self.content_uri is None:
-            return self.raw_content
-        return await ctx.content_resolver.resolve(self.content_uri, ctx)
+    async def read(self, ctx: IngestionContext[ResolvedResource]) -> bytes:
+        if self.uri is None:
+            return self.data
+        return await ctx.content_resolver.resolve(self.uri, ctx)
 
     async def content_type(self, ctx: IngestionContext[ResolvedResource]) -> str:
         if isinstance(content_type := self.metadata.get("content_type"), str):
             return content_type
-        return magic.from_buffer(await self.content(ctx), mime=True)
+        return magic.from_buffer(await self.read(ctx), mime=True)
 
     async def decode(self, ctx: IngestionContext[ResolvedResource]) -> str:
         content_type = await self.content_type(ctx)
         if not content_type.startswith("text/"):
             raise ValueError(f"Expected text content, got {content_type}")
-        return (await self.content(ctx)).decode(self.content_encoding)
+        return (await self.read(ctx)).decode(self.encoding)
 
 
-class ResolvedResource(ByteContent):
+class ResolvedResource(BaseModel):
     uri: str = Field(...)
+    content: ByteContent
 
 Resource: TypeAlias = ResolvedResource | AnyUrl | Path
 
 
-class KnowledgeItem(ByteContent):
+class KnowledgeItem(BaseModel):
     """
     Represents a discrete unit of information within the framework.
 
@@ -94,7 +98,7 @@ class KnowledgeItem(ByteContent):
     """
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-    raw_content: StrictBytes = Field(default=b"", alias="content")
+    content: ByteContent
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the knowledge item")
     tenant_id: UUID | None = Field(default=None, description="Identifier for the associated tenant or organization")
     source_uri: str | None = Field(default=None, description="Origin URI of the raw data")

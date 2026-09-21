@@ -32,14 +32,8 @@ async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
     return {
         "metadata": ctx.metadata,
         "items": [
-            {
-                "id": str(item.id),
-                "source_uri": item.source_uri,
-                "tenant_id": str(item.tenant_id) if item.tenant_id else None,
-                "content_encoding": item.content_encoding,
-                "metadata": item.metadata,
-            }
-            | ({"text": await item.decode(ctx) if (await item.content_type(ctx)).startswith("text/") else None} if text else {})
+            {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
+            | ({"text": await item.content.decode(ctx) if (await item.content.content_type(ctx)).startswith("text/") else None} if text else {})
             for item in ctx.items
         ],
     }
@@ -49,8 +43,7 @@ def _item_from_doc(doc: dict[str, Any]) -> KnowledgeItem:
     encoding = doc.get("content_encoding") or "utf-8"
     return KnowledgeItem(
         id=UUID(doc["id"]) if doc.get("id") else uuid4(),
-        raw_content=str(doc.get("text") or "").encode(encoding),
-        content_encoding=encoding,
+        content=ByteContent.from_bytes(str(doc.get("text") or "").encode(encoding), content_type="text/plain", content_encoding=encoding),
         tenant_id=UUID(doc["tenant_id"]) if doc.get("tenant_id") else None,
         source_uri=doc.get("source_uri"),
         metadata=doc.get("metadata") or {},
@@ -58,8 +51,8 @@ def _item_from_doc(doc: dict[str, Any]) -> KnowledgeItem:
 
 
 async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryContent:
-    content_type = await item.content_type(ctx)
-    return await item.decode(ctx) if content_type.startswith("text/") else BinaryContent(data=await item.content(ctx), media_type=content_type)
+    content_type = await item.content.content_type(ctx)
+    return await item.content.decode(ctx) if content_type.startswith("text/") else BinaryContent(data=await item.content.read(ctx), media_type=content_type)
 
 
 class ExtractAssertion(BaseModel):
@@ -262,9 +255,7 @@ class SpeechAgent(BaseModel, Step):
         for n, (item_doc, text) in enumerate(zip(selected, values, strict=True), 1):
             item = item_by_id[item_doc["id"]]
             audio = await tts_model(ByteContent.from_bytes(text.encode(), content_type="text/plain"), self.format)
-            item.raw_content = audio.raw_content
-            item.content_uri = None
-            item.metadata["content_type"] = self.format.mime_type
+            item.content = audio
             ctx.progress(n, len(selected), f"synthesized {n}/{len(selected)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"synthesized_count": len(selected), "format": self.format.value})

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 from ..core.content import content_chain_uri, resource_pages_uri
-from ..core.model import JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
+from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 
 
 class PageChunkingAgent(BaseModel, Step):
@@ -32,20 +32,20 @@ class PageChunkingAgent(BaseModel, Step):
         if not ctx.items:
             return StepResult(status=StepStatus.SKIPPED, error="No document")
         source = ctx.items[0]
-        if (ct := await source.content_type(ctx)) != "application/pdf":
+        if (ct := await source.content.content_type(ctx)) != "application/pdf":
             raise ValueError(f"Expected a document, got {ct}")
 
-        enc = source.content_encoding
+        enc = source.content.encoding
         items = []
-        with io.BytesIO(await source.content(ctx)) as s, PdfReader(stream=s) as reader:
+        with io.BytesIO(await source.content.read(ctx)) as s, PdfReader(stream=s) as reader:
             total = len(reader.pages)
             ctx.progress(0, total, "reading pages")
             for i, page in enumerate(reader.pages, 1):
-                metadata = source.metadata | {"page": i, "content_type": "application/pdf" if self.mode == "pdf" else "text/plain"}
+                metadata = source.metadata | {"page": i}
                 if self.mode == "pdf":
-                    items.append(KnowledgeItem(content_uri=resource_pages_uri([i]), content_encoding=enc, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+                    items.append(KnowledgeItem(content=ByteContent.from_uri(resource_pages_uri([i]), content_type="application/pdf", content_encoding=enc), tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
                 elif text := page.extract_text().strip():
-                    items.append(KnowledgeItem(raw_content=text.encode(enc), content_encoding=enc, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+                    items.append(KnowledgeItem(content=ByteContent.from_bytes(text.encode(enc), content_type="text/plain", content_encoding=enc), tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
                 ctx.progress(i, total, f"page {i}/{total}")
         ctx.items = items
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"page_count": len(ctx.items), "mode": self.mode})
@@ -79,21 +79,21 @@ class PageStitchingAgent(BaseModel, Step):
 
             items = [item_by_id[item_id] for item_id in ids]
             pages = [page for item in items if isinstance(page := item.metadata.get("page"), int)]
-            uris = [item.content_uri for item in items if item.content_uri]
+            uris = [item.content.uri for item in items if item.content.uri]
             metadata = jq.compile(self.metadata).input_value(spec).first()
-            if len(pages) == len(items) and all(item.content_uri == resource_pages_uri([page]) for item, page in zip(items, pages, strict=True)):
-                stitched.append(KnowledgeItem(raw_content=b"", content_uri=resource_pages_uri(pages), content_encoding="binary", metadata=metadata))
+            if len(pages) == len(items) and all(item.content.uri == resource_pages_uri([page]) for item, page in zip(items, pages, strict=True)):
+                stitched.append(KnowledgeItem(content=ByteContent.from_uri(resource_pages_uri(pages), content_type="application/pdf", content_encoding="binary"), metadata=metadata))
             elif len(uris) == len(items):
-                stitched.append(KnowledgeItem(raw_content=b"", content_uri=content_chain_uri("pdf.concat", uris), content_encoding="binary", metadata=metadata))
+                stitched.append(KnowledgeItem(content=ByteContent.from_uri(content_chain_uri("pdf.concat", uris), content_type="application/pdf", content_encoding="binary"), metadata=metadata))
             else:
                 with io.BytesIO() as s, PdfWriter() as writer:
                     for item in items:
-                        with io.BytesIO(await item.content(ctx)) as page_pdf, PdfReader(page_pdf) as reader:
+                        with io.BytesIO(await item.content.read(ctx)) as page_pdf, PdfReader(page_pdf) as reader:
                             writer.append(reader)
                     for page in writer.pages:
                         page.compress_content_streams()
                     writer.write(s)
-                    stitched.append(KnowledgeItem(raw_content=s.getvalue(), content_encoding="binary", metadata=metadata))
+                    stitched.append(KnowledgeItem(content=ByteContent.from_bytes(s.getvalue(), content_type="application/pdf", content_encoding="binary"), metadata=metadata))
             ctx.progress(i, len(specs), f"stitched {i}/{len(specs)}")
 
         if self.replace:
@@ -178,7 +178,7 @@ class TimedChunkingAgent(BaseModel, Step):
                 last = current_chunk_words[-1]
                 end = start_expr.input_value(last).first() + duration_expr.input_value(last).first()
                 metadata = {"start_offset_ms": int(start_unit * 1000 / self.units_per_second), "end_offset_ms": int(end * 1000 / self.units_per_second), "word_count": len(current_chunk_words)}
-                chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+                chunks.append(KnowledgeItem(content=ByteContent.from_bytes(text.encode(source.content.encoding), content_type="text/plain", content_encoding=source.content.encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
                 current_chunk_words = [w]
                 start_unit = offset
             else:
@@ -189,7 +189,7 @@ class TimedChunkingAgent(BaseModel, Step):
             last = current_chunk_words[-1]
             end = start_expr.input_value(last).first() + duration_expr.input_value(last).first()
             metadata = {"start_offset_ms": int(start_unit * 1000 / self.units_per_second), "end_offset_ms": int(end * 1000 / self.units_per_second), "word_count": len(current_chunk_words)}
-            chunks.append(KnowledgeItem(raw_content=text.encode(source.content_encoding), content_encoding=source.content_encoding, tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
+            chunks.append(KnowledgeItem(content=ByteContent.from_bytes(text.encode(source.content.encoding), content_type="text/plain", content_encoding=source.content.encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
 
         ctx.items = chunks
         return StepResult(status=StepStatus.SUCCESS, items=chunks, metadata={"chunk_count": len(chunks)})

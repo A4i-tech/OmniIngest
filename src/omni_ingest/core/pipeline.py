@@ -169,7 +169,7 @@ class PipelineRunner:
 
         ctx = await self._resolve_resource_single(ctx)
         if not ctx.items:
-            ctx.items = [KnowledgeItem(raw_content=ctx.resource.raw_content, content_uri=ctx.resource.content_uri, content_encoding=ctx.resource.content_encoding, metadata=ctx.resource.metadata.copy(), tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)]
+            ctx.items = [KnowledgeItem(content=ctx.resource.content.model_copy(deep=True), tenant_id=ctx.tenant_id, source_uri=ctx.resource.uri)]
         ctx.run_id = await ctx.store.create_pipeline_run(ctx.tenant_id, self.pipeline_version_id, ctx.resource.uri, ctx.run_id)
         await ctx.store.set_pipeline_checkpoint(ctx.run_id, self._checkpoint(ctx, 0))
         return await self._execute(ctx, output, 0)
@@ -287,7 +287,7 @@ class PipelineRunner:
             "items": [{"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata} for item in ctx.items],
         }
         if result is not None:
-            doc["result"] = result.model_dump(mode="json", exclude={"items": {"__all__": {"raw_content"}}})
+            doc["result"] = result.model_dump(mode="json", exclude={"items": {"__all__": {"content"}}})
         for check in validation:
             if check.mode not in modes:
                 continue

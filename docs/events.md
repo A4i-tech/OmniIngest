@@ -151,7 +151,7 @@ import asyncio
 from pathlib import Path
 
 from omni_ingest.core import event
-from omni_ingest.core.model import ResolvedResource
+from omni_ingest.core.model import ByteContent, ResolvedResource
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config
 
 
@@ -165,7 +165,7 @@ async def watch():
 
 async def main():
     pipeline = create_pipeline_from_config(Path("school_notes.yaml"))
-    ctx = IngestionContext(resource=ResolvedResource(uri="notes.txt", raw_content=b"First sentence. Second sentence."))
+    ctx = IngestionContext(resource=ResolvedResource(uri="notes.txt", content=ByteContent.from_bytes(b"First sentence. Second sentence.")))
     listener = asyncio.create_task(watch())
     try:
         await pipeline.run(ctx)

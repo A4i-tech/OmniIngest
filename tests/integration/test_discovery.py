@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
 from omni_ingest.core.pipeline import IngestionContext, KnowledgeBaseAdapter
 
 
@@ -24,8 +24,8 @@ async def test_discovery_adapter_unified_search(metadata_store, vector_store):
     assert len(items) == 1
     assert items[0].id == item_id
 
-    ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, raw_content=b"Content", metadata={"embedding": [0.1] * 1536})
-    await vector_store.upsert([ki], IngestionContext(resource=ResolvedResource(uri="", raw_content=b"")))
+    ki = KnowledgeItem(id=item_id, tenant_id=tenant_id, content=ByteContent.from_bytes(b"Content"), metadata={"embedding": [0.1] * 1536})
+    await vector_store.upsert([ki], IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b""))))
 
     results = await adapter.query(tenant_id=tenant_id, query=[0.1] * 1536)
     assert len(results) >= 1

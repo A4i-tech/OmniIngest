@@ -9,7 +9,7 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.models.test import TestModel
 
 from omni_ingest.agent.enrichment import ExtractAgent, PromptAgent, TransformAgent
-from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
 from omni_ingest.port.metadata_store import NullMetadataStore
 
@@ -17,7 +17,7 @@ from omni_ingest.port.metadata_store import NullMetadataStore
 def create_ctx(content: str = "") -> IngestionContext:
     return IngestionContext(
         tenant_id=uuid4(),
-        resource=ResolvedResource(uri="", raw_content=content.encode()),
+        resource=ResolvedResource(uri="", content=ByteContent.from_bytes(content.encode())),
         store=NullMetadataStore(),
     )
 
@@ -74,7 +74,7 @@ async def test_extract_agent_merges_item_metadata(monkeypatch):
         },
     )
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"content", metadata={"existing": "keep"})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"content"), metadata={"existing": "keep"})]
     use_test_model(agent, {"summary": "s", "tags": ["t"]}, monkeypatch)
 
     result = await agent.run(ctx)
@@ -93,7 +93,7 @@ async def test_extract_agent_jq_foreach_and_input(monkeypatch):
         schema={"type": "array", "items": {"type": "string"}},
     )
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"alpha"), KnowledgeItem(raw_content=b"bravo")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"alpha")), KnowledgeItem(content=ByteContent.from_bytes(b"bravo"))]
     use_test_model(agent, ["new"], monkeypatch)
 
     with capture_run_messages() as messages:
@@ -115,7 +115,7 @@ async def test_extract_agent_document_scope(monkeypatch):
         schema={"type": "array", "items": {"type": "string"}},
     )
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=value) for value in (b"alpha", b"bravo", b"charlie")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(value)) for value in (b"alpha", b"bravo", b"charlie")]
     use_test_model(agent, ["answer"], monkeypatch)
 
     with capture_run_messages() as messages:
@@ -136,8 +136,8 @@ async def test_extract_agent_binary_input_uses_selected_item(monkeypatch):
     )
     ctx = create_ctx()
     ctx.items = [
-        KnowledgeItem(raw_content=b"\xffpage 1", metadata={"page": 1, "content_type": "application/pdf"}),
-        KnowledgeItem(raw_content=b"\xffpage 2", metadata={"page": 2, "content_type": "application/pdf"}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"\xffpage 1", content_type="application/pdf"), metadata={"page": 1}),
+        KnowledgeItem(content=ByteContent.from_bytes(b"\xffpage 2", content_type="application/pdf"), metadata={"page": 2}),
     ]
     use_test_model(agent, {"subject": "Mathematics"}, monkeypatch)
 
@@ -162,7 +162,7 @@ async def test_extract_agent_buffered_mode_registers_item_reader(monkeypatch):
         schema={"type": "object", "properties": {"found": {"type": "boolean"}}, "required": ["found"]},
     )
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"content")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"content"))]
     model = TestModel(
         custom_output_text=json.dumps({"output": {"found": True}}),
         profile={"supports_json_schema_output": True},
@@ -184,7 +184,7 @@ async def test_extract_agent_buffered_mode_registers_item_reader(monkeypatch):
 @pytest.mark.asyncio
 async def test_concurrent_extract_agents_merge_metadata(monkeypatch):
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"content", metadata={"existing": "keep"})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"content"), metadata={"existing": "keep"})]
     agents = [ExtractAgent(path=f".metadata.generated.{key}", prompt=key, schema={"type": "string"}) for key in ("first", "second")]
 
     async def extract(agent, _ctx, item_doc, _item_by_id, _sem, _advance):
@@ -200,7 +200,7 @@ async def test_concurrent_extract_agents_merge_metadata(monkeypatch):
 @pytest.mark.asyncio
 async def test_concurrent_extract_agents_merge_root_metadata(monkeypatch):
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"content")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"content"))]
     agents = [ExtractAgent(foreach=".", path=f".metadata.{key}", prompt=key, schema={"type": "string"}) for key in ("first", "second")]
 
     async def extract(agent, _ctx, item_doc, _item_by_id, _sem, _advance):
@@ -223,7 +223,7 @@ async def test_extract_agent_assertion_retries_with_feedback(monkeypatch):
         schema={"type": "object", "properties": {"score": {"type": "number"}}, "required": ["score"]},
     )
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"content")]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"content"))]
     use_test_model(agent, {"score": 0.4}, monkeypatch)
 
     with capture_run_messages() as messages, pytest.raises(UnexpectedModelBehavior):
@@ -248,13 +248,13 @@ async def test_transform_agent_writes_jq_output_to_metadata():
 async def test_transform_agent_emits_items():
     agent = TransformAgent(value=".items |= map(. + {text: (.text | ascii_upcase)})", update=["items"])
     ctx = create_ctx()
-    ctx.items = [KnowledgeItem(raw_content=b"hello", metadata={"content_type": "text/plain"})]
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"hello", content_type="text/plain"))]
 
     result = await agent.run(ctx)
 
     assert result.status == StepStatus.SUCCESS
     assert len(ctx.items) == 1
-    assert await ctx.items[0].decode(ctx) == "HELLO"
+    assert await ctx.items[0].content.decode(ctx) == "HELLO"
 
 
 @pytest.mark.asyncio
