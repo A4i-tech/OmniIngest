@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import logging
 import zipfile
 from collections.abc import AsyncIterator
 from string import Template
@@ -23,6 +24,8 @@ from omni_ingest.parser import read_resources
 from ..core.config import settings
 from ..core.model import AgentMixin, ByteContent
 from ..core.ocr import Figure, Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat, simple
+
+logger = logging.getLogger(__name__)
 
 
 class _DefaultAgentMixin(BaseModel, AgentMixin):
@@ -99,6 +102,38 @@ def sarvam_ocr_builder(params: OcrBuilderParams) -> Ocr:
     return ocr
 
 
+async def _figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> tuple[list[Figure], int]:
+    """Collect the figures the layout model found, with their cropped images."""
+    collected: list[Figure] = []
+    all_figures = result.figures or []
+    if not result_id:
+        logger.warning("No result_id from analyze poller; dropping %d figure(s)", len(all_figures))
+        return collected, len(all_figures)
+
+    failed = 0
+    for figure in all_figures:
+        if not figure.id:
+            failed += 1
+            continue
+        try:
+            stream = await client.get_analyze_result_figure(
+                model_id=result.model_id, result_id=result_id, figure_id=figure.id
+            )
+            image = b"".join([chunk async for chunk in stream])
+        except Exception:
+            # A crop is a bonus; losing one must not lose the page text.
+            logger.warning("Failed to fetch figure %s", figure.id, exc_info=True)
+            failed += 1
+            continue
+        region = (figure.bounding_regions or [None])[0]
+        content = ByteContent.from_bytes(image, "image/png")
+        content.metadata["id"] = figure.id
+        content.metadata["page"] = region.page_number if region else None
+        content.metadata["polygon"] = region.polygon if region else None
+        collected.append(Figure(content=content, caption=figure.caption.content if figure.caption else None))
+    return collected, failed
+
+
 def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if params.format == OcrOutputFormat.MARKDOWN:
         output_content_format = DocumentContentFormat.MARKDOWN
@@ -112,30 +147,6 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if settings.documentintelligence_endpoint is None or settings.documentintelligence_api_key is None:
         raise ValueError("DOCUMENTINTELLIGENCE_ENDPOINT/DOCUMENTINTELLIGENCE_API_KEY are not configured")
 
-    async def figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> tuple[list[Figure], int]:
-        """Collect the figures the layout model found, with their cropped images."""
-        collected: list[Figure] = []
-        failed = 0
-        for figure in result.figures or []:
-            if not (result_id and figure.id):
-                continue
-            try:
-                stream = await client.get_analyze_result_figure(
-                    model_id=result.model_id, result_id=result_id, figure_id=figure.id
-                )
-                image = b"".join([chunk async for chunk in stream])
-            except Exception:
-                # A crop is a bonus; losing one must not lose the page text.
-                failed += 1
-                continue
-            region = (figure.bounding_regions or [None])[0]
-            content = ByteContent.from_bytes(image, "image/png")
-            content.metadata["id"] = figure.id
-            content.metadata["page"] = region.page_number if region else None
-            content.metadata["bbox"] = region.polygon if region else None
-            collected.append(Figure(content=content, caption=figure.caption.content if figure.caption else None))
-        return collected, failed
-
     async def one(client: DocumentIntelligenceClient, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             poller = await client.begin_analyze_document(
@@ -145,7 +156,7 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
                 output=[AnalyzeOutputOption.FIGURES],
             )
             result = await poller.result()
-            found, failed = await figures(client, result, poller.details.get("operation_id"))
+            found, failed = await _figures(client, result, poller.details.get("operation_id"))
         changed = ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
         if found:
             changed.metadata["figures"] = found

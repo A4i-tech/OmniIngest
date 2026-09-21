@@ -202,6 +202,9 @@ class OcrAgent(BaseModel, Step):
             # Figures become items in their own right so later steps can address them by id.
             figures: list[Figure] = changed.metadata.get("figures") or []
             for figure in figures:
+                page = original.metadata.get("page")
+                if page is None:
+                    page = figure.content.metadata.get("page")
                 extracted.append(KnowledgeItem(
                     content=figure.content,
                     tenant_id=original.tenant_id,
@@ -209,10 +212,10 @@ class OcrAgent(BaseModel, Step):
                     metadata={
                         "kind": "image",
                         "parent_id": str(original.id),
-                        "page": page if (page := original.metadata.get("page")) is not None else figure.content.metadata.get("page"),
+                        "page": page,
                         "caption": figure.caption,
                         "figure_id": figure.content.metadata.get("id"),
-                        "bbox": figure.content.metadata.get("bbox"),
+                        "polygon": figure.content.metadata.get("polygon"),
                         "content_type": figure.content.metadata.get("content_type"),
                         "source": "ocr_engine",
                     },
