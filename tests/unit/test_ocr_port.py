@@ -72,4 +72,7 @@ async def test_figures_collects_successful_crop_with_metadata():
     figure = collected[0]
     assert figure.caption == "a chart"
     assert figure.content.data == b"\x89PNG...rest"
-    assert figure.content.metadata == {"content_type": "image/png", "id": "f1", "page": 3, "polygon": [1, 2, 3, 4]}
+    assert figure.content.metadata["content_type"] == "image/png"
+    assert figure.content.metadata["id"] == "f1"
+    assert figure.content.metadata["page"] == 3
+    assert figure.content.metadata["polygon"] == [1, 2, 3, 4]

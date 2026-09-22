@@ -15,8 +15,6 @@ if TYPE_CHECKING:
 
 @dataclass
 class Figure:
-    """A figure extracted from a document by an OCR engine, ready to become a `KnowledgeItem`."""
-
     content: ByteContent
     caption: str | None = None
 

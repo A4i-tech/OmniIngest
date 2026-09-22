@@ -217,7 +217,7 @@ class OcrAgent(BaseModel, Step):
                         "figure_id": figure.content.metadata.get("id"),
                         "polygon": figure.content.metadata.get("polygon"),
                         "content_type": figure.content.metadata.get("content_type"),
-                        "source": "ocr_engine",
+                        "source": self.engine,
                     },
                 ))
 

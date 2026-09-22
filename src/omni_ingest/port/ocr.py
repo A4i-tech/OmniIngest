@@ -116,9 +116,7 @@ async def _figures(client: DocumentIntelligenceClient, result, result_id: str | 
             failed += 1
             continue
         try:
-            stream = await client.get_analyze_result_figure(
-                model_id=result.model_id, result_id=result_id, figure_id=figure.id
-            )
+            stream = await client.get_analyze_result_figure(model_id=result.model_id, result_id=result_id, figure_id=figure.id)
             image = b"".join([chunk async for chunk in stream])
         except Exception:
             # A crop is a bonus; losing one must not lose the page text.
