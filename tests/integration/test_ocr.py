@@ -52,7 +52,7 @@ async def test_ocr_engine_extracts_figures(metadata_store, resources_dir):
     ocr_result = results[-1]
     assert ocr_result.metadata["figures"] > 0
 
-    figure_items = [item for item in ocr_result.items if item.metadata.get("kind") == "image"]
+    figure_items = [item for item in ocr_result.items if item.metadata.get("parent_id") is not None]
     assert len(figure_items) > 0
 
     figure_item = figure_items[0]

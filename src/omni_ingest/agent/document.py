@@ -210,7 +210,6 @@ class OcrAgent(BaseModel, Step):
                     tenant_id=original.tenant_id,
                     source_uri=original.source_uri,
                     metadata={
-                        "kind": "image",
                         "parent_id": str(original.id),
                         "page": page,
                         "caption": figure.caption,
