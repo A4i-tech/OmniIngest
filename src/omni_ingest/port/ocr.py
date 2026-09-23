@@ -198,7 +198,7 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
 
     retry_config = RetryConfig(
         strategy="backoff",
-        backoff=BackoffStrategy(initial_interval=500, max_interval=60_000, exponent=1.5, max_elapsed_time=300_000),
+        backoff=BackoffStrategy(initial_interval=500, max_interval=60_000, exponent=1.5, max_elapsed_time=600_000),
         retry_connection_errors=True,
     )
 
