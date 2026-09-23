@@ -15,6 +15,7 @@ from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, Analyze
 from azure.core.credentials import AzureKeyCredential
 from mistralai.client import Mistral
 from mistralai.client import models as mistral_models
+from mistralai.client.utils import BackoffStrategy, RetryConfig
 from pydantic import BaseModel
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import SarvamAI
@@ -195,8 +196,14 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
         changed = ByteContent.from_bytes(text.encode("utf-8"), params.format.mime_type)
         return item, changed
 
+    retry_config = RetryConfig(
+        strategy="backoff",
+        backoff=BackoffStrategy(initial_interval=500, max_interval=60_000, exponent=1.5, max_elapsed_time=300_000),
+        retry_connection_errors=True,
+    )
+
     async def ocr(items: AsyncIterator[ByteContent]):
-        client = Mistral(api_key=key)
+        client = Mistral(api_key=key, retry_config=retry_config)
         async with client:
             sem = asyncio.Semaphore(params.concurrency)
             for task in asyncio.as_completed([one(client, item, sem) async for item in items]):

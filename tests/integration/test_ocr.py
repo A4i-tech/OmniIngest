@@ -42,7 +42,7 @@ async def test_ocr_engine(engine, out_fmt, metadata_store, resources_dir):
 
 
 async def test_ocr_engine_extracts_figures(metadata_store, resources_dir):
-    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "when-tomorrow-was-yesterday.pdf")
+    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "produce-report-with-figure.pdf")
     results = await PipelineRunner([
         PageChunkingAgent(mode="pdf"),
         OcrAgent(engine="azure_di", format=OcrOutputFormat.MARKDOWN)
