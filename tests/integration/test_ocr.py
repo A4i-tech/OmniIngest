@@ -39,3 +39,22 @@ async def test_ocr_engine(engine, out_fmt, metadata_store, resources_dir):
         except html5lib.html5parser.ParseError as error:
             error.add_note(f"OCR content:\n{content}")
             raise
+
+
+async def test_ocr_engine_extracts_figures(metadata_store, resources_dir):
+    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "produce-report-with-figure.pdf")
+    results = await PipelineRunner([
+        PageChunkingAgent(mode="pdf"),
+        OcrAgent(engine="azure_di", format=OcrOutputFormat.MARKDOWN)
+    ]).run(ctx)
+    assert all(r.status == StepStatus.SUCCESS for r in results)
+
+    ocr_result = results[-1]
+    assert ocr_result.metadata["figures"] > 0
+
+    figure_items = [item for item in ocr_result.items if item.metadata.get("parent_id") is not None]
+    assert len(figure_items) > 0
+
+    figure_item = figure_items[0]
+    assert (await figure_item.content.content_type(ctx)).startswith("image/")
+    assert figure_item.metadata.get("page") is not None or figure_item.metadata.get("figure_id") is not None
