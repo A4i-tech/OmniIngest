@@ -5,15 +5,15 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import logging
 import zipfile
 from collections.abc import AsyncIterator
 from string import Template
 
+import httpx2
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentContentFormat
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeOutputOption, DocumentContentFormat
 from azure.core.credentials import AzureKeyCredential
-from mistralai.client import Mistral
-from mistralai.client import models as mistral_models
 from pydantic import BaseModel
 from pydantic_ai import Agent, BinaryContent
 from sarvamai import SarvamAI
@@ -22,7 +22,9 @@ from omni_ingest.parser import read_resources
 
 from ..core.config import settings
 from ..core.model import AgentMixin, ByteContent
-from ..core.ocr import Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat, simple
+from ..core.ocr import Figure, Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat, simple
+
+logger = logging.getLogger(__name__)
 
 
 class _DefaultAgentMixin(BaseModel, AgentMixin):
@@ -99,6 +101,36 @@ def sarvam_ocr_builder(params: OcrBuilderParams) -> Ocr:
     return ocr
 
 
+async def _figures(client: DocumentIntelligenceClient, result, result_id: str | None) -> tuple[list[Figure], int]:
+    """Collect the figures the layout model found, with their cropped images."""
+    collected: list[Figure] = []
+    all_figures = result.figures or []
+    if not result_id:
+        logger.warning("No result_id from analyze poller; dropping %d figure(s)", len(all_figures))
+        return collected, len(all_figures)
+
+    failed = 0
+    for figure in all_figures:
+        if not figure.id:
+            failed += 1
+            continue
+        try:
+            stream = await client.get_analyze_result_figure(model_id=result.model_id, result_id=result_id, figure_id=figure.id)
+            image = b"".join([chunk async for chunk in stream])
+        except Exception:
+            # A crop is a bonus; losing one must not lose the page text.
+            logger.warning("Failed to fetch figure %s", figure.id, exc_info=True)
+            failed += 1
+            continue
+        region = (figure.bounding_regions or [None])[0]
+        content = ByteContent.from_bytes(image, "image/png")
+        content.metadata["id"] = figure.id
+        content.metadata["page"] = region.page_number if region else None
+        content.metadata["polygon"] = region.polygon if region else None
+        collected.append(Figure(content=content, caption=figure.caption.content if figure.caption else None))
+    return collected, failed
+
+
 def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if params.format == OcrOutputFormat.MARKDOWN:
         output_content_format = DocumentContentFormat.MARKDOWN
@@ -117,10 +149,17 @@ def azure_di_ocr_builder(params: OcrBuilderParams) -> Ocr:
             poller = await client.begin_analyze_document(
                 "prebuilt-layout",
                 AnalyzeDocumentRequest(bytes_source=await item.read(params.ctx)),
-                locale=params.src_lang, output_content_format=output_content_format
+                locale=params.src_lang, output_content_format=output_content_format,
+                output=[AnalyzeOutputOption.FIGURES],
             )
             result = await poller.result()
-        return item, ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
+            found, failed = await _figures(client, result, poller.details.get("operation_id"))
+        changed = ByteContent.from_bytes(result.content.encode("utf-8"), params.format.mime_type)
+        if found:
+            changed.metadata["figures"] = found
+        if failed:
+            changed.metadata["figures_failed"] = failed
+        return item, changed
 
     endpoint = str(settings.documentintelligence_endpoint)
     credential = AzureKeyCredential(settings.documentintelligence_api_key.get_secret_value())
@@ -143,20 +182,18 @@ def mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
 
     key = settings.mistral_ocr_api_key.get_secret_value()
 
-    async def one(client: Mistral, item: ByteContent, sem: asyncio.Semaphore):
+    async def one(client: httpx2.AsyncClient, item: ByteContent, sem: asyncio.Semaphore):
         async with sem:
             content_type = await item.content_type(params.ctx)
             uri = f"data:{content_type};base64,{base64.b64encode(await item.read(params.ctx)).decode()}"
-            document = mistral_models.ImageURLChunk(image_url=uri) if content_type.startswith("image/") else mistral_models.DocumentURLChunk(document_url=uri)
-            result = await client.ocr.process_async(model=settings.mistral_ocr_model, document=document)
-        if not result.pages:
-            raise RuntimeError("Mistral Document AI returned no pages, cannot silently produce empty OCR output")
-        text = "\n\n".join(page.markdown for page in result.pages)
-        changed = ByteContent.from_bytes(text.encode("utf-8"), params.format.mime_type)
+            document = {"type": "image_url", "image_url": uri} if content_type.startswith("image/") else {"type": "document_url", "document_url": uri}
+            r = await client.post("", json={"model": settings.mistral_ocr_model, "document": document})
+            r.raise_for_status()
+            changed = ByteContent.from_bytes("\n\n".join(page["markdown"] for page in r.json()["pages"]).encode(), params.format.mime_type)
         return item, changed
 
     async def ocr(items: AsyncIterator[ByteContent]):
-        client = Mistral(api_key=key)
+        client = httpx2.AsyncClient(base_url=str(settings.mistral_ocr_base_url), headers={"Authorization": f"Bearer {key}"})
         async with client:
             sem = asyncio.Semaphore(params.concurrency)
             for task in asyncio.as_completed([one(client, item, sem) async for item in items]):

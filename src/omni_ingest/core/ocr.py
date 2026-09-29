@@ -13,6 +13,12 @@ if TYPE_CHECKING:
     from ..core.pipeline import IngestionContext
 
 
+@dataclass
+class Figure:
+    content: ByteContent
+    caption: str | None = None
+
+
 class OcrOutputFormat(StrEnum):
     # TODO: This ought to be a proper data class instead of this hacky enum. It stays enum
     # because making this a proper extendable reegistry confuses the implementation boundry

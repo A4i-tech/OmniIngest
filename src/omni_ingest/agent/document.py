@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from ..core.config import settings
 from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from ..core.ocr import OcrBuilderParams, OcrOutputFormat
+from ..core.ocr import Figure, OcrBuilderParams, OcrOutputFormat
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -190,6 +190,8 @@ class OcrAgent(BaseModel, Step):
                 yield item.content
 
         n = 0
+        extracted: list[KnowledgeItem] = []
+        figures_failed = 0
         async for source, changed in ocr(contents()):
             if changed is source:  # 'is' is the right way to test for identical
                 continue
@@ -197,7 +199,31 @@ class OcrAgent(BaseModel, Step):
             original = item_by_content_id[id(source)]
             original.content = changed
 
+            # Figures become items in their own right so later steps can address them by id.
+            figures: list[Figure] = changed.metadata.get("figures") or []
+            for figure in figures:
+                page = original.metadata.get("page")
+                if page is None:
+                    page = figure.content.metadata.get("page")
+                extracted.append(KnowledgeItem(
+                    content=figure.content,
+                    tenant_id=original.tenant_id,
+                    source_uri=original.source_uri,
+                    metadata={
+                        "parent_id": str(original.id),
+                        "page": page,
+                        "caption": figure.caption,
+                        "figure_id": figure.content.metadata.get("id"),
+                        "polygon": figure.content.metadata.get("polygon"),
+                        "content_type": figure.content.metadata.get("content_type"),
+                        "source": self.engine,
+                    },
+                ))
+
+            figures_failed += changed.metadata.get("figures_failed", 0)
             n += 1
             ctx.progress(n, len(items), f"extracted {n}/{len(items)}")
 
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items)})
+        ctx.items = [*ctx.items, *extracted]
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items,
+                           metadata={"count": len(items), "figures": len(extracted), "figures_failed": figures_failed})
