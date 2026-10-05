@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, TypeAlias, TypeVar
+from uuid import UUID, uuid4
 
 from .model import ByteContent, ResolvedResource
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 class Figure:
     content: ByteContent
     caption: str | None = None
+    id: UUID = field(default_factory=uuid4)
 
 
 class OcrOutputFormat(StrEnum):
@@ -47,6 +49,10 @@ class OcrBuilderParams:
     concurrency: int
     src_lang: str | None = None
     dst_lang: str | None = None
+    extract_images: bool = False
+    image_min_size: int | None = None
+    extract_header_footer: bool = False
+    deduplicate: bool = False
 
 
 T = TypeVar("T", bound=ByteContent)
