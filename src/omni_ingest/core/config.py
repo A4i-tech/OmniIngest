@@ -173,13 +173,10 @@ class Settings(BaseSettings):
     """Azure Document Intelligence API key"""
 
     mistral_ocr_api_key: SecretStr | None = None
-    """API key for the Mistral OCR endpoint"""
-
-    mistral_ocr_base_url: AnyHttpUrl = AnyHttpUrl("https://api.mistral.ai/v1/ocr")
-    """Base URL for the Mistral OCR endpoint"""
+    """API key for the Mistral Document AI endpoint"""
 
     mistral_ocr_model: str = "mistral-ocr-4-0"
-    """Mistral OCR model name"""
+    """Mistral Document AI model or deployment name"""
 
     default_stt_model: KnownSTTModelName = "azure"
     """Default speech-to-text model to use during pipeline execution"""
