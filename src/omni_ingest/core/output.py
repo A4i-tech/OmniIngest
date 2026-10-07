@@ -59,10 +59,11 @@ class Output(ABC):
         ...
 
     async def write_many(self, ctxs: list[IngestionContext[ResolvedResource]]) -> OutputResult:
-        result = OutputResult(status=StepStatus.SUCCESS)
-        for ctx in ctxs:
-            result = await self.write(ctx)
-        return result
+        results = [await self.write(ctx) for ctx in ctxs]
+        paths = {k: v for r in results for k, v in r.output_paths.items()}
+        if all(r.status == StepStatus.SUCCESS for r in results):
+            return OutputResult(status=StepStatus.SUCCESS, output_paths=paths)
+        return OutputResult(status=StepStatus.FAILURE, error="; ".join(r.error for r in results if r.error), output_paths=paths)
 
 
 class FileOutput(Output):

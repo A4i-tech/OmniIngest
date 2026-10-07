@@ -142,7 +142,7 @@ class Settings(BaseSettings):
     metadata_store: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
-    profiles_dir: Path = Path("profiles")
+    profiles_dir: Path = Path(__file__).resolve().parent.parent / "profiles"
     """Directory containing reusable pipeline components"""
 
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)

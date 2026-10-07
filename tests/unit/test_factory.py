@@ -220,7 +220,7 @@ def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
     (profiles / "chunking.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
     root = tmp_path / "root.yaml"
     root.write_text(yaml.dump({"steps": [{"agent": "chunking"}]}))
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pipeline_module.settings, "profiles_dir", profiles)
 
     runner = create_pipeline_from_config(root)
 

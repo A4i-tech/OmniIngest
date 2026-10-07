@@ -13,6 +13,16 @@ def test_parse_nullable_string_parameter(monkeypatch, tmp_path):
     assert _parse_args().params["translate_to"] == "te"
 
 
+def test_parse_args_warns_on_unreadable_pipeline_yaml(monkeypatch, tmp_path, capsys):
+    pipeline = tmp_path / "pipeline.yaml"
+    pipeline.write_text("steps: [unclosed\n")
+    monkeypatch.setattr(sys, "argv", ["omni-ingest", str(pipeline), "--input", "input.txt", "--output", "-"])
+
+    _parse_args()
+
+    assert f"warning: cannot read parameters from {pipeline}" in capsys.readouterr().err
+
+
 def test_read_stdin(monkeypatch):
     monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(b"stdin content")))
 
