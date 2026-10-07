@@ -37,6 +37,10 @@ class ImageExtractionAgent(BaseModel, Step):
     ))
     workers: PositiveInt = Field(default=4, description="Maximum number of PDFs to process concurrently")
 
+    @property
+    def replaces_items(self) -> bool:
+        return self.replace
+
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
         item_by_id = {doc["id"]: item for doc, item in zip(item_docs, ctx.items, strict=True)}
