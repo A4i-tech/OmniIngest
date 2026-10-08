@@ -228,3 +228,13 @@ async def test_write_many_attempts_every_ctx_and_reports_failure(vector_store):
     assert result.status == StepStatus.FAILURE
     assert "disk full" in (result.error or "")
     assert result.output_paths == {"json": "out.json"}
+
+
+async def test_write_many_skipped_is_not_failure(vector_store):
+    class Skips(Output):
+        async def write(self, ctx):
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+    result = await Skips().write_many([create_ctx(vector_store, c) for c in "ab"])
+
+    assert result.status == StepStatus.SUCCESS
