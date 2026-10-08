@@ -141,8 +141,8 @@ async def subscribe(run_id: uuid.UUID | None = None, populate_with_buffered: boo
     q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=settings.event_queue_size)
     if populate_with_buffered:
         buffered = [e for b in (_buffers.values() if run_id is None else [_buffers.get(run_id, ())]) for e in b]
-        for e in sorted(buffered, key=lambda e: e.timestamp)[-q.maxsize:]:
-            q.put_nowait(e)
+        for buffered_event in sorted(buffered, key=lambda e: e.timestamp)[-q.maxsize:]:
+            q.put_nowait(buffered_event)
 
     sub = (run_id, q)
     _subscribers.add(sub)
