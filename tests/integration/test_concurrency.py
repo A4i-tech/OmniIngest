@@ -103,12 +103,15 @@ async def test_failing_stage_finishes_and_stops_later_stages(metadata_store):
 
 
 class ProgressingStep(Step):
-    def __init__(self, ticks, delay):
+    def __init__(self, ticks, delay, gate=None):
         self.ticks = ticks
         self.delay = delay
+        self.gate = gate
 
     async def run(self, ctx):
         for i in range(1, self.ticks + 1):
+            if self.gate and i == self.ticks:
+                await self.gate.wait()
             ctx.progress(i, self.ticks)
             await asyncio.sleep(self.delay)
         return StepResult(status=StepStatus.SUCCESS)
@@ -116,9 +119,9 @@ class ProgressingStep(Step):
 
 @pytest.mark.asyncio
 async def test_finished_run_shutdown_keeps_other_run_events(metadata_store):
-    def make(ticks, delay):
+    def make(ticks, delay, gate=None):
         ctx = IngestionContext(store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")))
-        return ctx, PipelineRunner([ProgressingStep(ticks, delay)])
+        return ctx, PipelineRunner([ProgressingStep(ticks, delay, gate)])
 
     async def listen(run_id, seen):
         async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
@@ -128,7 +131,8 @@ async def test_finished_run_shutdown_keeps_other_run_events(metadata_store):
         await runner.run(ctx)
         event.shutdown(ctx.run_id)
 
-    (ctx_a, runner_a), (ctx_b, runner_b) = make(2, 0.001), make(8, 0.01)
+    gate = asyncio.Event()
+    (ctx_a, runner_a), (ctx_b, runner_b) = make(2, 0), make(8, 0, gate)
     seen_a, seen_b = [], []
     listeners = [asyncio.create_task(listen(ctx_a.run_id, seen_a)), asyncio.create_task(listen(ctx_b.run_id, seen_b))]
     await asyncio.sleep(0)
@@ -136,6 +140,7 @@ async def test_finished_run_shutdown_keeps_other_run_events(metadata_store):
 
     await task_a
     assert not task_b.done()
+    gate.set()
     await asyncio.gather(task_b, *listeners)
 
     assert isinstance(seen_a[-1], event.PipelineEndEvent)
