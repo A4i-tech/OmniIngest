@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from .core.model import ResolvedResource, Resource, StepResult
-    from .core.output import Output
+from .core import event
+from .core.model import Resource, StepResult, StepStatus
+from .core.output import Output, parse
+from .core.pipeline import IngestionContext, create_pipeline_from_config
 
 
-async def run(pipeline: Path | str, resource: Resource | ResolvedResource | str, *, output: Output | str | None = None, params: dict[str, Any] | None = None) -> list[StepResult]:
+async def run(pipeline: Path | str, resource: Resource | str, *, output: Output | str | None = None, params: dict[str, Any] | None = None) -> list[StepResult]:
     """Runs a pipeline YAML against a resource and returns the step results of all runs. Safe to call concurrently."""
-    # Lazy imports: core.pipeline imports this package.
-    from .core import event
-    from .core.model import StepStatus
-    from .core.output import parse
-    from .core.pipeline import IngestionContext, create_pipeline_from_config
-
     runner = create_pipeline_from_config(Path(pipeline), config_args=params)
     results, done = [], []
     async for ctx in runner.flatten(IngestionContext(resource=resource)):

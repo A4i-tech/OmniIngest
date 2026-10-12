@@ -120,7 +120,6 @@ async def _main() -> int:
         tasks = {step_id: (p.add_task(f"{label} [dim]pending[/dim]", total=1, start=False), label) for step_id, label in labels.items()}
         summary = p.add_task("[bold]total[/bold]", total=len(tasks))
         listeners = [] if args.quiet else [asyncio.create_task(_events(ctx.run_id, p, tasks, summary)) for _, _, ctx, _ in jobs]
-        await asyncio.sleep(0)
         try:
             runs = await asyncio.gather(*(job[3] for job in jobs))
         finally:

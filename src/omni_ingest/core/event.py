@@ -6,24 +6,14 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, fields
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
+
+from pydantic_core import to_jsonable_python
 
 from .config import settings
 from .model import Step, StepResult
 
-
-def _jsonable(value: Any) -> Any:
-    if isinstance(value, StepResult):
-        return value.model_dump(mode="json", exclude={"items"})
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {k: _jsonable(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_jsonable(v) for v in value]
-    return value
+_OMIT = {"step", "completed_steps", "step_result"}
 
 
 @dataclass(kw_only=True)
@@ -40,9 +30,8 @@ class Event:
     """Additional event metadata"""
 
     def to_dict(self) -> dict[str, Any]:
-        """Returns JSON-safe fields. Step instances and step lists are omitted, `step_name` identifies the step."""
-        values = {f.name: getattr(self, f.name) for f in fields(self)}
-        return {k: _jsonable(v) for k, v in values.items() if not isinstance(v, Step) and not (isinstance(v, list) and any(isinstance(x, Step) for x in v))}
+        """Returns JSON-safe fields. Step instances are omitted, `step_name` identifies the step."""
+        return cast("dict[str, Any]", to_jsonable_python({f.name: getattr(self, f.name) for f in fields(self) if f.name not in _OMIT}))
 
 
 @dataclass(kw_only=True)
@@ -66,6 +55,7 @@ class _StepMixin:
 @dataclass(kw_only=True)
 class PipelineBeginEvent(Event, _PipelineMixin):
     """Event emitted at the start of a pipeline."""
+
     identifier: str = field(default="pipeline_begin", init=False)
     completed_steps: list[Step] = field(default_factory=list)
 
@@ -73,6 +63,7 @@ class PipelineBeginEvent(Event, _PipelineMixin):
 @dataclass(kw_only=True)
 class PipelineEndEvent(Event, _PipelineMixin):
     """Event emitted at the end of a pipeline."""
+
     identifier: str = field(default="pipeline_end", init=False)
 
     status: Literal["succeeded", "failed"]
@@ -85,6 +76,7 @@ class PipelineEndEvent(Event, _PipelineMixin):
 @dataclass(kw_only=True)
 class PipelineStepBeginEvent(Event, _PipelineMixin, _StepMixin):
     """Event emitted at the start of a pipeline step."""
+
     identifier: str = field(default="pipeline_step_begin", init=False)
 
 
@@ -99,10 +91,15 @@ class PipelineStepProgressEvent(Event, _PipelineMixin, _StepMixin):
 @dataclass(kw_only=True)
 class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
     """Event emitted at the end of a pipeline step."""
+
     identifier: str = field(default="pipeline_step_end", init=False)
 
     step_result: StepResult
     """Result of the step execution"""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Like `Event.to_dict`, but `step_result` omits `items`."""
+        return super().to_dict() | {"step_result": self.step_result.model_dump(mode="json", exclude={"items"})}
 
 
 _buffers: dict[uuid.UUID, collections.deque[Event]] = {}
@@ -141,7 +138,7 @@ async def subscribe(run_id: uuid.UUID | None = None, populate_with_buffered: boo
     q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=settings.event_queue_size)
     if populate_with_buffered:
         buffered = [e for b in (_buffers.values() if run_id is None else [_buffers.get(run_id, ())]) for e in b]
-        for buffered_event in sorted(buffered, key=lambda e: e.timestamp)[-q.maxsize:]:
+        for buffered_event in sorted(buffered, key=lambda e: e.timestamp)[-q.maxsize :]:
             q.put_nowait(buffered_event)
 
     sub = (run_id, q)
