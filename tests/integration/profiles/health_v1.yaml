@@ -7,6 +7,5 @@ steps:
   - agent: sentence_chunking
     config:
       chunk_size: 512
-      overlap: 50
   - agent: enrichment
   - agent: embedding

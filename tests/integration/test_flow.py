@@ -115,7 +115,7 @@ async def test_health_v1_pipeline(metadata_store, tenant, profiles_dir):
 async def test_semantic_ingestion_and_search(tmp_path, metadata_store, vector_store, resources_dir):
     config = {
         "steps": [
-            {"agent": "chunking", "config": {"chunk_size": 200, "overlap": 20}},
+            {"agent": "sentence_chunking", "config": {"chunk_size": 200}},
             {"agent": "embedding"},
         ],
     }
