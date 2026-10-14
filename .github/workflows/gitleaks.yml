@@ -2,7 +2,7 @@ name: Gitleaks
 
 on:
   pull_request:
-    branches: [a4i/staging, a4i/main]
+    branches: [a4i/main]
 
 permissions:
   contents: read
