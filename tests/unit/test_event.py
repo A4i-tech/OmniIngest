@@ -284,3 +284,15 @@ def test_to_dict_is_json_safe_for_every_event():
         assert "raw" not in json.dumps(data)
     assert "items" not in events[-1].to_dict()["step_result"]
     assert events[-1].to_dict()["run_id"] == str(run_id)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_ends_full_subscriber_queue():
+    q = asyncio.Queue(maxsize=1)
+    q.put_nowait(make_event(0))
+    event._subscribers.add((RUN, q))
+
+    event.shutdown(RUN)
+
+    assert q.get_nowait() is None
+    assert not event._subscribers

@@ -98,12 +98,17 @@ class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
     """Result of the step execution"""
 
     def to_dict(self) -> dict[str, Any]:
-        """Like `Event.to_dict`, but `step_result` omits `items`."""
         return super().to_dict() | {"step_result": self.step_result.model_dump(mode="json", exclude={"items"})}
 
 
 _buffers: dict[uuid.UUID, collections.deque[Event]] = {}
 _subscribers: set[tuple[uuid.UUID | None, asyncio.Queue[Event | None]]] = set()
+
+
+def _put(q: asyncio.Queue[Event | None], item: Event | None):
+    if q.full():
+        q.get_nowait()
+    q.put_nowait(item)
 
 
 def publish(event: Event):
@@ -114,9 +119,7 @@ def publish(event: Event):
     for sub_run_id, q in _subscribers:
         if sub_run_id is not None and sub_run_id != run_id:
             continue
-        if q.full():
-            q.get_nowait()
-        q.put_nowait(event)
+        _put(q, event)
 
 
 async def subscribe(run_id: uuid.UUID | None = None, populate_with_buffered: bool = True) -> AsyncIterator[Event]:
@@ -156,7 +159,7 @@ async def subscribe(run_id: uuid.UUID | None = None, populate_with_buffered: boo
 def shutdown(run_id: uuid.UUID | None = None):
     """Shuts down the event system, notifying subscribers. With a run ID, only that run's subscribers end and its buffer clears."""
     for sub in [s for s in _subscribers if run_id is None or s[0] == run_id]:
-        sub[1].put_nowait(None)
+        _put(sub[1], None)
         _subscribers.discard(sub)
     if run_id is None:
         _buffers.clear()
