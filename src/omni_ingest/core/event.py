@@ -101,7 +101,9 @@ class PipelineStepEndEvent(Event, _PipelineMixin, _StepMixin):
         return super().to_dict() | {"step_result": self.step_result.model_dump(mode="json", exclude={"items"})}
 
 
+_MAX_BUFFERED_RUNS = 128
 _buffers: dict[uuid.UUID, collections.deque[Event]] = {}
+_closers: set[asyncio.Task] = set()
 _subscribers: set[tuple[uuid.UUID | None, asyncio.Queue[Event | None]]] = set()
 
 
@@ -115,7 +117,11 @@ def publish(event: Event):
     """Publishes an event to all matching subscribers and buffers it under its run."""
     run_id = getattr(event, "run_id", None)
     if run_id is not None:
-        _buffers.setdefault(run_id, collections.deque(maxlen=settings.event_queue_size)).append(event)
+        buf = _buffers.pop(run_id, None) or collections.deque(maxlen=settings.event_queue_size)
+        _buffers[run_id] = buf
+        buf.append(event)
+        while len(_buffers) > _MAX_BUFFERED_RUNS:
+            del _buffers[next(iter(_buffers))]
     for sub_run_id, q in _subscribers:
         if sub_run_id is not None and sub_run_id != run_id:
             continue
@@ -159,8 +165,13 @@ async def subscribe(run_id: uuid.UUID | None = None, populate_with_buffered: boo
 def shutdown(run_id: uuid.UUID | None = None):
     """Shuts down the event system, notifying subscribers. With a run ID, only that run's subscribers end and its buffer clears."""
     for sub in [s for s in _subscribers if run_id is None or s[0] == run_id]:
-        _put(sub[1], None)
         _subscribers.discard(sub)
+        try:
+            sub[1].put_nowait(None)
+        except asyncio.QueueFull:
+            closer = asyncio.get_running_loop().create_task(sub[1].put(None))
+            _closers.add(closer)
+            closer.add_done_callback(_closers.discard)
     if run_id is None:
         _buffers.clear()
     else:

@@ -287,12 +287,27 @@ def test_to_dict_is_json_safe_for_every_event():
 
 
 @pytest.mark.asyncio
-async def test_shutdown_ends_full_subscriber_queue():
+async def test_shutdown_keeps_queued_events_for_full_subscriber():
     q = asyncio.Queue(maxsize=1)
-    q.put_nowait(make_event(0))
+    first = make_event(0)
+    q.put_nowait(first)
     event._subscribers.add((RUN, q))
 
     event.shutdown(RUN)
 
-    assert q.get_nowait() is None
     assert not event._subscribers
+    assert q.get_nowait() is first
+    assert await asyncio.wait_for(q.get(), 1) is None
+
+
+def test_buffers_are_capped_by_run_count(monkeypatch):
+    monkeypatch.setattr(event, "_MAX_BUFFERED_RUNS", 2)
+    runs = [uuid4() for _ in range(3)]
+    for run_id in runs:
+        event.publish(make_event(0, run_id))
+    event.publish(make_event(1, runs[1]))
+    event.publish(make_event(0, uuid4()))
+
+    assert len(event._buffers) == 2
+    assert runs[0] not in event._buffers
+    assert runs[1] not in event._buffers or len(event._buffers[runs[1]]) == 2

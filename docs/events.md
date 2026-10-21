@@ -274,7 +274,7 @@ This sends a sentinel to the subscribers of that run and removes them. It also d
 Call `event.shutdown()` without argument to end all subscribers and clear all buffers. Tests use it before and after each event test so runs do not leak events into each other.
 
 !!! warning
-    A run buffer stays in memory until someone calls `event.shutdown(run_id)`. A long-running service must call it after each run. `omni_ingest.run` does this for you.
+    Event system keeps the buffers of the 128 most recent runs. Older buffers are dropped, so a caller that never calls `event.shutdown(run_id)` loses old progress history but does not leak memory. Call it after each run to free a buffer early. `omni_ingest.run` does this for you.
 
 ## Common patterns
 
