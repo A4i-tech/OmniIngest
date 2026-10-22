@@ -290,7 +290,7 @@ def test_transform_agent_rejects_invalid_jq():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("value", ["del(.metadata)", "del(.items)", ".items = [{}]"])
+@pytest.mark.parametrize("value", ["del(.metadata)", "del(.items)", ".items = [{}]", '.items = [{id: "nope", metadata: {}}]'])
 async def test_transform_agent_rejects_incomplete_document(value):
     agent = TransformAgent(value=value, update=["metadata", "items"])
     ctx = create_ctx()
