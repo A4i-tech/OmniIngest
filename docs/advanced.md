@@ -327,3 +327,27 @@ Move work into Python when it needs:
 - jq expression so long that nobody can review it confidently
 
 Keep orchestration in YAML after Python step exists. This leaves pipeline readable and implementation testable without pretending every problem is data transformation.
+
+## Run pipelines inside your application
+
+Use `omni_ingest.run` to run a pipeline from Python. It does not read `sys.argv`. Several calls can run at the same time in one process.
+
+```python
+import asyncio
+import omni_ingest
+
+a = omni_ingest.run("/srv/pipelines/school_notes.yaml", "/data/a.pdf", output="/data/out/a.json")
+b = omni_ingest.run("/srv/pipelines/school_notes.yaml", "/data/b.pdf", output="/data/out/b.json")
+results = await asyncio.gather(a, b)
+```
+
+Each call has its own run ID. `run` creates the ID, so subscribe without `run_id` and filter on `e.run_id` to follow one call. `run` calls `event.shutdown(run_id)` when the run ends. Other runs keep their events. To subscribe with `run_id`, build the `IngestionContext` yourself and call the runner.
+
+The `params` argument sets pipeline parameters. The `output` argument accepts an `Output` object or an output string such as `result.json`.
+
+!!! warning
+    Relative default paths resolve against the current working directory of the process. This applies to the SQLite metadata store, the LanceDB and Chroma directories, and relative output paths. A host process must pass absolute paths.
+
+!!! note
+    OmniIngest reads `Settings` once per process. Set environment variables before the first import of `omni_ingest`.
+
