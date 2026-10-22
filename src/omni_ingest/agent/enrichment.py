@@ -28,25 +28,42 @@ def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
     return cast(dict[str, Any], jq.compile(f"{path} |= if type == \"object\" and ($output | type) == \"object\" then . + $output else $output end", args={"output": output}).input_value(doc).first())
 
 
+class ItemDoc(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    tenant_id: UUID | None = None
+    source_uri: str | None = None
+    metadata: dict[str, Any]
+    text: str | None = None
+    content_type: str = "text/plain"
+    content_encoding: str = "utf-8"
+
+
+class TransformDoc(BaseModel):
+    metadata: dict[str, Any]
+    items: list[ItemDoc]
+
+
+async def _item_doc(item: KnowledgeItem, ctx: IngestionContext, text: bool) -> dict[str, Any]:
+    doc = ItemDoc(id=item.id, tenant_id=item.tenant_id, source_uri=item.source_uri, metadata=item.metadata)
+    if text:
+        doc.content_type = await item.content.content_type(ctx)
+        doc.content_encoding = item.content.encoding
+        doc.text = await item.content.decode(ctx) if doc.content_type.startswith("text/") else None
+    return doc.model_dump(mode="json", exclude=None if text else {"text", "content_type", "content_encoding"})
+
+
 async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
-    return {
-        "metadata": ctx.metadata,
-        "items": [
-            {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
-            | ({"text": await item.content.decode(ctx) if (await item.content.content_type(ctx)).startswith("text/") else None} if text else {})
-            for item in ctx.items
-        ],
-    }
+    return {"metadata": ctx.metadata, "items": [await _item_doc(item, ctx, text) for item in ctx.items]}
 
 
-def _item_from_doc(doc: dict[str, Any]) -> KnowledgeItem:
-    encoding = doc.get("content_encoding") or "utf-8"
+def _item_from_doc(doc: ItemDoc) -> KnowledgeItem:
+    assert doc.text is not None
     return KnowledgeItem(
-        id=UUID(doc["id"]) if doc.get("id") else uuid4(),
-        content=ByteContent.from_bytes(str(doc.get("text") or "").encode(encoding), content_type="text/plain", content_encoding=encoding),
-        tenant_id=UUID(doc["tenant_id"]) if doc.get("tenant_id") else None,
-        source_uri=doc.get("source_uri"),
-        metadata=doc.get("metadata") or {},
+        id=doc.id,
+        content=ByteContent.from_bytes(doc.text.encode(doc.content_encoding), content_type=doc.content_type, content_encoding=doc.content_encoding),
+        tenant_id=doc.tenant_id,
+        source_uri=doc.source_uri,
+        metadata=doc.metadata,
     )
 
 
@@ -178,20 +195,23 @@ def _default_update() -> list[Literal["metadata", "items"]]:
 
 
 class TransformAgent(BaseModel, Step):
-    """Applies a jq transform to the pipeline document and writes back selected keys."""
+    """Applies jq transforms to root metadata."""
 
-    value: JqExpression = Field(..., description="jq expression producing the transformed document")
+    value: JqExpression = Field(..., description="jq expression producing transformed output")
     update: list[Literal["metadata", "items"]] = Field(default_factory=_default_update, description="Document keys written back to the pipeline")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        result = jq.compile(self.value).input_value(await _doc(ctx, text=True)).first()
-        if not isinstance(result, dict):
-            raise ValueError("Transform value must produce an object")
+        result = TransformDoc.model_validate(jq.compile(self.value).input_value(await _doc(ctx, text="items" in self.update)).first())
         if "metadata" in self.update:
-            ctx.metadata = result.get("metadata", {})
-        if "items" in self.update:
-            ctx.items = [_item_from_doc(item) for item in result.get("items", [])]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update})
+            ctx.metadata = result.metadata
+        if "items" not in self.update:
+            return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update})
+        source = {item.id: item for item in ctx.items}
+        count = len(ctx.items)
+        ctx.items = [source[doc.id] if doc.text is None else _item_from_doc(doc) for doc in result.items]
+        if not ctx.items:
+            return StepResult(status=StepStatus.SKIPPED, error="Transform produced no items", metadata={"items_in": count, "items_out": 0})
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update, "items_in": count, "items_out": len(ctx.items)})
 
 
 class PromptAgent(BaseModel, Step, AgentMixin):

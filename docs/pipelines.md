@@ -39,7 +39,7 @@ omni-ingest school_notes.yaml --input chapter-5-land-resources.pdf --output vect
 Step by step:
 
 - `text` converts incoming resource into text when needed.
-- `chunking` replaces current item set with text chunks.
+- `sentence_chunking` replaces current item set with text chunks. It splits at line breaks and hard-cuts overlong lines. It has no overlap.
 - `embedding` adds vectors to current items.
 - output writer saves final context.
 
@@ -76,12 +76,11 @@ steps:
   - agent: sentence_chunking
     config:
       chunk_size: 900
-      overlap: 120
 
   - agent: embedding
 ```
 
-Only set knobs that matter. Defaults are part of agent code. For `chunking`, default size is useful for quick tests, but textbooks often benefit from bigger chunks because examples and explanation sit a few paragraphs apart.
+Only set knobs that matter. Defaults are part of agent code. For `sentence_chunking`, default size is useful for quick tests, but textbooks often benefit from bigger chunks because examples and explanation sit a few paragraphs apart.
 
 Implementation note: config is passed into Pydantic model fields for that agent. Unknown or wrongly typed values fail while pipeline is created, not halfway through ingestion.
 
@@ -99,17 +98,12 @@ parameters:
       type: integer
       minimum: 200
       default: 900
-    overlap:
-      type: integer
-      minimum: 0
-      default: 120
 
 steps:
   - agent: text
   - agent: sentence_chunking
     config:
       chunk_size: ${.config.chunk_size}
-      overlap: ${.config.overlap}
   - agent: embedding
 ```
 
@@ -125,8 +119,7 @@ Override values:
 omni-ingest configurable_textbook_index.yaml \
   --input science.pdf \
   --output vector:default \
-  --chunk-size 700 \
-  --overlap 80
+  --chunk-size 700
 ```
 
 Interpolation has two modes. If whole YAML value is `${...}`, result keeps its JSON type. That is why `chunk_size` stays an integer. If `${...}` appears inside a longer string, result becomes text.
@@ -149,7 +142,6 @@ steps:
   - agent: sentence_chunking
     config:
       chunk_size: 1200
-      overlap: 150
 
   - agent: extract
     config:
@@ -400,7 +392,7 @@ steps:
   - agent: embedding
 ```
 
-Both `analysis` steps run after `chunking`. `embedding` waits for both.
+Both `analysis` steps run after `sentence_chunking`. `embedding` waits for both.
 
 !!! warning
     Only group steps that do not fight over same state. Two extracts writing different item metadata paths are fine. Two steps replacing `ctx.items` in same stage are asking for a dodgy day.
@@ -644,9 +636,9 @@ This works best with sensible stages. Do not put half a pipeline into one giant 
 
 Good pipeline work usually goes like this:
 
-1. Start with `text`, `chunking`, and JSON output.
+1. Start with `text`, `sentence_chunking`, and JSON output.
 2. Inspect actual chunks.
-3. Tune chunk size and overlap.
+3. Tune chunk size.
 4. Add one `extract` step with strict schema.
 5. Add `transform` for deterministic cleanup.
 6. Add validation when failure condition is obvious.

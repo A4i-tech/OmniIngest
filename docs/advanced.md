@@ -168,6 +168,9 @@ After fan-out, fold item results into ordered root output with `transform`:
 
 Always sort when output order is part of contract. Concurrent extraction finishes in completion order rather than source order.
 
+!!! warning "Breaking change"
+    The `chunking` step and `TransformAgent.path` are removed. Use the `sentence_chunking` profile for chunking. `transform.value` must return the whole document, for example `.metadata.x = ...`. `transform.update` defaults to `["metadata"]`. Add `items` to write items back.
+
 ## Retry semantic mistakes
 
 JSON Schema checks shape. It cannot express every rule which makes output useful. `assertions` run jq against extracted value after schema validation. Failed assertions raise `ModelRetry` with supplied feedback.

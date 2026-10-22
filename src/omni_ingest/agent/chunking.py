@@ -113,7 +113,7 @@ class TimedChunkingAgent(BaseModel, Step):
     """
 
     segment_duration: timedelta = Field(default=timedelta(seconds=30), description="Target duration of each time block")
-    overlap: timedelta = Field(default=timedelta(seconds=0), description="Overlap between adjacent time blocks")
+    overlap: timedelta = Field(default=timedelta(0), description="Overlap between adjacent time blocks")
     pause_threshold: timedelta | None = Field(default=None, description="Silence threshold to split blocks")
     tokens: JqExpression = Field(default=".metadata.word_timestamps[]?", description="jq expression selecting timed tokens")
     text: JqExpression = Field(default=".Word", description="jq expression selecting token text")

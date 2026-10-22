@@ -2,6 +2,7 @@ import io
 import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from uuid import uuid4
 
 import pytest
 from pypdf import PdfReader, PdfWriter
@@ -101,6 +102,65 @@ async def test_sentence_chunking_profile_keeps_text_under_chunk_size_in_one_chun
     assert results[0].status == StepStatus.SUCCESS
     assert len(ctx.items) == 1
     assert await ctx.items[0].content.decode(ctx) == text
+
+
+async def run_profile(items, chunk_size=50):
+    runner = create_pipeline_from_config(PROFILE, config_args={"chunk_size": chunk_size})
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=items, store=NullMetadataStore())
+    return await runner.run(ctx), ctx
+
+
+@pytest.mark.asyncio
+async def test_sentence_chunking_profile_keeps_tenant_and_content_type():
+    tenant_id = uuid4()
+    item = KnowledgeItem(content=ByteContent.from_bytes(b"a\nb\nc\n", content_type="text/markdown"), tenant_id=tenant_id, source_uri="s3://x", metadata={"k": 1})
+
+    _, ctx = await run_profile([item], chunk_size=4)
+
+    assert len(ctx.items) == 2
+    for chunk in ctx.items:
+        assert chunk.id != item.id
+        assert (chunk.tenant_id, chunk.source_uri, chunk.metadata) == (tenant_id, "s3://x", {"k": 1})
+        assert await chunk.content.content_type(ctx) == "text/markdown"
+
+
+@pytest.mark.asyncio
+async def test_sentence_chunking_profile_passes_non_text_item_through():
+    image = KnowledgeItem(content=ByteContent.from_bytes(b"PNG", content_type="image/png"))
+    text = KnowledgeItem(content=ByteContent.from_bytes(b"hello", content_type="text/plain"))
+
+    _, ctx = await run_profile([image, text])
+
+    assert ctx.items[0] is image
+    assert await ctx.items[1].content.decode(ctx) == "hello"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chunk_size", [0, -1])
+async def test_sentence_chunking_profile_rejects_non_positive_chunk_size(chunk_size):
+    with pytest.raises(ValueError, match="Invalid parameters"):
+        create_pipeline_from_config(PROFILE, config_args={"chunk_size": chunk_size})
+
+
+@pytest.mark.asyncio
+async def test_sentence_chunking_profile_chunks_non_ascii_text_within_limit():
+    text = "नमस्ते दुनिया।" * 10 + "你好，世界。" * 10
+    item = KnowledgeItem(content=ByteContent.from_bytes(text.encode(), content_type="text/plain"))
+
+    _, ctx = await run_profile([item], chunk_size=20)
+
+    chunks = [await chunk.content.decode(ctx) for chunk in ctx.items]
+    assert all(len(chunk) <= 20 for chunk in chunks)
+    assert "".join(chunks) == text
+
+
+@pytest.mark.asyncio
+async def test_sentence_chunking_profile_skips_when_no_chunks():
+    item = KnowledgeItem(content=ByteContent.from_bytes(b"", content_type="text/plain"))
+
+    results, _ = await run_profile([item])
+
+    assert results[0].status == StepStatus.SKIPPED
 
 
 @pytest.mark.asyncio

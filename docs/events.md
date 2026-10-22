@@ -36,7 +36,7 @@ Pipeline events also carry:
 
 Step events also carry:
 
-- `step_name`: registry name such as `chunking` or `extract`.
+- `step_name`: registry name such as `sentence_chunking` or `extract`.
 - `step`: actual step instance.
 
 !!! note
@@ -101,7 +101,7 @@ Published after a step returns or fails.
 event.PipelineStepEndEvent(
     run_id=ctx.run_id,
     tenant_id=ctx.tenant_id,
-    step_name="chunking",
+    step_name="sentence_chunking",
     step=chunking_step,
     step_result=result
 )

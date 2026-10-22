@@ -42,7 +42,11 @@ async def test_create_pipeline_with_config():
 
         assert len(pipeline.steps) == 1
         assert isinstance(pipeline.steps[0], TransformAgent)
-        assert "128" in pipeline.steps[0].value
+
+        ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"x" * 300)), store=NullMetadataStore())
+        await pipeline.run(ctx)
+
+        assert [len(await item.content.read(ctx)) for item in ctx.items] == [128, 128, 44]
 
 
 def test_pipeline_groups_explicit_stages_and_generates_sequential_defaults(tmp_path):
