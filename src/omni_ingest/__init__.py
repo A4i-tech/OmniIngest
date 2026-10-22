@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 async def run(pipeline: Path | str, resource: Resource | str, *, output: Output | str | None = None, params: dict[str, Any] | None = None) -> list[StepResult]:
-    """Runs a pipeline YAML against a resource and returns the step results of all runs. Safe to call concurrently."""
+    """Runs a pipeline YAML against a resource and returns the step results of all runs. Outputs are written only for runs without a failed step. Safe to call concurrently."""
     runner = create_pipeline_from_config(Path(pipeline), config_args=params)
     results, done = [], []
     async for ctx in runner.flatten(IngestionContext(resource=resource)):
