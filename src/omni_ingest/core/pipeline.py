@@ -46,12 +46,16 @@ _INTERPOLATION_RE = re.compile(r"\$\{([^{}]+)\}")
 _CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP", default=None)
 
 
-@cache
 def default_metadata_store() -> MetadataStore:
+    return _metadata_store(settings.metadata_store)
+
+
+@cache
+def _metadata_store(url: str) -> MetadataStore:
     from ..port.metadata_store import NullMetadataStore, SQLAlchemyMetadataStore
-    if settings.metadata_store == "null":
+    if url == "null":
         return NullMetadataStore()
-    return SQLAlchemyMetadataStore()
+    return SQLAlchemyMetadataStore(url)
 
 
 @dataclass(kw_only=True)

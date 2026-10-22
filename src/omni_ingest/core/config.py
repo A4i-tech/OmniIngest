@@ -142,6 +142,9 @@ class Settings(BaseSettings):
     metadata_store: str = "sqlite+aiosqlite:///./omni_ingest.db"
     """SQLAlchemy connection string"""
 
+    event_queue_size: int = 256
+    """Maximum events kept per run for replay and per subscriber queue"""
+
     profiles_dir: Path = Path("profiles")
     """Directory containing reusable pipeline components"""
 
