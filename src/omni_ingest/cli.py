@@ -14,12 +14,10 @@ from pydantic import TypeAdapter, ValidationError
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
-load_dotenv(Path.cwd() / ".env")  # must run before importing modules that instantiate settings
-
-from omni_ingest.core import event  # noqa: E402
-from omni_ingest.core.model import ByteContent, PipelineConfig, ResolvedResource, Resource, StepStatus  # noqa: E402
-from omni_ingest.core.output import parse as parse_output  # noqa: E402
-from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id  # noqa: E402
+from omni_ingest.core import event
+from omni_ingest.core.model import ByteContent, PipelineConfig, ResolvedResource, Resource, StepStatus
+from omni_ingest.core.output import parse as parse_output
+from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id
 
 
 def _parse_args() -> argparse.Namespace:
@@ -67,8 +65,8 @@ def _read_stdin(name: str | None) -> ResolvedResource:
     return ResolvedResource(uri=name or "stdin://", content=ByteContent.from_bytes(sys.stdin.buffer.read()))
 
 
-async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]], summary: TaskID) -> None:
-    async for e in event.subscribe(populate_with_buffered=False):
+async def _events(run_id: UUID, progress: Progress, tasks: dict[int, tuple[TaskID, str]], summary: TaskID) -> None:
+    async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
         if isinstance(e, event.PipelineBeginEvent):
             progress.advance(summary, len(e.completed_steps))
             for step in e.completed_steps:
@@ -95,6 +93,7 @@ async def _events(progress: Progress, tasks: dict[int, tuple[TaskID, str]], summ
 
 
 async def _main() -> int:
+    load_dotenv(Path.cwd() / ".env")  # provider keys are read from os.environ
     logfire.configure(console=False, send_to_logfire="if-token-present")
     logfire.instrument_pydantic_ai()
 
@@ -121,15 +120,14 @@ async def _main() -> int:
         labels = {id(step): f"{name} {i:02d} {runner.step_descriptions.get(id(step)) or lookup_step_id(step) or type(step).__name__}" for name, runner, _, _ in jobs for i, step in enumerate(runner.steps, 1)}
         tasks = {step_id: (p.add_task(f"{label} [dim]pending[/dim]", total=1, start=False), label) for step_id, label in labels.items()}
         summary = p.add_task("[bold]total[/bold]", total=len(tasks))
-        listener = None if args.quiet else asyncio.create_task(_events(p, tasks, summary))
-        if listener:
-            await asyncio.sleep(0)
+        listeners = [] if args.quiet else [asyncio.create_task(_events(ctx.run_id, p, tasks, summary)) for _, _, ctx, _ in jobs]
+        await asyncio.sleep(0)  # listeners must register before runs publish
         try:
             runs = await asyncio.gather(*(job[3] for job in jobs))
         finally:
-            event.shutdown()
-            if listener:
-                await listener
+            for _, _, ctx, _ in jobs:
+                event.shutdown(ctx.run_id)
+            await asyncio.gather(*listeners)
 
     await output.write_many([job[2] for job in jobs])
     failures = [r for run in runs for r in run if r.status == StepStatus.FAILURE]
