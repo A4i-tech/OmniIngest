@@ -215,7 +215,7 @@ class OcrAgent(BaseModel, Step):
                     original.metadata[key] = changed.metadata[key]
 
             # Figures become items in their own right so later steps can address them by id.
-            figures: list[Figure] = changed.metadata.get("figures") or []
+            figures: list[Figure] = changed.metadata.pop("figures", None) or []
             for figure in figures:
                 page = original.metadata.get("page")
                 if page is None:

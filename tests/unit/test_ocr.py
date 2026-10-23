@@ -7,8 +7,9 @@ import pytest
 from pydantic import SecretStr
 
 from omni_ingest.agent.document import OcrAgent
-from omni_ingest.core.model import ByteContent, KnowledgeItem
+from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
 from omni_ingest.core.ocr import OcrBuilderParams, OcrOutputFormat
+from omni_ingest.core.output import json_dump_context
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.metadata_store import NullMetadataStore
 from omni_ingest.port.ocr import default_factory
@@ -112,3 +113,14 @@ async def test_azure_mistral_builds_client_with_endpoint_and_forwards_options():
     assert (built["api_key"], built["server_url"]) == ("k", "https://r.services.ai.azure.com/")
     assert client.calls[0]["include_image_base64"] is True
     assert client.calls[0]["image_min_size"] == 64
+
+
+async def test_context_with_extracted_figures_dumps_to_json():
+    pages = [_page(0, "a ![img-0.jpeg](img-0.jpeg)", [_image("img-0.jpeg", b"\xff\xd8jpeg")])]
+    ctx, _, _ = await _run(pages)
+    ctx.resource = ResolvedResource(uri="x", content=ByteContent())
+
+    dump = await json_dump_context(ctx)
+
+    assert "figures" not in ctx.items[0].content.metadata
+    assert len(dump["items"]) == 2
