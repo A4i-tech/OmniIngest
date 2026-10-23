@@ -6,7 +6,7 @@ import fsspec
 import pytest
 
 from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
-from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, MarkdownDirOutput, MongoDocumentOutput, StdoutOutput, VectorStoreOutput, parse
+from omni_ingest.core.output import BrfFileOutput, GraphStoreOutput, JsonFileOutput, MarkdownDirOutput, MongoDocumentOutput, Output, OutputResult, StdoutOutput, VectorStoreOutput, parse
 from omni_ingest.core.pipeline import IngestionContext
 from omni_ingest.port.graph_store import InMemoryGraphStore
 
@@ -212,3 +212,29 @@ async def test_graph_store_output_with_edges(vector_store):
     assert result.status == StepStatus.SUCCESS
     assert store.nodes == {"n1": {"id": "n1"}}
     assert store.edges == [{"source": "n1", "target": "n2"}]
+
+
+async def test_write_many_attempts_every_ctx_and_reports_failure(vector_store):
+    class Flaky(Output):
+        async def write(self, ctx):
+            if ctx is ctxs[0]:
+                return OutputResult(status=StepStatus.FAILURE, error="disk full")
+            return OutputResult(status=StepStatus.SUCCESS, output_paths={"json": "out.json"})
+
+    ctxs = [create_ctx(vector_store, c) for c in "abc"]
+
+    result = await Flaky().write_many(ctxs)
+
+    assert result.status == StepStatus.FAILURE
+    assert "disk full" in (result.error or "")
+    assert result.output_paths == {"json": "out.json"}
+
+
+async def test_write_many_skipped_is_not_failure(vector_store):
+    class Skips(Output):
+        async def write(self, ctx):
+            return OutputResult(status=StepStatus.SKIPPED, error="No items")
+
+    result = await Skips().write_many([create_ctx(vector_store, c) for c in "ab"])
+
+    assert result.status == StepStatus.SUCCESS

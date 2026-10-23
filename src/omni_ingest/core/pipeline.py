@@ -110,7 +110,6 @@ StepFactory: TypeAlias = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
     "text": agent.modality.TextAgent,
 
-    "chunking": agent.chunking.SentenceChunkingAgent,
     "image_extraction": agent.document.ImageExtractionAgent,
     "rasterize": agent.document.RasterizeAgent,
     "ocr": agent.document.OcrAgent,
@@ -144,6 +143,10 @@ class PipelineRunner:
     def __init__(self, steps: list[Step] | Mapping[str, list[Step]], pipeline_version_id: UUID | None = None, toolsets: Mapping[str, AbstractToolset] = {}, logger: logging.Logger | None = None, step_descriptions: Mapping[int, str] | None = None, step_validations: Mapping[int, list[ValidationCheck]] | None = None):
         self.stages = dict(steps) if isinstance(steps, Mapping) else {f"stage-{i}-{uuid4().hex[:8]}": [step] for i, step in enumerate(steps, 1)}
         self.steps = [step for stage in self.stages.values() for step in stage]
+        for stage, stage_steps in self.stages.items():
+            replacers = [type(step).__name__ for step in stage_steps if getattr(step, "replaces_items", False)]
+            if len(replacers) > 1:
+                raise ValueError(f"Stage {stage} runs {replacers[0]} and {replacers[1]} in parallel, and both replace ctx.items. Put them in separate stages.")
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)
         self.toolsets = toolsets
         self.output_result: OutputResult | None = None

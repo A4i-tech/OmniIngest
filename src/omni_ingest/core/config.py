@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     event_queue_size: int = 256
     """Maximum events kept per run for replay and per subscriber queue"""
 
-    profiles_dir: Path = Path("profiles")
+    profiles_dir: Path = Path(__file__).resolve().parent.parent / "profiles"
     """Directory containing reusable pipeline components"""
 
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)
@@ -177,6 +177,9 @@ class Settings(BaseSettings):
 
     mistral_ocr_api_key: SecretStr | None = None
     """API key for the Mistral Document AI endpoint"""
+
+    mistral_ocr_endpoint: AnyHttpUrl | None = None
+    """Azure endpoint for Mistral Document AI, used by the azure_mistral engine"""
 
     mistral_ocr_model: str = "mistral-ocr-4-0"
     """Mistral Document AI model or deployment name"""
