@@ -95,3 +95,20 @@ def test_azure_mistral_requires_endpoint():
     with pytest.raises(ValueError, match="MISTRAL_OCR_ENDPOINT"), patch("omni_ingest.port.ocr.settings") as s:
         s.mistral_ocr_api_key, s.mistral_ocr_endpoint = SecretStr("k"), None
         default_factory()("azure_mistral", OcrBuilderParams(ctx=ctx, format=OcrOutputFormat.MARKDOWN, concurrency=1))
+
+
+async def test_azure_mistral_builds_client_with_endpoint_and_forwards_options():
+    client, built = FakeClient([_page(0, "a ![img-0.jpeg](img-0.jpeg)", [_image("img-0.jpeg", b"one")])]), {}
+
+    def make(**kwargs):
+        built.update(kwargs)
+        return client
+
+    ctx = _ctx()
+    with patch("omni_ingest.port.ocr.settings") as s, patch("omni_ingest.port.ocr.MistralAzure", make):
+        s.mistral_ocr_api_key, s.mistral_ocr_endpoint, s.mistral_ocr_model = SecretStr("k"), "https://r.services.ai.azure.com/", "m"
+        await OcrAgent(engine="azure_mistral", extract_images=True, image_min_size=64).run(ctx)
+
+    assert (built["api_key"], built["server_url"]) == ("k", "https://r.services.ai.azure.com/")
+    assert client.calls[0]["include_image_base64"] is True
+    assert client.calls[0]["image_min_size"] == 64
