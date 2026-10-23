@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
 import jq
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 from pypdf import PdfReader, PdfWriter
 
 if TYPE_CHECKING:
@@ -15,57 +15,6 @@ if TYPE_CHECKING:
 
 from ..core.content import content_chain_uri, resource_pages_uri
 from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
-from .enrichment import _doc
-
-
-class SentenceChunkingAgent(BaseModel, Step):
-    """
-    Segments text into discrete chunks while maintaining sentence boundaries.
-
-    Large documents are partitioned into smaller segments of a specified
-    character count. The agent prioritizes breaks at sentence endings
-    to preserve contextual integrity for subsequent search operations.
-    """
-
-    chunk_size: PositiveInt = Field(default=512, description="Maximum number of characters per chunk")
-    overlap: NonNegativeInt = Field(default=50, description="Character overlap between adjacent chunks")
-    foreach: JqExpression = Field(default=".items[]", description="jq expression selecting items to chunk")
-    input: JqExpression = Field(default=".text", description="jq expression selecting text to chunk")
-    separators: list[str] = Field(default=[". ", "! ", "? ", ".\n", "!\n", "?\n"], description="Preferred sentence boundaries")
-
-    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
-        if not ctx.items:
-            return StepResult(status=StepStatus.SKIPPED, error="No text")
-        doc = await _doc(ctx, text=True)
-        item_by_id = {str(item.id): item for item in ctx.items}
-        chunks = []
-        for source_idx, item_doc in enumerate(jq.compile(self.foreach).input_value(doc).all()):
-            source = item_by_id[item_doc["id"]]
-            text = jq.compile(self.input).input_value(item_doc).first()
-            if text is None:
-                continue
-            if not isinstance(text, str):
-                raise ValueError("Sentence chunking input must resolve to text")
-            text, pos = " ".join(text.split()), 0
-            while pos < len(text):
-                end = min(pos + self.chunk_size, len(text))
-                if end < len(text):
-                    chunk = text[pos:end]
-                    breaks = [chunk.rfind(separator) + len(separator) - 1 for separator in self.separators if chunk.rfind(separator) > self.chunk_size // 2]
-                    if breaks:
-                        end = pos + max(breaks) + 1
-                if content := text[pos:end].strip():
-                    metadata = source.metadata | {"source_idx": source_idx, "char_start": pos}
-                    chunks.append(KnowledgeItem(content=ByteContent.from_bytes(content.encode(source.content.encoding), content_type="text/plain", content_encoding=source.content.encoding), tenant_id=source.tenant_id, source_uri=source.source_uri, metadata=metadata))
-                pos = end - self.overlap if end < len(text) and end - self.overlap > pos else end
-        ctx.items = chunks
-        if not chunks:
-            return StepResult(status=StepStatus.SKIPPED, error="No text")
-        return StepResult(
-            status=StepStatus.SUCCESS,
-            items=ctx.items,
-            metadata={"count": len(ctx.items), "chunk_size": self.chunk_size, "overlap": self.overlap},
-        )
 
 
 class PageChunkingAgent(BaseModel, Step):

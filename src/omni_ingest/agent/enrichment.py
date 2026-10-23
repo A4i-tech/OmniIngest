@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
+from uuid import UUID, uuid4
 
 import jq
 from datamodel_code_generator import GenerateConfig
@@ -27,15 +28,43 @@ def _assign(doc: dict[str, Any], path: str, output: Any) -> dict[str, Any]:
     return cast(dict[str, Any], jq.compile(f"{path} |= if type == \"object\" and ($output | type) == \"object\" then . + $output else $output end", args={"output": output}).input_value(doc).first())
 
 
+class ItemDoc(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    tenant_id: UUID | None = None
+    source_uri: str | None = None
+    metadata: dict[str, Any]
+    text: str | None = None
+    content_type: str = "text/plain"
+    content_encoding: str = "utf-8"
+
+
+class TransformDoc(BaseModel):
+    metadata: dict[str, Any]
+    items: list[ItemDoc]
+
+
+async def _item_doc(item: KnowledgeItem, ctx: IngestionContext, text: bool) -> dict[str, Any]:
+    doc = ItemDoc(id=item.id, tenant_id=item.tenant_id, source_uri=item.source_uri, metadata=item.metadata)
+    if text:
+        doc.content_type = await item.content.content_type(ctx)
+        doc.content_encoding = item.content.encoding
+        doc.text = await item.content.decode(ctx) if doc.content_type.startswith("text/") else None
+    return doc.model_dump(mode="json", exclude=None if text else {"text", "content_type", "content_encoding"})
+
+
 async def _doc(ctx: IngestionContext, text: bool = False) -> dict[str, Any]:
-    return {
-        "metadata": ctx.metadata,
-        "items": [
-            {"id": str(item.id), "source_uri": item.source_uri, "metadata": item.metadata}
-            | ({"text": await item.content.decode(ctx) if (await item.content.content_type(ctx)).startswith("text/") else None} if text else {})
-            for item in ctx.items
-        ],
-    }
+    return {"metadata": ctx.metadata, "items": [await _item_doc(item, ctx, text) for item in ctx.items]}
+
+
+def _item_from_doc(doc: ItemDoc) -> KnowledgeItem:
+    assert doc.text is not None
+    return KnowledgeItem(
+        id=doc.id,
+        content=ByteContent.from_bytes(doc.text.encode(doc.content_encoding), content_type=doc.content_type, content_encoding=doc.content_encoding),
+        tenant_id=doc.tenant_id,
+        source_uri=doc.source_uri,
+        metadata=doc.metadata,
+    )
 
 
 async def _content(item: KnowledgeItem, ctx: IngestionContext) -> str | BinaryContent:
@@ -161,16 +190,28 @@ class ExtractAgent(BaseModel, Step, AgentMixin):
             return item_doc, res.output.model_dump(mode="json")["output"]
 
 
+def _default_update() -> list[Literal["metadata", "items"]]:
+    return ["metadata"]
+
+
 class TransformAgent(BaseModel, Step):
     """Applies jq transforms to root metadata."""
 
     value: JqExpression = Field(..., description="jq expression producing transformed output")
-    path: JqExpression = Field(..., description="jq path where transformed output is written")
+    update: list[Literal["metadata", "items"]] = Field(default_factory=_default_update, description="Document keys written back to the pipeline")
 
     async def run(self, ctx: IngestionContext) -> StepResult:
-        doc = await _doc(ctx)
-        ctx.metadata = _assign(doc, self.path, jq.compile(self.value).input_value(doc).first())["metadata"]
-        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"path": self.path})
+        result = TransformDoc.model_validate(jq.compile(self.value).input_value(await _doc(ctx, text="items" in self.update)).first())
+        if "metadata" in self.update:
+            ctx.metadata = result.metadata
+        if "items" not in self.update:
+            return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update})
+        source = {item.id: item for item in ctx.items}
+        count = len(ctx.items)
+        ctx.items = [source[doc.id] if doc.text is None else _item_from_doc(doc) for doc in result.items]
+        if not ctx.items:
+            return StepResult(status=StepStatus.SKIPPED, error="Transform produced no items", metadata={"items_in": count, "items_out": 0})
+        return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"update": self.update, "items_in": count, "items_out": len(ctx.items)})
 
 
 class PromptAgent(BaseModel, Step, AgentMixin):

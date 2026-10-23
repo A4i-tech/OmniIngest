@@ -4,9 +4,8 @@ input_modality: document
 description: "Healthcare-focused pipeline for knowledge base ingestion with deduplication focus"
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 512
-      overlap: 50
   - agent: enrichment
   - agent: embedding
