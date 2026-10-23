@@ -12,7 +12,7 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
     # for 3p vendors, testing a structured format (e.g., HTML) and an unstructured
     # format (e.g., markdown) is sufficient.
     ("azure_di", OcrOutputFormat.MARKDOWN),  # azure di supports no structured format
-    ("mistral", OcrOutputFormat.MARKDOWN),  # mistral ocr supports no structured format
+    pytest.param("mistral", OcrOutputFormat.MARKDOWN, marks=pytest.mark.skip(reason="CI MISTRAL_OCR_API_KEY returns 401; re-enable after rotating the secret")),
     ("azure_mistral", OcrOutputFormat.MARKDOWN),
     ("llm", OcrOutputFormat.HTML),
     ("llm", OcrOutputFormat.MARKDOWN),
