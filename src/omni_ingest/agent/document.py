@@ -170,6 +170,10 @@ class OcrAgent(BaseModel, Step):
     src_lang: str | None = Field(default=None, description="Source language hint for OCR engines that support it")
     dst_lang: str | None = Field(default=None, description="Destination language hint for OCR engines that support it")
     concurrency: PositiveInt = Field(default=4, description="Maximum number of items OCR'd concurrently")
+    extract_images: bool = Field(default=False, description="Return detected figures as image items (Mistral engines only)")
+    image_min_size: PositiveInt | None = Field(default=None, description="Smallest figure edge in pixels to extract")
+    extract_header_footer: bool = Field(default=False, description="Keep page headers and footers out of the text and store them in item metadata")
+    deduplicate: bool = Field(default=False, description="Create one image item for figures with identical bytes. Needs extract_images")
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
@@ -185,7 +189,11 @@ class OcrAgent(BaseModel, Step):
             items.extend(item_by_id[item_id] for item_id in item_ids)
 
         ctx.progress(0, len(items), "extracting text")
-        ocr = ctx.ocr_factory(self.engine, OcrBuilderParams(ctx=ctx, format=self.format, concurrency=self.concurrency, src_lang=self.src_lang, dst_lang=self.dst_lang))
+        ocr = ctx.ocr_factory(self.engine, OcrBuilderParams(
+            ctx=ctx, format=self.format, concurrency=self.concurrency, src_lang=self.src_lang, dst_lang=self.dst_lang,
+            extract_images=self.extract_images, image_min_size=self.image_min_size,
+            extract_header_footer=self.extract_header_footer, deduplicate=self.deduplicate,
+        ))
 
         item_by_content_id = {id(item.content): item for item in items}
 
@@ -202,6 +210,9 @@ class OcrAgent(BaseModel, Step):
 
             original = item_by_content_id[id(source)]
             original.content = changed
+            for key in ("ocr_header", "ocr_footer"):
+                if key in changed.metadata:
+                    original.metadata[key] = changed.metadata[key]
 
             # Figures become items in their own right so later steps can address them by id.
             figures: list[Figure] = changed.metadata.get("figures") or []
@@ -210,15 +221,19 @@ class OcrAgent(BaseModel, Step):
                 if page is None:
                     page = figure.content.metadata.get("page")
                 extracted.append(KnowledgeItem(
+                    id=figure.id,
                     content=figure.content,
                     tenant_id=original.tenant_id,
                     source_uri=original.source_uri,
                     metadata={
+                        "kind": "image",
                         "parent_id": str(original.id),
                         "page": page,
                         "caption": figure.caption,
                         "figure_id": figure.content.metadata.get("id"),
                         "polygon": figure.content.metadata.get("polygon"),
+                        "bbox": figure.content.metadata.get("bbox"),
+                        "page_dimensions": figure.content.metadata.get("page_dimensions"),
                         "content_type": figure.content.metadata.get("content_type"),
                         "source": self.engine,
                     },

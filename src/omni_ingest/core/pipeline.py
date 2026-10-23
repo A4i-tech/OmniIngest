@@ -46,12 +46,16 @@ _INTERPOLATION_RE = re.compile(r"\$\{([^{}]+)\}")
 _CURRENT_STEP: ContextVar[tuple[str, Step] | None] = ContextVar("_CURRENT_STEP", default=None)
 
 
-@cache
 def default_metadata_store() -> MetadataStore:
+    return _metadata_store(settings.metadata_store)
+
+
+@cache
+def _metadata_store(url: str) -> MetadataStore:
     from ..port.metadata_store import NullMetadataStore, SQLAlchemyMetadataStore
-    if settings.metadata_store == "null":
+    if url == "null":
         return NullMetadataStore()
-    return SQLAlchemyMetadataStore()
+    return SQLAlchemyMetadataStore(url)
 
 
 @dataclass(kw_only=True)
@@ -106,7 +110,6 @@ StepFactory: TypeAlias = dict[str, type[Step]]
 _STEP_FACTORY: StepFactory = {
     "text": agent.modality.TextAgent,
 
-    "chunking": agent.chunking.SentenceChunkingAgent,
     "image_extraction": agent.document.ImageExtractionAgent,
     "rasterize": agent.document.RasterizeAgent,
     "ocr": agent.document.OcrAgent,
@@ -141,7 +144,7 @@ class PipelineRunner:
         self.stages = dict(steps) if isinstance(steps, Mapping) else {f"stage-{i}-{uuid4().hex[:8]}": [step] for i, step in enumerate(steps, 1)}
         self.steps = [step for stage in self.stages.values() for step in stage]
         for stage, stage_steps in self.stages.items():
-            replacers = [lookup_step_id(step) or type(step).__name__ for step in stage_steps if getattr(step, "replaces_items", False)]
+            replacers = [type(step).__name__ for step in stage_steps if getattr(step, "replaces_items", False)]
             if len(replacers) > 1:
                 raise ValueError(f"Stage {stage} runs {replacers[0]} and {replacers[1]} in parallel, and both replace ctx.items. Put them in separate stages.")
         self.pipeline_version_id = pipeline_version_id or UUID(int=0)

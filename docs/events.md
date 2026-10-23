@@ -5,7 +5,7 @@ Events are how OmniIngest reports pipeline activity while work is running. CLI p
 Event system is deliberately small. Agents do not know about queues or UI. They call `ctx.progress(...)` when they have useful progress. Pipeline runner publishes lifecycle events as it starts and finishes pipeline stages.
 
 !!! warning
-    Events are live status hints. They are not checkpoints, audit records, or stable serialized API objects. Checkpoints live in metadata store. Queue overflow can drop old events. Event objects may include Python step instances.
+    Events are live status hints. They are not checkpoints or audit records. Checkpoints live in metadata store. Queue overflow can drop old events. Event objects may include Python step instances. Use `to_dict()` to serialize them.
 
 ## What gets published
 
@@ -36,11 +36,26 @@ Pipeline events also carry:
 
 Step events also carry:
 
-- `step_name`: registry name such as `chunking` or `extract`.
+- `step_name`: registry name such as `sentence_chunking` or `extract`.
 - `step`: actual step instance.
 
 !!! note
-    This is a Python event stream, not a JSON wire protocol. If you expose events over HTTP or WebSocket, serialize only fields your client needs.
+    This is a Python event stream. OmniIngest does not ship an HTTP or WebSocket server. The host application serves events to its clients. Call `Event.to_dict()` to get JSON-safe data.
+
+## Serializing events
+
+Call `to_dict()` on any event to get a dictionary that `json.dumps` accepts.
+
+```python
+payload = json.dumps(e.to_dict())
+```
+
+The dictionary has all event fields, including `identifier`. These rules apply:
+
+- UUID values become strings.
+- `timestamp` becomes an ISO 8601 string.
+- `step_result` becomes a dictionary without `items`, so no binary content is included.
+- `step` and `completed_steps` are omitted. Use `step_name` to identify the step.
 
 ## Event types
 
@@ -101,7 +116,7 @@ Published after a step returns or fails.
 event.PipelineStepEndEvent(
     run_id=ctx.run_id,
     tenant_id=ctx.tenant_id,
-    step_name="chunking",
+    step_name="sentence_chunking",
     step=chunking_step,
     step_result=result
 )
@@ -128,7 +143,7 @@ Status is `succeeded` or `failed`. On failure, `error` is copied from first fail
 
 ## Subscribing
 
-Use `event.subscribe()` as an async iterator.
+Use `event.subscribe()` as an async iterator. By default it yields events of all runs. Pass `run_id` to receive only the events of one run.
 
 ```python
 import asyncio
@@ -155,8 +170,8 @@ from omni_ingest.core.model import ByteContent, ResolvedResource
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config
 
 
-async def watch():
-    async for e in event.subscribe(populate_with_buffered=False):
+async def watch(run_id):
+    async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
         if isinstance(e, event.PipelineStepProgressEvent):
             print(f"{e.step_name}: {e.completed}/{e.total} {e.message or ''}")
         elif isinstance(e, event.PipelineEndEvent):
@@ -166,11 +181,11 @@ async def watch():
 async def main():
     pipeline = create_pipeline_from_config(Path("school_notes.yaml"))
     ctx = IngestionContext(resource=ResolvedResource(uri="notes.txt", content=ByteContent.from_bytes(b"First sentence. Second sentence.")))
-    listener = asyncio.create_task(watch())
+    listener = asyncio.create_task(watch(ctx.run_id))
     try:
         await pipeline.run(ctx)
     finally:
-        event.shutdown()
+        event.shutdown(ctx.run_id)
         await listener
 
 
@@ -178,28 +193,34 @@ asyncio.run(main())
 ```
 
 !!! tip
-    Use `populate_with_buffered=False` for one live job. Subscriber receives only future events. CLI uses this because old events from another run would make progress bars look odd.
+    Use `run_id` and `populate_with_buffered=False` for one live job. Subscriber receives only future events of that run. CLI uses this because events from another run would make progress bars look odd.
 
 ## Buffered replay
 
-Event module keeps last 32 events in memory. New subscribers receive buffered events by default.
+Event module keeps the latest events of each run in memory. The `event_queue_size` setting controls how many events it keeps per run. The default is 256. Events without a `run_id` are not buffered. New subscribers receive buffered events by default.
 
 ```python
 async for e in event.subscribe():
     ...
 ```
 
+A subscriber without `run_id` receives the buffered events of all runs. A subscriber with `run_id` receives only the buffered events of that run.
+
 This is handy for late subscribers in tests or lightweight dashboards. It is not durable storage. Restart process and buffer is gone.
 
 Set replay off when listener has one live job to follow:
 
 ```python
-async for e in event.subscribe(populate_with_buffered=False):
+async for e in event.subscribe(run_id=ctx.run_id, populate_with_buffered=False):
     ...
 ```
 
 !!! warning
-    Under hood each subscriber has a queue of size 32. If queue is full, oldest queued event is dropped before new event is added. This favours live progress over perfect history. Slow dashboards should treat event stream as status hints, not an audit log.
+    Each subscriber has a queue of `event_queue_size` events. If queue is full, oldest queued event is dropped before new event is added. This favours live progress over perfect history. Slow dashboards should treat event stream as status hints, not an audit log.
+
+## Settings
+
+`event_queue_size` sets the replay buffer size of each run and the queue size of each subscriber. Set it with the `EVENT_QUEUE_SIZE` environment variable or in `.env`. OmniIngest reads settings once per process.
 
 ## Publishing custom events
 
@@ -242,23 +263,25 @@ Keep progress messages short. CLI renders them inline beside step label.
 
 ## Shutdown
 
-Call `event.shutdown()` when app is done listening.
+Call `event.shutdown(run_id)` when a run is finished.
 
 ```python
-event.shutdown()
+event.shutdown(ctx.run_id)
 ```
 
-Shutdown sends sentinel to active subscribers, clears subscriber set, and clears replay buffer. Tests use it before and after each event test so runs do not leak events into each other.
+This sends a sentinel to the subscribers of that run and removes them. It also deletes the replay buffer of that run. Subscribers of other runs keep receiving events. Subscribers without `run_id` also keep receiving events.
+
+Call `event.shutdown()` without argument to end all subscribers and clear all buffers. Tests use it before and after each event test so runs do not leak events into each other.
 
 !!! warning
-    Long-running services should not call shutdown after every pipeline run if shared dashboard listeners are meant to stay alive. Use it for process teardown or test cleanup.
+    Event system keeps the buffers of the 128 most recent runs. Older buffers are dropped, so a caller that never calls `event.shutdown(run_id)` loses old progress history but does not leak memory. Call it after each run to free a buffer early. `omni_ingest.run` does this for you.
 
 ## Common patterns
 
 Print failed step:
 
 ```python
-async for e in event.subscribe(populate_with_buffered=False):
+async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
     if isinstance(e, event.PipelineStepEndEvent) and e.step_result.status.value == "failure":
         print(f"{e.step_name} failed: {e.step_result.error}")
 ```
@@ -266,7 +289,7 @@ async for e in event.subscribe(populate_with_buffered=False):
 Show one-line progress:
 
 ```python
-async for e in event.subscribe(populate_with_buffered=False):
+async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
     if isinstance(e, event.PipelineStepProgressEvent):
         pct = 0 if not e.total else round(e.completed / e.total * 100)
         print(f"{e.step_name}: {pct}% {e.message or ''}")
@@ -275,10 +298,10 @@ async for e in event.subscribe(populate_with_buffered=False):
 Stop when pipeline ends:
 
 ```python
-async for e in event.subscribe(populate_with_buffered=False):
+async for e in event.subscribe(run_id=run_id, populate_with_buffered=False):
     if isinstance(e, event.PipelineEndEvent):
         print(e.status)
         break
 ```
 
-These examples mirror CLI strategy. Subscribe first, start run, consume events until pipeline ends, then clean up listener.
+These examples mirror CLI strategy. Subscribe to the run first, start run, consume events until pipeline ends, then call `event.shutdown(run_id)` and wait for the listener.

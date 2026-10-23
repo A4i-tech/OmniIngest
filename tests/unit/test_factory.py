@@ -10,8 +10,7 @@ from pydantic_ai import Embedder
 from pydantic_ai.embeddings import TestEmbeddingModel
 
 import omni_ingest.core.pipeline as pipeline_module
-from omni_ingest.agent.chunking import SentenceChunkingAgent
-from omni_ingest.agent.enrichment import ExtractAgent
+from omni_ingest.agent.enrichment import ExtractAgent, TransformAgent
 from omni_ingest.agent.modality import TextAgent
 from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepResult, StepStatus, ValidationCheck
 from omni_ingest.core.pipeline import IngestionContext, PipelineRunner, _resolve_step_kwargs, create_pipeline_from_config
@@ -21,8 +20,8 @@ from omni_ingest.port.metadata_store import NullMetadataStore
 @pytest.mark.parametrize(
     "cls, config, shared, expected_keys_values",
     [
-        (SentenceChunkingAgent, {"chunk_size": 256, "overlap": 30}, {}, {"chunk_size": 256, "overlap": 30}),
-        (SentenceChunkingAgent, {"chunk_size": 100}, {"chunk_size": 999}, {"chunk_size": 100}),
+        (TransformAgent, {"value": ".metadata.x = 1", "update": ["metadata"]}, {}, {"update": ["metadata"]}),
+        (TransformAgent, {"value": ".metadata.y = 2"}, {"value": ".metadata.z = 3"}, {"value": ".metadata.y = 2"}),
     ],
 )
 def test_resolve_step_kwargs(cls, config, shared, expected_keys_values):
@@ -33,7 +32,7 @@ def test_resolve_step_kwargs(cls, config, shared, expected_keys_values):
 
 @pytest.mark.asyncio
 async def test_create_pipeline_with_config():
-    config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 128, "overlap": 25}}]}
+    config = {"steps": [{"agent": "sentence_chunking", "config": {"chunk_size": 128}}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
@@ -42,15 +41,17 @@ async def test_create_pipeline_with_config():
         pipeline = create_pipeline_from_config(Path(f.name))
 
         assert len(pipeline.steps) == 1
-        chunking_step = pipeline.steps[0]
-        assert isinstance(chunking_step, SentenceChunkingAgent)
-        assert chunking_step.chunk_size == 128
-        assert chunking_step.overlap == 25
+        assert isinstance(pipeline.steps[0], TransformAgent)
+
+        ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"x" * 300)), store=NullMetadataStore())
+        await pipeline.run(ctx)
+
+        assert [len(await item.content.read(ctx)) for item in ctx.items] == [128, 128, 44]
 
 
 def test_pipeline_groups_explicit_stages_and_generates_sequential_defaults(tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "prepare"}, {"agent": "text"}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "lineage", "stage": "prepare"}, {"agent": "text"}]}))
 
     runner = create_pipeline_from_config(path)
 
@@ -60,7 +61,7 @@ def test_pipeline_groups_explicit_stages_and_generates_sequential_defaults(tmp_p
 
 def test_pipeline_generates_unique_stage_for_each_unstaged_step(tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "text"}, {"agent": "chunking"}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "text"}, {"agent": "lineage"}]}))
 
     runner = create_pipeline_from_config(path)
 
@@ -87,7 +88,7 @@ def test_pipeline_rejects_validation_on_component(tmp_path):
 
 def test_pipeline_rejects_non_contiguous_stage(tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "process"}, {"agent": "text", "stage": "prepare"}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "lineage", "stage": "process"}, {"agent": "text", "stage": "prepare"}]}))
 
     with pytest.raises(ValueError, match="Stage prepare must be contiguous"):
         create_pipeline_from_config(path)
@@ -95,7 +96,7 @@ def test_pipeline_rejects_non_contiguous_stage(tmp_path):
 
 @pytest.mark.asyncio
 async def test_pipeline_execution_with_configured_chunking(metadata_store):
-    config = {"steps": [{"agent": "chunking", "config": {"chunk_size": 50, "overlap": 10}}]}
+    config = {"steps": [{"agent": "sentence_chunking", "config": {"chunk_size": 50}}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
@@ -108,13 +109,13 @@ async def test_pipeline_execution_with_configured_chunking(metadata_store):
 
         assert len(results) == 1
         assert results[0].status == StepStatus.SUCCESS
-        assert results[0].metadata["chunk_size"] == 50
+        assert results[0].metadata["update"] == ["items"]
 
 
 @pytest.mark.asyncio
 async def test_pipeline_before_validation_prevents_step_execution(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "before", "expr": "false", "message": "blocked"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "before", "expr": "false", "message": "blocked"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
     results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
@@ -126,7 +127,7 @@ async def test_pipeline_before_validation_prevents_step_execution(metadata_store
 @pytest.mark.asyncio
 async def test_pipeline_condition_skips_step(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "condition", "expr": "false", "message": "not requested"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "condition", "expr": "false", "message": "not requested"}]}]}))
 
     results = await create_pipeline_from_config(path).run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
 
@@ -137,13 +138,13 @@ async def test_pipeline_condition_skips_step(metadata_store, tmp_path):
 @pytest.mark.asyncio
 async def test_pipeline_after_validation_fails_with_interpolated_message(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "after", "expr": "false", "message": "bad chunk size ${.result.metadata.chunk_size}"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "after", "expr": "false", "message": "bad update ${.result.metadata.update}"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
     results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store))
 
     assert results[0].status == StepStatus.FAILURE
-    assert results[0].error == "bad chunk size 512"
+    assert results[0].error == "bad update ['metadata']"
 
 
 def test_pipeline_validation_does_not_serialize_item_content():
@@ -158,7 +159,7 @@ def test_pipeline_validation_does_not_serialize_item_content():
 @pytest.mark.asyncio
 async def test_pipeline_after_validation_skips_skipped_step(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "after", "expr": "false", "message": "should not run"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "timed_chunking", "validation": [{"mode": "after", "expr": "false", "message": "should not run"}]}]}))
     pipeline = create_pipeline_from_config(path)
 
     results = await pipeline.run(IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), store=metadata_store))
@@ -169,7 +170,7 @@ async def test_pipeline_after_validation_skips_skipped_step(metadata_store, tmp_
 @pytest.mark.asyncio
 async def test_pipeline_plain_validation_terminates_validation_chain(metadata_store, tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"mode": "plain", "expr": ".metadata.ok == true", "message": "missing ok"}, {"mode": "after", "expr": "false", "message": "should not run"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"mode": "plain", "expr": ".metadata.ok == true", "message": "missing ok"}, {"mode": "after", "expr": "false", "message": "should not run"}]}]}))
     pipeline = create_pipeline_from_config(path)
     ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"First sentence.")), store=metadata_store)
     ctx.metadata["ok"] = True
@@ -181,7 +182,7 @@ async def test_pipeline_plain_validation_terminates_validation_chain(metadata_st
 
 def test_pipeline_validation_requires_mode(tmp_path):
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.dump({"steps": [{"agent": "chunking", "validation": [{"expr": "true", "message": "bad"}]}]}))
+    path.write_text(yaml.dump({"steps": [{"agent": "transform", "config": {"value": "."}, "validation": [{"expr": "true", "message": "bad"}]}]}))
 
     with pytest.raises(ValidationError):
         create_pipeline_from_config(path)
@@ -189,29 +190,28 @@ def test_pipeline_validation_requires_mode(tmp_path):
 
 @pytest.mark.asyncio
 async def test_pipeline_with_default_config():
-    config = {"steps": [{"agent": "chunking"}]}
+    config = {"steps": [{"agent": "sentence_chunking"}]}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config, f)
         f.flush()
 
         pipeline = create_pipeline_from_config(Path(f.name))
-        chunking_step = pipeline.steps[0]
+        step = pipeline.steps[0]
 
-        assert chunking_step.chunk_size == 512  # type: ignore
-        assert chunking_step.overlap == 50  # type: ignore
+        assert isinstance(step, TransformAgent)
+        assert "1024" in step.value
 
 
 def test_pipeline_inlines_local_yaml_component(tmp_path):
-    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "chunking", "stage": "prepare", "config": {"chunk_size": 64}}]}))
+    (tmp_path / "component.yaml").write_text(yaml.dump({"steps": [{"agent": "text", "stage": "prepare"}, {"agent": "text", "stage": "prepare"}]}))
     root = tmp_path / "root.yaml"
     root.write_text(yaml.dump({"steps": [{"agent": "component"}]}))
 
     runner = create_pipeline_from_config(root)
 
-    assert [type(step) for step in runner.steps] == [TextAgent, SentenceChunkingAgent]
+    assert [type(step) for step in runner.steps] == [TextAgent, TextAgent]
     assert list(runner.stages) == ["prepare"]
-    assert runner.steps[1].chunk_size == 64  # type: ignore
 
 
 def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
@@ -220,7 +220,7 @@ def test_pipeline_inlines_profile_yaml_before_factory(tmp_path, monkeypatch):
     (profiles / "chunking.yaml").write_text(yaml.dump({"steps": [{"agent": "text"}]}))
     root = tmp_path / "root.yaml"
     root.write_text(yaml.dump({"steps": [{"agent": "chunking"}]}))
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pipeline_module.settings, "profiles_dir", profiles)
 
     runner = create_pipeline_from_config(root)
 
@@ -303,7 +303,7 @@ parameters:
       type: integer
       default: 64
 steps:
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: "${.config.chunk_size * 2}"
 """)
@@ -312,8 +312,8 @@ steps:
 
     runner = create_pipeline_from_config(root)
 
-    assert isinstance(runner.steps[0], SentenceChunkingAgent)
-    assert runner.steps[0].chunk_size == 256  # type: ignore[attr-defined]
+    assert isinstance(runner.steps[0], TransformAgent)
+    assert "256" in runner.steps[0].value
 
 
 def test_enrichment_profile_exposes_prompt_parameter(tmp_path):
@@ -378,32 +378,45 @@ def _pipeline(tmp_path, steps):
 
 
 def test_pipeline_rejects_two_replacing_steps_in_one_stage(tmp_path):
-    steps = [{"agent": "chunking", "stage": "split"}, {"agent": "page_chunking", "stage": "split"}]
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "page_chunking", "stage": "split"}]
 
-    with pytest.raises(ValueError, match="Stage split runs chunking and page_chunking in parallel, and both replace ctx.items. Put them in separate stages."):
+    with pytest.raises(ValueError, match="Stage split runs TimedChunkingAgent and PageChunkingAgent in parallel, and both replace ctx.items. Put them in separate stages."):
         _pipeline(tmp_path, steps)
 
 
 def test_pipeline_accepts_replacing_and_non_replacing_step_in_one_stage(tmp_path):
-    runner = _pipeline(tmp_path, [{"agent": "chunking", "stage": "split"}, {"agent": "text", "stage": "split"}])
+    runner = _pipeline(tmp_path, [{"agent": "timed_chunking", "stage": "split"}, {"agent": "text", "stage": "split"}])
 
     assert list(runner.stages) == ["split"]
 
 
 def test_pipeline_accepts_replacing_steps_in_different_stages(tmp_path):
-    runner = _pipeline(tmp_path, [{"agent": "chunking", "stage": "a"}, {"agent": "page_chunking", "stage": "b"}])
+    runner = _pipeline(tmp_path, [{"agent": "timed_chunking", "stage": "a"}, {"agent": "page_chunking", "stage": "b"}])
 
     assert list(runner.stages) == ["a", "b"]
 
 
 def test_pipeline_accepts_non_replacing_image_extraction_with_chunking_in_one_stage(tmp_path):
-    steps = [{"agent": "chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": False}}]
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": False}}]
+
+    assert list(_pipeline(tmp_path, steps).stages) == ["split"]
+
+
+def test_pipeline_rejects_transform_that_updates_items_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "transform", "stage": "split", "config": {"value": ".", "update": ["items"]}}]
+
+    with pytest.raises(ValueError, match="Stage split runs TimedChunkingAgent and TransformAgent in parallel"):
+        _pipeline(tmp_path, steps)
+
+
+def test_pipeline_accepts_metadata_only_transform_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "transform", "stage": "split", "config": {"value": "."}}]
 
     assert list(_pipeline(tmp_path, steps).stages) == ["split"]
 
 
 def test_pipeline_rejects_replacing_image_extraction_with_chunking_in_one_stage(tmp_path):
-    steps = [{"agent": "chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": True}}]
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": True}}]
 
     with pytest.raises(ValueError, match="both replace ctx.items"):
         _pipeline(tmp_path, steps)

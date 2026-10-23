@@ -234,7 +234,7 @@ async def test_extract_agent_assertion_retries_with_feedback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_transform_agent_writes_jq_output_to_metadata():
-    agent = TransformAgent(value=".metadata.items | map(.name)", path=".metadata.names")
+    agent = TransformAgent(value=".metadata.names = (.metadata.items | map(.name))")
     ctx = create_ctx()
     ctx.metadata["items"] = [{"name": "a"}, {"name": "b"}]
 
@@ -245,17 +245,31 @@ async def test_transform_agent_writes_jq_output_to_metadata():
 
 
 @pytest.mark.asyncio
+async def test_transform_agent_emits_items():
+    agent = TransformAgent(value=".items |= map(. + {text: (.text | ascii_upcase)})", update=["items"])
+    ctx = create_ctx()
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"hello", content_type="text/plain"))]
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SUCCESS
+    assert len(ctx.items) == 1
+    assert await ctx.items[0].content.decode(ctx) == "HELLO"
+
+
+@pytest.mark.asyncio
 async def test_transform_agent_maps_nested_metadata():
     agent = TransformAgent(
-        path=".metadata.records",
         value=r"""
-        .metadata.book as $book
-        | .metadata.chapters
-        | map({
-            id: "\($book.board)-\(.no)",
-            title: .name,
-            topics: (.topics | map(.numbering + ". " + .title))
-            })
+        .metadata.records = (
+            .metadata.book as $book
+            | .metadata.chapters
+            | map({
+                id: "\($book.board)-\(.no)",
+                title: .name,
+                topics: (.topics | map(.numbering + ". " + .title))
+                })
+        )
     """,
     )
     ctx = create_ctx()
@@ -272,4 +286,42 @@ async def test_transform_agent_maps_nested_metadata():
 
 def test_transform_agent_rejects_invalid_jq():
     with pytest.raises(ValidationError):
-        TransformAgent(value=".metadata |", path=".metadata.records")
+        TransformAgent(value=".metadata |")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["del(.metadata)", "del(.items)", ".items = [{}]", '.items = [{id: "nope", metadata: {}}]'])
+async def test_transform_agent_rejects_incomplete_document(value):
+    agent = TransformAgent(value=value, update=["metadata", "items"])
+    ctx = create_ctx()
+    ctx.metadata["keep"] = 1
+
+    with pytest.raises(ValidationError):
+        await agent.run(ctx)
+
+    assert ctx.metadata == {"keep": 1}
+
+
+@pytest.mark.asyncio
+async def test_transform_agent_keeps_tenant_and_content_type_and_reports_counts():
+    tenant_id = uuid4()
+    agent = TransformAgent(value=".", update=["items"])
+    ctx = create_ctx()
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"# hi", content_type="text/markdown"), tenant_id=tenant_id)]
+
+    result = await agent.run(ctx)
+
+    assert (result.metadata["items_in"], result.metadata["items_out"]) == (1, 1)
+    assert ctx.items[0].tenant_id == tenant_id
+    assert await ctx.items[0].content.content_type(ctx) == "text/markdown"
+
+
+@pytest.mark.asyncio
+async def test_transform_agent_skips_when_items_update_is_empty():
+    agent = TransformAgent(value=".items = []", update=["items"])
+    ctx = create_ctx()
+    ctx.items = [KnowledgeItem(content=ByteContent.from_bytes(b"x", content_type="text/plain"))]
+
+    result = await agent.run(ctx)
+
+    assert result.status == StepStatus.SKIPPED

@@ -80,3 +80,13 @@ def test_settings_select_additional_vector_backends(vector_store_config, expecte
 def test_settings_require_complete_neo4j_config():
     with pytest.raises(ValidationError):
         Settings(graph_store={"type": "neo4j"})
+
+
+def test_default_profiles_dir_is_packaged_and_cwd_independent(tmp_path, monkeypatch):
+    monkeypatch.delenv("PROFILES_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    profiles_dir = Settings(_env_file=None).profiles_dir
+
+    assert profiles_dir.is_dir()
+    assert (profiles_dir / "kg_builder.yaml").is_file()

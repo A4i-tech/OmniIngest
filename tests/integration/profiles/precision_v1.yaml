@@ -4,10 +4,9 @@ input_modality: document
 description: "High-precision pipeline with small chunks and large embedding dimensions"
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 256
-      overlap: 25
   - agent: embedding
     config:
       model: "openai:text-embedding-3-large"

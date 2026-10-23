@@ -13,6 +13,7 @@ from omni_ingest.core.pipeline import IngestionContext, PipelineRunner
     # format (e.g., markdown) is sufficient.
     ("azure_di", OcrOutputFormat.MARKDOWN),  # azure di supports no structured format
     ("mistral", OcrOutputFormat.MARKDOWN),  # mistral ocr supports no structured format
+    ("azure_mistral", OcrOutputFormat.MARKDOWN),
     ("llm", OcrOutputFormat.HTML),
     ("llm", OcrOutputFormat.MARKDOWN),
     ("llm", OcrOutputFormat.TEXT),
@@ -23,7 +24,7 @@ async def test_ocr_engine(engine, out_fmt, metadata_store, resources_dir):
     ctx = IngestionContext(store=metadata_store, resource=resources_dir / "when-tomorrow-was-yesterday.pdf")
     results = await PipelineRunner([
         PageChunkingAgent(mode="pdf"),
-        OcrAgent(engine=engine, format=out_fmt, foreach=".items[2]")
+        OcrAgent(engine=engine, format=out_fmt, foreach=".items[2]", **({"extract_images": True} if engine == "azure_mistral" else {}))
     ]).run(ctx)
     assert all(r.status == StepStatus.SUCCESS for r in results)
 
