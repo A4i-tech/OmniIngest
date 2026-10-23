@@ -29,9 +29,8 @@ steps:
         required: [nodes, edges]
   - agent: transform
     config:
-      path: ".metadata.kg_data"
       value: |
-        {
+        .metadata.kg_data = {
           "nodes": [.items[].metadata.kg_data.nodes[]?],
           "edges": [.items[].metadata.kg_data.edges[]?]
         }

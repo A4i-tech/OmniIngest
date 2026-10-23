@@ -44,10 +44,9 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 900
-      overlap: 120
 ```
 
 Run it against a PDF:

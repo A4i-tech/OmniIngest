@@ -17,7 +17,7 @@ input_modality: document
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: embedding
 ```
 
@@ -39,7 +39,7 @@ omni-ingest school_notes.yaml --input chapter-5-land-resources.pdf --output vect
 Step by step:
 
 - `text` converts incoming resource into text when needed.
-- `chunking` replaces current item set with text chunks.
+- `sentence_chunking` replaces current item set with text chunks. It splits at line breaks and hard-cuts overlong lines. It has no overlap.
 - `embedding` adds vectors to current items.
 - output writer saves final context.
 
@@ -57,7 +57,7 @@ description: "Prepare textbook pages for retrieval and lesson planning"
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: embedding
 ```
 
@@ -73,15 +73,14 @@ Each step has an `agent`. Config goes under `config`.
 steps:
   - agent: text
 
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 900
-      overlap: 120
 
   - agent: embedding
 ```
 
-Only set knobs that matter. Defaults are part of agent code. For `chunking`, default size is useful for quick tests, but textbooks often benefit from bigger chunks because examples and explanation sit a few paragraphs apart.
+Only set knobs that matter. Defaults are part of agent code. For `sentence_chunking`, default size is useful for quick tests, but textbooks often benefit from bigger chunks because examples and explanation sit a few paragraphs apart.
 
 Implementation note: config is passed into Pydantic model fields for that agent. Unknown or wrongly typed values fail while pipeline is created, not halfway through ingestion.
 
@@ -99,17 +98,12 @@ parameters:
       type: integer
       minimum: 200
       default: 900
-    overlap:
-      type: integer
-      minimum: 0
-      default: 120
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: ${.config.chunk_size}
-      overlap: ${.config.overlap}
   - agent: embedding
 ```
 
@@ -125,8 +119,7 @@ Override values:
 omni-ingest configurable_textbook_index.yaml \
   --input science.pdf \
   --output vector:default \
-  --chunk-size 700 \
-  --overlap 80
+  --chunk-size 700
 ```
 
 Interpolation has two modes. If whole YAML value is `${...}`, result keeps its JSON type. That is why `chunk_size` stays an integer. If `${...}` appears inside a longer string, result becomes text.
@@ -146,10 +139,9 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
     config:
       chunk_size: 1200
-      overlap: 150
 
   - agent: extract
     config:
@@ -218,7 +210,7 @@ parameters:
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
 
   - agent: extract
     config:
@@ -341,13 +333,12 @@ That example says trusted sources do not need quality validation. If `trusted_so
 steps:
   - agent: transform
     config:
-      path: ".metadata.all_key_terms"
-      value: '[.items[].metadata.lesson.key_terms[]?] | unique | sort'
+      value: '.metadata.all_key_terms = ([.items[].metadata.lesson.key_terms[]?] | unique | sort)'
 ```
 
 This is ideal after item-level extraction. Let model extract key terms per chunk. Let jq fold them into one clean list.
 
-Implementation detail: transform uses same assignment helper as extract. If existing target and new value are both objects, fields merge. Otherwise target is replaced.
+Implementation detail: transform writes back `metadata` and/or `items`. Default is `metadata`.
 
 ## Translating structured output
 
@@ -374,7 +365,7 @@ Stages let adjacent independent steps run together.
 ```yaml
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
 
   - agent: extract
     stage: analysis
@@ -401,7 +392,7 @@ steps:
   - agent: embedding
 ```
 
-Both `analysis` steps run after `chunking`. `embedding` waits for both.
+Both `analysis` steps run after `sentence_chunking`. `embedding` waits for both.
 
 !!! warning
     Only group steps that do not fight over same state. Two extracts writing different item metadata paths are fine. Two steps replacing `ctx.items` in same stage are asking for a dodgy day.
@@ -420,7 +411,7 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: quality
     config:
       min_quality_score: 0.6
@@ -552,7 +543,7 @@ domain_profile: education
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: kg_builder
 ```
 
@@ -580,7 +571,7 @@ tool_vendors:
 
 steps:
   - agent: text
-  - agent: chunking
+  - agent: sentence_chunking
   - agent: extract
     config:
       toolsets: [curriculum_api]
@@ -645,9 +636,9 @@ This works best with sensible stages. Do not put half a pipeline into one giant 
 
 Good pipeline work usually goes like this:
 
-1. Start with `text`, `chunking`, and JSON output.
+1. Start with `text`, `sentence_chunking`, and JSON output.
 2. Inspect actual chunks.
-3. Tune chunk size and overlap.
+3. Tune chunk size.
 4. Add one `extract` step with strict schema.
 5. Add `transform` for deterministic cleanup.
 6. Add validation when failure condition is obvious.
