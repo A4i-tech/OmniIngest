@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import jq
 from pydantic import BaseModel, Field, PositiveInt, field_validator
@@ -25,6 +25,8 @@ class PageChunkingAgent(BaseModel, Step):
     in a PDF source, maintaining the hierarchical structure of the
     input document.
     """
+
+    replaces_items: ClassVar[bool] = True
 
     mode: Literal["text", "pdf"] = Field(default="text", description="Whether to emit extracted page text or single-page PDFs")
 
@@ -63,6 +65,10 @@ class PageStitchingAgent(BaseModel, Step):
     input: JqExpression = Field(..., description="jq expression selecting page item ids for each stitch spec")
     metadata: JqExpression = Field(default=".", description="jq expression producing metadata for each stitched item")
     replace: bool = Field(default=True, description="Replace ctx.items with stitched PDFs")
+
+    @property
+    def replaces_items(self) -> bool:
+        return self.replace
 
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         item_docs = [{"id": str(item.id), "metadata": item.metadata, "source_uri": item.source_uri} for item in ctx.items]
@@ -111,6 +117,8 @@ class TimedChunkingAgent(BaseModel, Step):
     timestamps, facilitating precise time-based search and retrieval within
     audiovisual datasets.
     """
+
+    replaces_items: ClassVar[bool] = True
 
     segment_duration: timedelta = Field(default=timedelta(seconds=30), description="Target duration of each time block")
     overlap: timedelta = Field(default=timedelta(0), description="Overlap between adjacent time blocks")

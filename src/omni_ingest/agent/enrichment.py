@@ -200,6 +200,10 @@ class TransformAgent(BaseModel, Step):
     value: JqExpression = Field(..., description="jq expression producing transformed output")
     update: list[Literal["metadata", "items"]] = Field(default_factory=_default_update, description="Document keys written back to the pipeline")
 
+    @property
+    def replaces_items(self) -> bool:
+        return "items" in self.update
+
     async def run(self, ctx: IngestionContext) -> StepResult:
         result = TransformDoc.model_validate(jq.compile(self.value).input_value(await _doc(ctx, text="items" in self.update)).first())
         if "metadata" in self.update:

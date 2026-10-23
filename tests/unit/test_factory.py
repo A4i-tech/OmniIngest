@@ -369,3 +369,54 @@ async def test_pipeline_with_undefined_toolset(metadata_store):
     result = await runner.run(IngestionContext(items=[KnowledgeItem(content=ByteContent.from_bytes(b"I am clueless about the current state of LLMs."))], store=metadata_store, resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b""))))
     assert all(r.status == StepStatus.FAILURE for r in result)
     assert all(r.error == "Toolsets not configured in context: ['converter']" for r in result)
+
+
+def _pipeline(tmp_path, steps):
+    path = tmp_path / "pipeline.yaml"
+    path.write_text(yaml.dump({"steps": steps}))
+    return create_pipeline_from_config(path)
+
+
+def test_pipeline_rejects_two_replacing_steps_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "page_chunking", "stage": "split"}]
+
+    with pytest.raises(ValueError, match="Stage split runs TimedChunkingAgent and PageChunkingAgent in parallel, and both replace ctx.items. Put them in separate stages."):
+        _pipeline(tmp_path, steps)
+
+
+def test_pipeline_accepts_replacing_and_non_replacing_step_in_one_stage(tmp_path):
+    runner = _pipeline(tmp_path, [{"agent": "timed_chunking", "stage": "split"}, {"agent": "text", "stage": "split"}])
+
+    assert list(runner.stages) == ["split"]
+
+
+def test_pipeline_accepts_replacing_steps_in_different_stages(tmp_path):
+    runner = _pipeline(tmp_path, [{"agent": "timed_chunking", "stage": "a"}, {"agent": "page_chunking", "stage": "b"}])
+
+    assert list(runner.stages) == ["a", "b"]
+
+
+def test_pipeline_accepts_non_replacing_image_extraction_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": False}}]
+
+    assert list(_pipeline(tmp_path, steps).stages) == ["split"]
+
+
+def test_pipeline_rejects_transform_that_updates_items_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "transform", "stage": "split", "config": {"value": ".", "update": ["items"]}}]
+
+    with pytest.raises(ValueError, match="Stage split runs TimedChunkingAgent and TransformAgent in parallel"):
+        _pipeline(tmp_path, steps)
+
+
+def test_pipeline_accepts_metadata_only_transform_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "transform", "stage": "split", "config": {"value": "."}}]
+
+    assert list(_pipeline(tmp_path, steps).stages) == ["split"]
+
+
+def test_pipeline_rejects_replacing_image_extraction_with_chunking_in_one_stage(tmp_path):
+    steps = [{"agent": "timed_chunking", "stage": "split"}, {"agent": "image_extraction", "stage": "split", "config": {"replace": True}}]
+
+    with pytest.raises(ValueError, match="both replace ctx.items"):
+        _pipeline(tmp_path, steps)

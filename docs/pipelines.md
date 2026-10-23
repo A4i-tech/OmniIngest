@@ -395,7 +395,27 @@ steps:
 Both `analysis` steps run after `sentence_chunking`. `embedding` waits for both.
 
 !!! warning
-    Only group steps that do not fight over same state. Two extracts writing different item metadata paths are fine. Two steps replacing `ctx.items` in same stage are asking for a dodgy day.
+    Only group steps that do not fight over same state. Two extracts writing different item metadata paths are fine.
+
+### Steps that replace items
+
+Steps in one stage run at the same time. All of them share one `ctx.items` list.
+
+Some steps replace `ctx.items` with a new list. Two such steps in one stage overwrite each other. The last step to finish wins.
+
+These steps replace `ctx.items`: `page_chunking`, `timed_chunking`, `transform` with `items` in `update`, `page_stitching` with `replace: true`, and `image_extraction` with `replace: true`. The `sentence_chunking` profile uses `transform` with `items` in `update`.
+
+OmniIngest rejects a stage that holds two or more of these steps. The check runs when OmniIngest builds the pipeline. No step runs.
+
+You see this error:
+
+```text
+Stage analysis runs PageChunkingAgent and TimedChunkingAgent in parallel, and both replace ctx.items. Put them in separate stages.
+```
+
+To fix the error, remove the `stage` key from one step. You can also give each step its own stage name.
+
+A step that replaces items can share a stage with a step that does not. `extract` is an example. `image_extraction` with `replace: false` and `transform` with the default `update` also do not replace items.
 
 Stage names must be contiguous. Once another stage or unstaged step appears, older stage name cannot return. This keeps resume checkpoints simple: runner checkpoints after each completed stage index.
 
