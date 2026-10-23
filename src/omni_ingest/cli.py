@@ -10,7 +10,7 @@ from uuid import UUID
 import logfire
 import yaml
 from dotenv import load_dotenv
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
@@ -26,7 +26,8 @@ def _parse_args() -> argparse.Namespace:
     known, _ = bootstrap.parse_known_args()
     try:
         parameters = PipelineConfig.model_validate(yaml.safe_load(known.pipeline.read_text())).parameters if known.pipeline else {}
-    except Exception:
+    except (OSError, yaml.YAMLError, ValidationError) as e:
+        print(f"warning: cannot read parameters from {known.pipeline}: {e}. Pipeline parameter flags are unavailable.", file=sys.stderr)
         parameters = {}
     properties = parameters.get("properties", {})
 

@@ -420,7 +420,7 @@ steps:
   - agent: embedding
 ```
 
-When runner sees `agent: quality`, it first looks for a registered Python step. If none exists, it tries `quality.yaml` near current file, then configured profile directory. `PROFILES_DIR` changes that directory from its `profiles` default. Found YAML gets flattened into leaf steps.
+When runner sees `agent: quality`, it first looks for a registered Python step. If none exists, it tries `quality.yaml` near current file, then configured profile directory. `PROFILES_DIR` changes that directory from its packaged `src/omni_ingest/profiles` default. Found YAML gets flattened into leaf steps.
 
 Config on component reference becomes parameter overrides for component YAML. That is why `min_quality_score` reaches `quality.yaml` in profile directory.
 
@@ -555,7 +555,7 @@ omni-ingest science_graph.yaml --input ecosystem.pdf --output graph:default
 
 `kg_builder` is a YAML component. It extracts nodes and edges per item, then folds them into root `.metadata.kg_data`. `graph:default` reads that metadata and writes graph store rows.
 
-This split matters. Graph building is pipeline logic, not special Python agent logic. You can open `profiles/kg_builder.yaml` and change prompt or schema like any other component.
+This split matters. Graph building is pipeline logic, not special Python agent logic. You can open `src/omni_ingest/profiles/kg_builder.yaml` and change prompt or schema like any other component.
 
 ## Tool vendors
 

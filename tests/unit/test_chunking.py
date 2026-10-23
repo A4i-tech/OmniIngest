@@ -12,7 +12,7 @@ from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource,
 from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config
 from omni_ingest.port.metadata_store import NullMetadataStore
 
-PROFILE = Path(__file__).resolve().parents[2] / "profiles" / "sentence_chunking.yaml"
+PROFILE = Path(__file__).resolve().parents[2] / "src" / "omni_ingest" / "profiles" / "sentence_chunking.yaml"
 
 
 def create_ctx(content: bytes) -> IngestionContext[ResolvedResource]:

@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     event_queue_size: int = 256
     """Maximum events kept per run for replay and per subscriber queue"""
 
-    profiles_dir: Path = Path("profiles")
+    profiles_dir: Path = Path(__file__).resolve().parent.parent / "profiles"
     """Directory containing reusable pipeline components"""
 
     vector_store: VectorStoreConfig = Field(default_factory=InMemoryVectorStoreConfig)
