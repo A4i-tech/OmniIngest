@@ -29,6 +29,11 @@ class ImageExtractionAgent(BaseModel, Step):
     include_vector: bool = Field(default=True, description="Extract vector drawings")
     include_tables: bool = Field(default=False, description="Extract vector tables")
     deduplicate: bool = Field(default=True, description="Remove duplicate images from the same page")
+    merge_gap: NonNegativeFloat = Field(default=6, description="Merge regions that overlap or sit closer than this gap, in PDF points")
+    min_width: NonNegativeFloat = Field(default=0, description="Skip regions narrower than this, in PDF points")
+    min_height: NonNegativeFloat = Field(default=0, description="Skip regions shorter than this, in PDF points")
+    band_height: NonNegativeFloat = Field(default=50, description="Skip regions wider than 80% of the page and shorter than this, in PDF points (page header bars and rules)")
+    max_image_px: PositiveInt | None = Field(default=None, description="Downscale images so the longest side is at most this many pixels")
     replace: bool = Field(default=False, description="Replace existing items with extracted images")
     mode: Literal["preserve", "redact", "caption"] = Field(default="preserve", description=(
         "How extracted images are represented in the parent PDF: preserve leaves the PDF unchanged, "
@@ -56,17 +61,27 @@ class ImageExtractionAgent(BaseModel, Step):
 
         sem, extracted = asyncio.Semaphore(self.workers), []
         ctx.progress(0, len(parents), "extracting images")
-        pdf_parents = [(parent, await parent.content.read(ctx)) for parent in parents if await parent.content.content_type(ctx) == "application/pdf"]
-        for i, task in enumerate(asyncio.as_completed([self._extract(parent, content, sem) for parent, content in pdf_parents]), 1):
+        pdf_parents = [parent for parent in parents if await parent.content.content_type(ctx) == "application/pdf"]
+        for i, task in enumerate(asyncio.as_completed([self._extract(parent, ctx, sem) for parent in pdf_parents]), 1):
             extracted.extend(await task)
             ctx.progress(i, len(parents), f"extracted {i}/{len(parents)}")
 
         ctx.items = extracted if self.replace else [*ctx.items, *extracted]
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(extracted), "replace": self.replace})
 
-    async def _extract(self, parent: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> list[KnowledgeItem]:
+    async def _extract(self, parent: KnowledgeItem, ctx: IngestionContext[ResolvedResource], sem: asyncio.Semaphore) -> list[KnowledgeItem]:
         async with sem:
-            return await asyncio.to_thread(self._extract_pdf, parent, content)
+            return await asyncio.to_thread(self._extract_pdf, parent, await parent.content.read(ctx))
+
+    def _merge(self, regions: list[pymupdf.Rect]) -> list[pymupdf.Rect]:
+        merged: list[pymupdf.Rect] = []
+        for rect in regions:
+            rect = pymupdf.Rect(rect)
+            while (hit := next((m for m in merged if (m + (-self.merge_gap, -self.merge_gap, self.merge_gap, self.merge_gap)).intersects(rect)), None)) is not None:
+                merged.remove(hit)
+                rect |= hit
+            merged.append(rect)
+        return merged
 
     def _extract_pdf(self, parent: KnowledgeItem, content: bytes) -> list[KnowledgeItem]:
         extracted = []
@@ -80,14 +95,19 @@ class ImageExtractionAgent(BaseModel, Step):
                     regions.extend(rect for rect in page.cluster_drawings() if not any((rect & table).get_area() >= rect.get_area() * 0.8 for table in tables))
 
                 seen = set()
-                for rect in regions:
+                for rect in self._merge(regions):
                     rect &= page.rect
                     area, page_area = rect.get_area(), page.rect.get_area()
                     if rect.is_empty or area < page_area * 0.001 or area > page_area * 0.8:
                         continue
+                    if rect.width < self.min_width or rect.height < self.min_height:
+                        continue
+                    if rect.width > page.rect.width * 0.8 and rect.height < self.band_height:
+                        continue
 
                     rect = (rect + (-self.padding, -self.padding, self.padding, self.padding)) & page.rect
-                    content = page.get_pixmap(clip=rect, dpi=self.dpi, alpha=False).tobytes("png")
+                    dpi = self.dpi if self.max_image_px is None else min(self.dpi, int(self.max_image_px * 72 / max(rect.width, rect.height)) or 1)
+                    content = page.get_pixmap(clip=rect, dpi=dpi, alpha=False).tobytes("png")
                     if self.deduplicate and content in seen:
                         continue
                     seen.add(content)

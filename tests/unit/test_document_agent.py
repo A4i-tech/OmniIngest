@@ -54,3 +54,36 @@ async def test_image_extraction_captions_parent_with_extracted_item_id():
     with pymupdf.open(stream=content, filetype="pdf") as captioned:
         assert f'<image id="{extracted[0].id}"/>' in captioned[0].get_text()
         assert len(captioned[0].get_image_info()) == 1
+
+
+def pdf_with_rects(*rects: tuple[float, float, float, float]) -> bytes:
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=400, height=400)
+        for rect in rects:
+            page.draw_rect(pymupdf.Rect(rect), fill=(0, 0, 1))
+        return bytes(pdf.tobytes())
+
+
+def extract(pdf: bytes, **config):
+    parent = KnowledgeItem(content=ByteContent.from_bytes(pdf))
+    return ImageExtractionAgent(padding=0, dpi=72, **config)._extract_pdf(parent, pdf)
+
+
+def test_image_extraction_merges_regions_within_gap():
+    pdf = pdf_with_rects((50, 100, 150, 200), (155, 100, 250, 200), (300, 300, 350, 350))
+    assert len(extract(pdf, merge_gap=0)) == 3
+    assert len(extract(pdf, merge_gap=6)) == 2
+
+
+def test_image_extraction_skips_thin_full_width_band_without_marker():
+    pdf = pdf_with_rects((10, 10, 390, 40), (100, 150, 200, 250))
+    items = extract(pdf, mode="redact", min_width=1)
+    assert len(items) == 1 and items[0].metadata["bbox"][1] == 150
+
+
+def test_image_extraction_min_size_and_max_px():
+    pdf = pdf_with_rects((50, 50, 60, 60), (100, 100, 300, 300))
+    items = extract(pdf, min_width=20, min_height=20, max_image_px=50)
+    assert len(items) == 1
+    with pymupdf.open(stream=items[0].content.data, filetype="png") as image:
+        assert max(image[0].rect.width, image[0].rect.height) <= 50

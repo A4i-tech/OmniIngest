@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
+import pymupdf
 import pytest
 from pypdf import PdfReader, PdfWriter
 
@@ -269,3 +270,23 @@ async def test_page_stitching_agent_chains_virtual_stitches():
     assert item.content.data == b""
     assert recipe == {"op": "pdf.concat", "inputs": ["omni-ingest://resource/pages/1,2", "omni-ingest://resource/pages/3,4"]}
     assert len(PdfReader(io.BytesIO(await item.content.read(ctx))).pages) == 4
+
+
+@pytest.mark.asyncio
+async def test_resource_page_parses_resource_once(monkeypatch):
+    from urllib.parse import urlparse
+
+    from omni_ingest.core import content
+
+    with pymupdf.open() as pdf:
+        pdf.new_page()
+        pdf.new_page()
+        data = pdf.tobytes()
+    ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(data)))
+    parses = []
+    real = content.PdfReader
+    monkeypatch.setattr(content, "PdfReader", lambda *a, **k: parses.append(1) or real(*a, **k))
+
+    for page in (1, 2):
+        assert await content.resource_page(urlparse(f"omni-ingest://resource/pages/{page}"), ctx)
+    assert len(parses) == 1
