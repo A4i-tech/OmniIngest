@@ -106,7 +106,7 @@ class ImageExtractionAgent(BaseModel, Step):
                     page.apply_redactions()
 
             if self.mode != "preserve":
-                parent.content = ByteContent.from_bytes(pdf.tobytes(deflate=True), content_type="application/pdf", content_encoding=parent.content.encoding)
+                parent.content = ByteContent.from_bytes(pdf.tobytes(garbage=3, deflate=True), content_type="application/pdf", content_encoding=parent.content.encoding)
 
         return extracted
 
@@ -141,16 +141,16 @@ class RasterizeAgent(BaseModel, Step):
 
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "rasterizing PDFs")
-        tasks = [self._rasterize(item, await item.content.read(ctx), sem) for item in items]
+        tasks = [self._rasterize(item, ctx, sem) for item in items]
         for i, task in enumerate(asyncio.as_completed(tasks), 1):
             await task
             ctx.progress(i, len(items), f"rasterized {i}/{len(items)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "dpi": self.dpi})
 
-    async def _rasterize(self, item: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> None:
+    async def _rasterize(self, item: KnowledgeItem, ctx: IngestionContext[ResolvedResource], sem: asyncio.Semaphore) -> None:
         async with sem:
-            await asyncio.to_thread(self._rasterize_pdf, item, content)
+            await asyncio.to_thread(self._rasterize_pdf, item, await item.content.read(ctx))
 
     def _rasterize_pdf(self, item: KnowledgeItem, content: bytes) -> None:
         with pymupdf.open(stream=content, filetype="pdf") as source, pymupdf.open() as output:
