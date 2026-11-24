@@ -106,8 +106,8 @@ class BrfFileOutput(FileOutput):
         self.tables = (display or "en-us-brf.dis", table or "en-us-g2.ctb")
         try:
             import louis
-        except OSError as e:
-            raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
+        except (ImportError, OSError) as e:
+            raise RuntimeError("Braille IO requires the optional liblouis package. See the Braille (BRF) section of the docs for how to install it.") from e
         louis.checkTable(list(self.tables))
 
     async def write(self, ctx: IngestionContext[ResolvedResource]) -> OutputResult:
