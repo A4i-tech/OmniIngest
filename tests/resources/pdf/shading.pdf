@@ -1,0 +1,90 @@
+%PDF-1.3
+%ту╧╙
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Resources <<
+/XObject <<
+/Im1 5 0 R
+>>
+/Shading <<
+/Sh1 <<
+/ShadingType 2
+/ColorSpace /DeviceRGB
+/Coords [ 20 0 140 0 ]
+/Extend [ true true ]
+/Function <<
+/FunctionType 2
+/Domain [ 0 1 ]
+/C0 [ 1 0 0 ]
+/C1 [ 0 0 1 ]
+/N 1
+>>
+>>
+>>
+>>
+/MediaBox [ 0.0 0.0 300 200 ]
+/Parent 2 0 R
+/Contents 6 0 R
+>>
+endobj
+5 0 obj
+<<
+/Type /XObject
+/Subtype /Image
+/Width 2
+/Height 2
+/ColorSpace /DeviceRGB
+/BitsPerComponent 8
+/Length 12
+>>
+stream
+аааа
+endstream
+endobj
+6 0 obj
+<<
+/Length 66
+>>
+stream
+q 20 100 120 80 re W n /Sh1 sh Q
+q 100 0 0 60 190 60 cm /Im1 Do Q
+
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000162 00000 n 
+0000000488 00000 n 
+0000000643 00000 n 
+trailer
+<<
+/Size 7
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+759
+%%EOF

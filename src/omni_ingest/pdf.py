@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import io
 import math
+from collections.abc import Callable
 from functools import cached_property
 from typing import Any
 
@@ -10,7 +11,7 @@ import pypdf
 import pypdfium2 as pdfium
 import pypdfium2.raw as raw
 from PIL import Image
-from pypdf.generic import ContentStream, IndirectObject
+from pypdf.generic import ArrayObject, ByteStringObject, ContentStream, DictionaryObject, FloatObject, IndirectObject, NameObject
 
 Rect = tuple[float, float, float, float]
 Matrix = tuple[float, float, float, float, float, float]
@@ -42,6 +43,20 @@ def _overlaps(a: Rect, b: Rect) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
+def _oc_hidden(oc: Any, off: set[int], on: set[int], base_off: bool) -> bool:
+    def hidden(ref: IndirectObject) -> bool:
+        return ref.idnum not in on if base_off else ref.idnum in off
+
+    node: Any = oc.get_object()
+    if node.get("/Type") != "/OCMD":
+        return isinstance(oc, IndirectObject) and hidden(oc)
+    ocgs = node.get("/OCGs")
+    target = ocgs.get_object() if isinstance(ocgs, IndirectObject) else ocgs
+    shown = [not hidden(r) for r in (target if isinstance(target, list) else [ocgs]) if isinstance(r, IndirectObject)]
+    visible = {"/AnyOn": any(shown), "/AllOn": all(shown), "/AnyOff": not all(shown), "/AllOff": not any(shown)}.get(node.get("/P", "/AnyOn"), True)
+    return bool(shown) and not visible
+
+
 def _within(e: Rect, box: Rect) -> bool:
     return box[0] - 0.5 <= e[0] and box[1] - 0.5 <= e[1] and e[2] <= box[2] + 0.5 and e[3] <= box[3] + 0.5
 
@@ -57,9 +72,177 @@ def _inv(m: Matrix) -> Matrix:
     return (d / k, -b / k, -c / k, a / k, (c * f - d * e) / k, (b * e - a * f) / k)
 
 
+def _apply(m: Matrix, x: float, y: float) -> tuple[float, float]:
+    return m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]
+
+
+def _widths(font: Any) -> tuple[int, Callable[[int], float] | None] | None:
+    kind = font["/Subtype"]
+    if kind == "/Type3" or (kind == "/Type0" and font["/Encoding"] != "/Identity-H"):
+        return None
+    if kind == "/Type0":
+        cid = font["/DescendantFonts"][0]
+        default, table, w, i = cid.get("/DW", 1000), {}, [x.get_object() for x in cid.get("/W", [])], 0
+        while i < len(w):
+            if isinstance(w[i + 1], list):
+                table.update({w[i] + k: v.get_object() for k, v in enumerate(w[i + 1])})
+                i += 2
+            else:
+                table.update(dict.fromkeys(range(w[i], w[i + 1] + 1), w[i + 2]))
+                i += 3
+        return 2, lambda code: table.get(code, default)
+    if "/Widths" not in font:
+        return 1, None
+    first, widths = font.get("/FirstChar", 0), [x.get_object() for x in font["/Widths"]]
+    missing = font["/FontDescriptor"].get("/MissingWidth", 500) if "/FontDescriptor" in font else 500
+    return 1, lambda code: widths[code - first] if 0 <= code - first < len(widths) else missing
+
+
+_IDENTITY: Matrix = (1, 0, 0, 1, 0, 0)
+_UNIT = [(0, 0), (1, 0), (0, 1), (1, 1)]
+_PATH = {b"m", b"l", b"c", b"v", b"y", b"re", b"h", b"W", b"W*"}
+_PAINT = {b"S", b"s", b"f", b"F", b"f*", b"B", b"B*", b"b", b"b*"}
+_SHOW = {b"Tj", b"TJ", b"'", b'"'}
+_TEXT_STATE = {b"Tc": "tc", b"Tw": "tw", b"Tz": "tz", b"TL": "tl", b"Ts": "ts"}
+_FAR = 1e6
+
+
+class _Redactor:
+    def __init__(self, page: Page, fonts: Any, xobjects: Any, regions: list[Rect], shadings: list[Rect]):
+        self.page, self.fonts, self.xobjects, self.regions, self.shadings = page, fonts, xobjects, regions, shadings
+        self.models: dict[str, tuple[int, Callable[[int], float] | None] | None] = {}
+        self.s: dict[str, Any] = {"ctm": _IDENTITY, "font": None, "size": 0.0, "tc": 0.0, "tw": 0.0, "tz": 100.0, "tl": 0.0, "ts": 0.0}
+        self.stack: list[dict[str, Any]] = []
+        self.dropped: set[str] = set()
+        self.tm = self.tlm = _IDENTITY
+
+    def box(self, points: Any, m: Matrix) -> Rect:
+        xs, ys = zip(*(_apply(m, x, y) for x, y in points), strict=True)
+        return self.page._box(min(xs), min(ys), max(xs), max(ys))
+
+    def hit(self, box: Rect) -> bool:
+        return any(_overlaps(box, r) for r in self.regions)
+
+    def move(self, tx: float, ty: float) -> None:
+        self.tm = self.tlm = _mul((1, 0, 0, 1, tx, ty), self.tlm)
+
+    def run(self, operations: list[Any]) -> list[Any]:
+        out: list[Any] = []
+        path: list[Any] = []
+        points: list[tuple[float, float]] = []
+        clip = False
+        shadings = iter(self.shadings)
+        for operands, op in operations:
+            s = self.s
+            if op == b"q":
+                self.stack.append(dict(s))
+            elif op == b"Q" and self.stack:  # real files carry extra Q
+                self.s = self.stack.pop()
+            elif op == b"cm":
+                s["ctm"] = _mul(tuple(operands), s["ctm"])
+            elif op == b"BT":
+                self.tm = self.tlm = _IDENTITY
+            elif op == b"Tf":
+                s["font"], s["size"] = operands
+            elif op in _TEXT_STATE:
+                s[_TEXT_STATE[op]] = operands[0]
+            elif op in (b"Td", b"TD"):
+                if op == b"TD":
+                    s["tl"] = -operands[1]
+                self.move(*operands)
+            elif op == b"Tm":
+                self.tm = self.tlm = tuple(operands)
+            elif op == b"T*":
+                self.move(0, -s["tl"])
+            elif op in _SHOW:
+                out += self.show(op, operands)
+                continue
+            elif op == b"INLINE IMAGE" or (op == b"Do" and operands[0] in self.xobjects and self.xobjects[operands[0]]["/Subtype"] == "/Image"):
+                if self.hit(self.box(_UNIT, s["ctm"])):
+                    if op == b"Do":
+                        self.dropped.add(operands[0])
+                    continue
+            elif op == b"sh":
+                box = next(shadings, None)
+                if box is not None and self.hit(box):
+                    continue
+            elif op in _PATH:
+                path.append((operands, op))
+                clip = clip or op in (b"W", b"W*")
+                if op == b"re":
+                    x, y, w, h = operands
+                    points += [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+                else:
+                    points += zip(operands[::2], operands[1::2], strict=False)
+                continue
+            elif op in _PAINT or op == b"n":
+                if op == b"n" or clip or not points or not any(_within(self.box(points, s["ctm"]), r) for r in self.regions):
+                    out += [*path, (operands, op)]
+                path, points, clip = [], [], False
+                continue
+            out.append((operands, op))
+        return out
+
+    def show(self, op: bytes, operands: list[Any]) -> list[Any]:
+        s = self.s
+        prefix: list[Any] = []
+        if op == b'"':
+            s["tw"], s["tc"] = operands[0], operands[1]
+            prefix = [([operands[0]], b"Tw"), ([operands[1]], b"Tc")]
+        if op in (b"'", b'"'):
+            self.move(0, -s["tl"])
+            prefix.append(([], b"T*"))
+        kept = self.glyphs(list(operands[0]) if op == b"TJ" else [operands[-1]])
+        return [(operands, op)] if kept is None else [*prefix, ([ArrayObject(kept)], b"TJ")]
+
+    def glyphs(self, items: list[Any]) -> list[Any] | None:
+        s = self.s
+        size, th = s["size"], s["tz"] / 100
+        if not size:
+            return None
+        if s["font"] not in self.models:
+            self.models[s["font"]] = _widths(self.fonts[s["font"]])
+        model = self.models[s["font"]]
+        y0, y1 = s["ts"] - 0.3 * size, s["ts"] + 0.8 * size
+        if model is None:
+            return [] if self.hit(self.box([(0, s["ts"])], _mul(self.tm, s["ctm"]))) else None
+        step, width = model
+        if width is None:
+            return [] if self.hit(self.box([(0, y0), (_FAR, y0), (0, y1), (_FAR, y1)], _mul(self.tm, s["ctm"]))) else None
+        out: list[Any] = []
+        buf, removed = bytearray(), False
+
+        def flush() -> None:
+            if buf:
+                out.append(ByteStringObject(bytes(buf)))
+                buf.clear()
+
+        for item in items:
+            if not isinstance(item, bytes):
+                flush()
+                out.append(item)
+                self.tm = _mul((1, 0, 0, 1, -item / 1000 * size * th, 0), self.tm)
+                continue
+            for i in range(0, len(item), step):
+                code = item[i : i + step]
+                w = width(int.from_bytes(code, "big"))
+                gap = s["tc"] + (s["tw"] if step == 1 and code == b" " else 0)
+                x1 = w / 1000 * size
+                if self.hit(self.box([(0, y0), (x1 * th, y0), (0, y1), (x1 * th, y1)], _mul(self.tm, s["ctm"]))):
+                    flush()
+                    out.append(FloatObject(-(w + gap * 1000 / size)))
+                    removed = True
+                else:
+                    buf += code
+                self.tm = _mul((1, 0, 0, 1, (x1 + gap) * th, 0), self.tm)
+        flush()
+        return out if removed else None
+
+
 class Pdf:
     def __init__(self, data: bytes, doc: pdfium.PdfDocument):
         self.data, self.doc = data, doc
+        self.redactions: dict[int, list[tuple[Rect, str]]] = {}
 
     @classmethod
     def open(cls, data: bytes) -> Pdf:
@@ -84,7 +267,13 @@ class Pdf:
 
     def to_bytes(self) -> bytes:
         out = io.BytesIO()
-        self.doc.save(out)
+        if not self.redactions:
+            self.doc.save(out)
+            return out.getvalue()
+        writer = pypdf.PdfWriter(clone_from=io.BytesIO(self.data))
+        for index, regions in self.redactions.items():
+            self.page(index).apply_redactions(writer, regions)
+        writer.write(out)
         return out.getvalue()
 
     @cached_property
@@ -132,7 +321,9 @@ class Page:
         root: Any = self._pdf.reader.trailer["/Root"]
         group: Any = root["/OCProperties"]["/D"] if "/OCProperties" in root else {}
         off = {o.idnum for o in group["/OFF"] if isinstance(o, IndirectObject)} if "/OFF" in group else set()
-        if not off:
+        on = {o.idnum for o in group["/ON"] if isinstance(o, IndirectObject)} if "/ON" in group else set()
+        base_off = group.get("/BaseState") == "/OFF"
+        if not off and not base_off:
             return set()
         page: Any = self._pdf.reader.pages[self._index]
         resources: Any = page["/Resources"] if "/Resources" in page else {}
@@ -143,7 +334,7 @@ class Page:
                 xobject = xobjects[operands[0]] if operands[0] in xobjects else {}
                 if xobject.get("/Subtype") == "/Image":
                     oc = xobject.get("/OC")
-                    if isinstance(oc, IndirectObject) and oc.idnum in off:
+                    if oc is not None and _oc_hidden(oc, off, on, base_off):
                         hidden.add(n)
                     n += 1
             elif op == b"INLINE IMAGE":
@@ -199,11 +390,36 @@ class Page:
         self._page.gen_content()
 
     def redact(self, rect: Rect, marker: str) -> None:
-        for kind in (raw.FPDF_PAGEOBJ_IMAGE, raw.FPDF_PAGEOBJ_SHADING, raw.FPDF_PAGEOBJ_TEXT):
-            for o in self._objects(kind):
-                if _overlaps(self._box(*o.get_bounds()), rect):
-                    self._page.remove_obj(o)
-        self._write(rect[0], rect[1] + 6, marker)
+        self._pdf.redactions.setdefault(self._index, []).append((rect, marker))
+
+    def apply_redactions(self, writer: pypdf.PdfWriter, regions: list[tuple[Rect, str]]) -> None:
+        page = writer.pages[self._index]
+        stream = ContentStream(page.get_contents(), writer, "bytes")
+        shadings = [self._box(*o.get_bounds()) for o in self._objects(raw.FPDF_PAGEOBJ_SHADING)]
+        original: Any = page["/Resources"]
+        fonts, xobjects = (DictionaryObject(original.get(key, {})) for key in ("/Font", "/XObject"))
+        resources = DictionaryObject(original)
+        resources[NameObject("/Font")], resources[NameObject("/XObject")] = fonts, xobjects
+        page[NameObject("/Resources")] = resources
+        rects = [rect for rect, _ in regions]
+        redactor = _Redactor(self, fonts, xobjects, rects, shadings if len(shadings) == sum(op == b"sh" for _, op in stream.operations) else [])
+        ops = redactor.run(stream.operations) + [([], b"Q")] * len(redactor.stack)
+        for name in redactor.dropped - {operands[0] for operands, op in ops if op == b"Do"}:
+            del xobjects[name]
+        for rect, marker in regions:
+            m = _mul((1, 0, 0, -1, rect[0], rect[1] + 6), _inv(self._m))
+            cm = [FloatObject(v) for v in (*m[:4], m[4] + self._origin[0], m[5] + self._origin[1])]
+            ops += [([], b"q"), (cm, b"cm"), ([], b"BT"), ([NameObject("/FMark"), FloatObject(6)], b"Tf"), ([FloatObject(0), FloatObject(0)], b"Td"),
+                    ([ByteStringObject(marker.encode())], b"Tj"), ([], b"ET"), ([], b"Q")]
+        stream.operations = ops
+        page.pop("/Thumb", None)
+        annots: Any = page.get("/Annots")
+        if annots is not None:
+            page[NameObject("/Annots")] = ArrayObject(a for a in annots.get_object() if not any(_overlaps(self._box(*a.get_object()["/Rect"]), r) for r in rects))
+        page.replace_contents(stream)
+        page.compress_content_streams()
+        fonts[NameObject("/FMark")] = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"),
+                                                                    NameObject("/BaseFont"): NameObject("/Helvetica"), NameObject("/Encoding"): NameObject("/WinAnsiEncoding")})
 
     def caption(self, rect: Rect, marker: str) -> None:
         self._write(rect[0], rect[3] + 7, marker)

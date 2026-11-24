@@ -4,13 +4,17 @@ from pathlib import Path
 from uuid import uuid4
 
 import pypdf
+import pypdfium2 as pdfium
+import pypdfium2.raw as raw
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
+from pypdf.generic import ArrayObject, ContentStream, DecodedStreamObject, DictionaryObject, NameObject, NumberObject, TextStringObject
 
 from omni_ingest.agent.document import ImageExtractionAgent, RasterizeAgent
 from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
 from omni_ingest.core.output import MarkdownDirOutput
 from omni_ingest.core.pipeline import IngestionContext
+from omni_ingest.pdf import Pdf
 
 PDFS = Path(__file__).parent.parent / "resources" / "pdf"
 IMGS = Path(__file__).parent.parent / "resources" / "img"
@@ -97,6 +101,26 @@ def test_rotated_page_bbox_is_in_visible_coordinates():
 
 def test_hidden_layer_image_is_not_extracted():
     _, out = extract("hidden_layer", **RAW)
+    assert_boxes(boxes(out), [(1, [200, 20, 300, 120])])
+
+
+def test_membership_dictionaries_decide_layer_visibility():
+    _, out = extract("hidden_membership", **RAW)
+    assert_boxes(boxes(out), [(1, [140, 20, 240, 120])])
+
+
+def test_base_state_off_hides_every_layer_that_is_not_listed_on():
+    item, data = load("hidden_layer")
+    writer = pypdf.PdfWriter(clone_from=io.BytesIO(data))
+    properties = writer._root_object["/OCProperties"]
+    config = properties["/D"]
+    hidden = {o.idnum for o in config["/OFF"]}
+    config[NameObject("/ON")] = ArrayObject([o for o in properties["/OCGs"] if o.idnum not in hidden])
+    config[NameObject("/BaseState")] = NameObject("/OFF")
+    del config["/OFF"]
+    buf = io.BytesIO()
+    writer.write(buf)
+    out = ImageExtractionAgent(**RAW)._extract_pdf(item, buf.getvalue())
     assert_boxes(boxes(out), [(1, [200, 20, 300, 120])])
 
 
@@ -238,3 +262,250 @@ async def test_markdown_output_normalizes_images_to_png(tmp_path, data, content_
 async def test_markdown_output_keeps_undecodable_image_bytes_with_original_extension(tmp_path):
     files = await write_image(tmp_path, b"<svg/>", "image/svg+xml")
     assert [f.suffix for f in files] == [".svg+xml"] and files[0].read_bytes() == b"<svg/>"
+
+
+@pytest.mark.parametrize("name", ["rotated", "cropbox"])
+def test_caption_marker_sits_just_below_the_image_on_rotated_and_cropped_pages(name):
+    item, out = extract(name, mode="caption", **RAW)
+    x0, _, _, y1 = out[0].metadata["bbox"]
+    with Pdf.open(item.content.data) as pdf:
+        page = pdf.page(0)
+        texts = [page._box(*o.get_bounds()) for o in page._objects(raw.FPDF_PAGEOBJ_TEXT)]
+    assert any(abs(t[0] - x0) < 2 and y1 - 1 <= t[1] <= y1 + 8 for t in texts)
+
+
+def stream_ops(data: bytes) -> list[tuple[list, bytes]]:
+    r = pypdf.PdfReader(io.BytesIO(data))
+    return ContentStream(r.pages[0].get_contents(), r, "bytes").operations
+
+
+def redacted(data: bytes, *rects: tuple[float, float, float, float], marker: str = "~") -> bytes:
+    with Pdf.open(data) as pdf:
+        for rect in rects:
+            pdf.page(0).redact(rect, marker)
+        return pdf.to_bytes()
+
+
+def redact_directly(name: str, rect: tuple[float, float, float, float], marker: str = "M") -> tuple[bytes, bytes]:
+    data = (PDFS / f"{name}.pdf").read_bytes()
+    return data, redacted(data, rect, marker=marker)
+
+
+def one_page(content: str, widths: bool = False, setup=None) -> bytes:
+    writer = pypdf.PdfWriter()
+    page = writer.add_blank_page(200, 200)
+    font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"), NameObject("/BaseFont"): NameObject("/Helvetica")})
+    if widths:
+        font[NameObject("/FirstChar")] = NumberObject(32)
+        font[NameObject("/Widths")] = ArrayObject([NumberObject(500)] * 95)
+    page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): DictionaryObject({NameObject("/F1"): font})})
+    stream = DecodedStreamObject()
+    stream.set_data(content.encode("latin-1"))
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    if setup:
+        setup(writer, page)
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def page_lines(data: bytes) -> list[str]:
+    with Pdf.open(data) as pdf:
+        text = pdf.doc[0].get_textpage().get_text_range().replace("~", "")
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def op_names(data: bytes) -> list[bytes]:
+    return [op for _, op in stream_ops(data)]
+
+
+def render(data: bytes, box: tuple[int, int, int, int]) -> Image.Image:
+    return pdfium.PdfDocument(data)[0].render(scale=1).to_pil().convert("L").crop(box)
+
+
+def char_left(data: bytes, word: str) -> float:
+    with Pdf.open(data) as pdf:
+        text = pdf.doc[0].get_textpage()
+        return text.get_charbox(text.get_text_range().find(word))[0]
+
+
+def test_redact_removes_only_the_glyphs_under_the_region_and_keeps_the_rest_in_place():
+    item, out = extract("partial_text", mode="redact", **RAW)
+    text = reader(item).pages[0].extract_text()
+    assert all(word in text for word in ("HELLO", "ONE", "THREE"))
+    assert not any(word in text for word in ("WORLD", "TWO"))
+    assert marker(out[0]) in text and marker(out[1]) in text
+    _, data = load("partial_text")
+    assert char_left(item.content.data, "THREE") == pytest.approx(char_left(data, "THREE"), abs=0.5)
+
+
+def test_redact_removes_a_shading_inside_the_region_and_keeps_the_one_outside():
+    data, out = redact_directly("shading_in_region", (190, 80, 290, 140), marker=" ")
+    assert op_names(out).count(b"sh") == 1
+    inside, outside = (190, 80, 290, 140), (20, 20, 140, 100)
+    assert ImageStat.Stat(render(data, inside)).mean[0] < 200
+    assert ImageStat.Stat(render(out, inside)).mean[0] > 250
+    assert ImageStat.Stat(ImageChops.difference(render(data, outside), render(out, outside))).mean[0] < 2
+
+
+def test_redact_removes_no_shading_when_pdfium_and_the_stream_list_a_different_number_of_shadings():
+    data = (PDFS / "shading_in_region.pdf").read_bytes().replace(b"/Sh1 sh", b"/Bad sh", 1)
+    out = redacted(data, (190, 80, 290, 140))
+    assert op_names(out).count(b"sh") == 2
+
+
+def test_redact_keeps_a_shading_outside_the_region_and_renders_it_unchanged():
+    data, out = redact_directly("shading", (190, 80, 290, 140))
+    ops = [op for _, op in stream_ops(out)]
+    assert ops.count(b"sh") == 1 and b"Do" not in ops
+    box = (20, 20, 140, 100)
+    assert ImageStat.Stat(render(out, box)).mean[0] > 20
+    assert ImageStat.Stat(ImageChops.difference(render(data, box), render(out, box))).mean[0] < 2
+
+
+def test_redact_removes_a_path_fully_inside_the_region_and_keeps_a_path_that_is_only_partly_covered():
+    item, _ = extract("vector_paths", mode="redact", **RAW)
+    ops = stream_ops(item.content.data)
+    assert [list(o) for o, op in ops if op == b"re"] == [[20, 80, 40, 40], [230, 100, 60, 40], [160, 70, 30, 30]]
+    assert [op for _, op in ops].count(b"f") == 2
+    assert [op for _, op in ops].count(b"W") == 1
+
+
+def test_redact_composite_font_keeps_narrow_table_glyphs_and_drops_default_width_glyphs_over_the_region():
+    item, _ = extract("type0", mode="redact", **RAW)
+    (operands,) = (o for o, op in stream_ops(item.content.data) if op == b"TJ")
+    items = list(operands[0])
+    assert b"".join(i for i in items if isinstance(i, bytes)) == bytes([0, 1, 0, 2, 0, 5])
+    assert [i for i in items if not isinstance(i, bytes)] == [-1000, -1000]
+
+
+def assert_marker_inside_region(item: KnowledgeItem, out: list[KnowledgeItem]) -> None:
+    x0, y0, _, _ = out[0].metadata["bbox"]
+    with Pdf.open(item.content.data) as pdf:
+        page = pdf.page(0)
+        texts = [page._box(*o.get_bounds()) for o in page._objects(raw.FPDF_PAGEOBJ_TEXT)]
+    assert any(abs(t[0] - x0) < 2 and y0 - 1 <= t[1] and t[3] <= y0 + 9 and t[2] - t[0] > 3 * (t[3] - t[1]) for t in texts)
+
+
+@pytest.mark.parametrize("name", ["rotated", "cropbox"])
+def test_redact_marker_sits_inside_the_region_on_rotated_and_cropped_pages(name):
+    item, out = extract(name, mode="redact", **RAW)
+    assert_marker_inside_region(item, out)
+
+
+@pytest.mark.parametrize("angle", [180, 270])
+def test_redact_removes_text_and_images_and_places_the_marker_on_pages_rotated_180_and_270(angle):
+    writer = pypdf.PdfWriter(clone_from=PDFS / "partial_text.pdf")
+    writer.pages[0].rotate(angle)
+    buf = io.BytesIO()
+    writer.write(buf)
+    data = buf.getvalue()
+    item = KnowledgeItem(content=ByteContent.from_bytes(data))
+    out = ImageExtractionAgent(mode="redact", **RAW)._extract_pdf(item, data)
+    page = reader(item).pages[0]
+    text = page.extract_text()
+    assert len(out) == 2 and len(page.images) == 0
+    assert all(word in text for word in ("HELLO", "ONE", "THREE")) and not any(word in text for word in ("WORLD", "TWO"))
+    for image in out:
+        x0, y0, x1, y1 = image.metadata["bbox"]
+        assert ImageStat.Stat(render(data, (int(x0) + 2, int(y0) + 2, int(x1) - 2, int(y1) - 2))).mean[0] < 200
+    assert_marker_inside_region(item, out)
+
+
+def test_optional_content_membership_any_off_and_all_off_follow_the_pdf_rule():
+    item, data = load("hidden_membership_off")
+    out = ImageExtractionAgent(**RAW)._extract_pdf(item, data)
+    drawn = [ImageStat.Stat(render(data, (x + 10, 70, x + 70, 130))).mean[0] < 250 for x in (10, 110, 210, 310)]
+    assert drawn == [True, False, True, False]
+    assert_boxes(boxes(out), [(1, [10, 60, 90, 140]), (1, [210, 60, 290, 140])])
+
+
+def test_redact_removes_a_text_operator_in_a_font_without_widths_when_its_line_band_meets_the_region():
+    data = one_page("BT /F1 6 Tf 10 150 Td (WWWWWWWWWWWWWWWWWWWWWWWW SECRETNUMBER) Tj ET")
+    assert "SECRET" in " ".join(page_lines(data))
+    assert page_lines(redacted(data, (150, 40, 170, 55))) == []
+    assert "SECRET" in " ".join(page_lines(redacted(data, (150, 100, 170, 120))))
+    assert "SECRET" in " ".join(page_lines(redacted(one_page("BT /F1 6 Tf 100 150 Td (SECRET) Tj ET"), (10, 40, 50, 55))))
+
+
+def test_redact_applies_horizontal_scaling_to_the_glyph_box():
+    data = one_page("BT /F1 20 Tf 200 Tz 20 100 Td (HELLO) Tj ET", widths=True)
+    assert page_lines(redacted(data, (30, 85, 38, 105))) == ["ELLO"]
+
+
+def test_redact_follows_text_rise():
+    data = one_page("BT /F1 20 Tf 20 100 Td 20 Ts (HELLO) Tj ET", widths=True)
+    assert page_lines(redacted(data, (20, 66, 120, 80))) == []
+    assert page_lines(redacted(data, (20, 90, 120, 110))) == ["HELLO"]
+
+
+def test_redact_uses_the_descender_below_the_baseline():
+    data = one_page("BT /F1 20 Tf 20 100 Td (HELLO) Tj ET", widths=True)
+    assert page_lines(redacted(data, (20, 105, 120, 106))) == []
+    assert page_lines(redacted(data, (20, 107, 120, 111))) == ["HELLO"]
+
+
+def test_redact_tracks_char_and_word_spacing_leading_and_line_moves_across_text_operators():
+    data = one_page("BT /F1 10 Tf 5 Tc 10 Tw 12 TL 10 180 Td (AA BB) Tj 0 -30 TD (CC) Tj T* (DD) Tj (EE) ' 2 1 (FF GG) \" ET", widths=True)
+    regions = {"Tc and Tw": (62, 10, 68, 25), "TD": (22, 40, 28, 55), "T*": (11, 74, 19, 82), "'": (22, 104, 28, 112), '"': (31, 134, 35, 142)}
+    assert page_lines(data) == ["AA BB", "CC", "DD", "EE", "FF GG"]
+    assert page_lines(redacted(data, *regions.values())) == ["AA B", "C", "D", "E", "FF G"]
+
+
+def test_redact_judges_text_after_q_at_the_restored_matrix_and_after_bt_at_the_identity():
+    data = one_page("q 1 0 0 1 100 0 cm BT /F1 20 Tf 10 100 Td (AB) Tj ET Q BT /F1 20 Tf 10 100 Td (CD) Tj ET", widths=True)
+    assert sorted(" ".join(page_lines(redacted(data, (11, 84, 19, 106)))).split()) == ["AB", "D"]
+
+
+def test_redact_survives_an_unbalanced_q():
+    data = one_page("Q BT /F1 20 Tf 20 100 Td (AB) Tj 100 0 Td (CD) Tj ET", widths=True)
+    assert page_lines(redacted(data, (118, 80, 142, 110))) == ["AB"]
+
+
+def test_redact_survives_a_paint_operator_without_a_path():
+    data = one_page("0 0 1 rg f BT /F1 20 Tf 20 100 Td (AB) Tj 100 0 Td (CD) Tj ET", widths=True)
+    out = redacted(data, (118, 80, 142, 110))
+    assert page_lines(out) == ["AB"] and b"f" in op_names(out)
+
+
+def test_redact_survives_a_do_of_a_name_that_is_not_in_the_resources():
+    data = one_page("/Nope Do BT /F1 20 Tf 20 100 Td (AB) Tj 100 0 Td (CD) Tj ET", widths=True)
+    out = redacted(data, (118, 80, 142, 110))
+    assert page_lines(out) == ["AB"] and b"Do" in op_names(out)
+
+
+def test_redact_removes_an_inline_image_in_the_region_and_keeps_the_other():
+    inline = "q 40 0 0 40 {x} 100 cm BI /W 1 /H 1 /CS /G /BPC 8 ID \x80 EI Q "
+    data = one_page(inline.format(x=20) + inline.format(x=120))
+    out = redacted(data, (20, 60, 60, 100), marker=" ")
+    assert op_names(out).count(b"INLINE IMAGE") == 1
+    assert ImageStat.Stat(render(out, (20, 60, 60, 100))).mean[0] > 250
+    assert ImageStat.Stat(render(out, (120, 60, 160, 100))).mean[0] < 200
+
+
+def add_annotations(writer: pypdf.PdfWriter, page) -> None:
+    annots = ArrayObject()
+    for rect, contents in (([30, 130, 50, 150], "INSIDE"), ([120, 20, 140, 40], "OUTSIDE")):
+        annots.append(writer._add_object(DictionaryObject({
+            NameObject("/Type"): NameObject("/Annot"), NameObject("/Subtype"): NameObject("/Text"),
+            NameObject("/Rect"): ArrayObject([NumberObject(v) for v in rect]), NameObject("/Contents"): TextStringObject(contents)})))
+    page[NameObject("/Annots")] = annots
+
+
+def add_thumbnail(writer: pypdf.PdfWriter, page) -> None:
+    thumb = DecodedStreamObject()
+    thumb.set_data(b"\x00")
+    thumb.update({NameObject("/Width"): NumberObject(1), NameObject("/Height"): NumberObject(1), NameObject("/ColorSpace"): NameObject("/DeviceGray"), NameObject("/BitsPerComponent"): NumberObject(8)})
+    page[NameObject("/Thumb")] = writer._add_object(thumb)
+
+
+def test_redact_drops_annotations_inside_the_region_from_the_page_and_keeps_the_others():
+    out = redacted(one_page("BT /F1 20 Tf 20 100 Td (AB) Tj ET", setup=add_annotations), (20, 20, 80, 80))
+    page = pypdf.PdfReader(io.BytesIO(out)).pages[0]
+    assert [a.get_object()["/Contents"] for a in page["/Annots"]] == ["OUTSIDE"]
+
+
+def test_redact_drops_the_page_thumbnail():
+    data = one_page("BT /F1 20 Tf 20 100 Td (AB) Tj ET", setup=add_thumbnail)
+    assert "/Thumb" in pypdf.PdfReader(io.BytesIO(data)).pages[0]
+    assert "/Thumb" not in pypdf.PdfReader(io.BytesIO(redacted(data, (20, 20, 80, 80)))).pages[0]
