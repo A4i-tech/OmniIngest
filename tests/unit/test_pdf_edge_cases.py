@@ -45,12 +45,10 @@ def survivors(text: str, items: list[KnowledgeItem]) -> int:
 # --------------------------------------------------------------------------------------
 
 
-def test_rotated_page_bbox_is_in_unrotated_space_current():
-    """Page stored 400x200 and rotated 90 (displays 200x400). The box is reported in unrotated
-    coordinates and then clipped by the rotated page rectangle, so it is neither the true
-    box (40,60,360,140) nor its rotated equivalent."""
+def test_rotated_page_bbox_is_in_visible_space():
+    """Page stored 400x200 and rotated 90 (displays 200x400). The box (40,60,360,140) is reported rotated into visible space."""
     _, [item] = extract(load(PDFS / "edge_rotated.pdf"), **DEFAULTS)
-    assert_bbox(item.metadata["bbox"], (40, 60, 200, 140))
+    assert_bbox(item.metadata["bbox"], (60, 40, 140, 360))
 
 
 def test_rasterize_bakes_page_rotation_into_page_size():
@@ -97,16 +95,16 @@ def test_image_placed_with_rotation_reports_axis_aligned_bbox():
 # --------------------------------------------------------------------------------------
 
 
-def test_truncated_pdf_is_repaired_and_extracted():
+def test_truncated_pdf_raises_damaged():
     data = load(PDFS / "one_image.pdf")
-    _, items = extract(data[:-200], **DEFAULTS)
-    assert len(items) == 1
+    with pytest.raises(ValueError, match="damaged"):
+        extract(data[:-200], **DEFAULTS)
 
 
-def test_broken_startxref_is_repaired_and_extracted():
+def test_broken_startxref_raises_cross_reference_error():
     data = load(PDFS / "one_image.pdf").replace(b"startxref", b"startxxxx")
-    _, items = extract(data, **DEFAULTS)
-    assert len(items) == 1
+    with pytest.raises(ValueError, match="cross-reference"):
+        extract(data, **DEFAULTS)
 
 
 def test_empty_bytes_raise():
@@ -114,10 +112,10 @@ def test_empty_bytes_raise():
         extract(b"", **DEFAULTS)
 
 
-def test_pdf_with_zero_pages_yields_nothing():
+def test_pdf_with_zero_pages_raises_damaged():
     data = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
-    _, items = extract(data, **DEFAULTS)
-    assert items == []
+    with pytest.raises(ValueError, match="damaged"):
+        extract(data, **DEFAULTS)
 
 
 def test_user_password_pdf_raises():
@@ -171,13 +169,12 @@ async def test_math_content_under_a_vector_region_is_deleted_by_redact_current()
 
 
 @pytest.mark.asyncio
-async def test_redact_markers_for_small_regions_do_not_all_survive_current():
-    """Markers are written into the region itself. Narrow regions (5pt wide brackets) cannot hold the
-    marker, so some `<image id=.../>` markers are missing from the redacted PDF. Caption keeps all."""
+async def test_redact_markers_for_small_regions_all_survive():
+    """Markers survive redaction even for narrow regions (5pt wide brackets)."""
     data = load(PDFS / "math_chem.pdf")
     redacted, items = extract(data, mode="redact", padding=0, dpi=72, include_vector=True)
     assert len(items) == 5
-    assert survivors(page_texts(await image_bytes(redacted))[0], items) < len(items)
+    assert survivors(page_texts(await image_bytes(redacted))[0], items) == len(items)
 
     captioned, items = extract(data, mode="caption", padding=0, dpi=72, include_vector=True)
     assert survivors(page_texts(await image_bytes(captioned))[0], items) == len(items)
@@ -233,12 +230,12 @@ def sorted_boxes(items: list[KnowledgeItem]) -> list[list[float]]:
     return sorted((item.metadata["bbox"] for item in items), key=lambda b: (b[1], b[0]))
 
 
-def test_math_and_chemistry_vector_strokes_become_figures_current():
+def test_math_and_chemistry_vector_strokes_become_figures():
     """PDFs carry no MathML in page content: maths is glyph text plus thin strokes, chemistry likewise.
     Expected figures: radical sign, two matrix brackets, benzene ring (with its OH bond) and reaction arrow.
     Not extracted: fraction bar (below the 0.1% area floor), sum and integral glyphs, formulas typed as text."""
     _, items = extract(load(PDFS / "math_chem.pdf"), padding=0, dpi=72, include_vector=True)
-    expected = [(150, 112, 190, 138), (355, 100, 360, 160), (420, 100, 425, 160), (250, 314, 320, 326), (85.4, 280, 179.6, 360)]
+    expected = [(150, 112, 190, 139.2), (355, 100, 360, 160), (420, 100, 425, 160), (250, 314, 320, 326), (85.4, 280, 179.6, 360)]
     boxes = sorted_boxes(items)
     assert len(boxes) == len(expected)
     for box, want in zip(boxes, sorted(expected, key=lambda b: (b[1], b[0])), strict=True):
@@ -282,8 +279,10 @@ async def written(tmp_path: Path, raw: bytes, content_type: str) -> tuple[str, b
         ((IMAGES / "gray.jpg").read_bytes(), "image/jpeg"),
         ((IMAGES / "alpha.png").read_bytes(), "image/png"),
         (GIF_1X1, "image/gif"),
+        ((RESOURCES / "supermarket-shelf.webp").read_bytes(), "image/webp"),
+        ((IMAGES / "cmyk.jpg").read_bytes(), "image/jpeg"),
     ],
-    ids=["gray-png", "gray-jpeg", "alpha-png", "gif"],
+    ids=["gray-png", "gray-jpeg", "alpha-png", "gif", "webp", "cmyk-jpeg"],
 )
 async def test_markdown_output_normalises_decodable_rasters_to_png(tmp_path, raw, content_type):
     suffix, data = await written(tmp_path, raw, content_type)
@@ -303,14 +302,12 @@ async def test_markdown_output_tolerates_truncated_png_current(tmp_path):
 @pytest.mark.parametrize(
     ("raw", "content_type", "suffix"),
     [
-        ((RESOURCES / "supermarket-shelf.webp").read_bytes(), "image/webp", ".webp"),
-        ((IMAGES / "cmyk.jpg").read_bytes(), "image/jpeg", ".jpeg"),
         (SVG, "image/svg+xml", ".svg+xml"),
     ],
-    ids=["webp", "cmyk-jpeg", "svg"],
+    ids=["svg"],
 )
 async def test_markdown_output_passes_through_formats_it_cannot_convert_current(tmp_path, raw, content_type, suffix):
-    """WebP, CMYK JPEG and SVG are not converted: original bytes are written with an extension taken from the content type."""
+    """SVG is not converted: original bytes are written with an extension taken from the content type."""
     written_suffix, data = await written(tmp_path, raw, content_type)
     assert written_suffix == suffix
     assert data == raw
