@@ -8,7 +8,6 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Literal
 
 import jq
-import pymupdf
 from pydantic import BaseModel, Field, NonNegativeFloat, PositiveInt
 
 if TYPE_CHECKING:
@@ -17,6 +16,15 @@ if TYPE_CHECKING:
 from ..core.config import settings
 from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from ..core.ocr import Figure, OcrBuilderParams, OcrOutputFormat
+from ..pdf import PDFIUM, Pdf, Rect, rasterize
+
+
+def _intersect(a: Rect, b: Rect) -> Rect:
+    return (max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3]))
+
+
+def _area(r: Rect) -> float:
+    return max(r[2] - r[0], 0) * max(r[3] - r[1], 0)
 
 
 class ImageExtractionAgent(BaseModel, Step):
@@ -32,8 +40,8 @@ class ImageExtractionAgent(BaseModel, Step):
     replace: bool = Field(default=False, description="Replace existing items with extracted images")
     mode: Literal["preserve", "redact", "caption"] = Field(default="preserve", description=(
         "How extracted images are represented in the parent PDF: preserve leaves the PDF unchanged, "
-        "redact replaces each image with an `<image id=...>` marker, and caption keeps each image while "
-        "adding its marker below it."
+        "redact removes each image and the text under it and writes an `<image id=...>` marker in its place, "
+        "and caption keeps each image while adding its marker below it."
     ))
     workers: PositiveInt = Field(default=4, description="Maximum number of PDFs to process concurrently")
 
@@ -66,47 +74,44 @@ class ImageExtractionAgent(BaseModel, Step):
 
     async def _extract(self, parent: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> list[KnowledgeItem]:
         async with sem:
-            return await asyncio.to_thread(self._extract_pdf, parent, content)
+            return await asyncio.get_running_loop().run_in_executor(PDFIUM, self._extract_pdf, parent, content)
 
     def _extract_pdf(self, parent: KnowledgeItem, content: bytes) -> list[KnowledgeItem]:
         extracted = []
-        with pymupdf.open(stream=content, filetype="pdf") as pdf:
-            for page_number, page in enumerate(pdf.pages(), 1):
-                assert isinstance(page, pymupdf.Page)
+        with Pdf.open(content) as pdf:
+            for page_number in range(1, len(pdf) + 1):
+                page = pdf.page(page_number - 1)
 
-                regions = [pymupdf.Rect(image["bbox"]) for image in page.get_image_info()]
-                tables = [] if self.include_tables or not self.include_vector else [pymupdf.Rect(table.bbox) for table in page.find_tables().tables]
+                regions = page.image_boxes()
+                tables = [] if self.include_tables or not self.include_vector else page.table_boxes()
                 if self.include_vector:
-                    regions.extend(rect for rect in page.cluster_drawings() if not any((rect & table).get_area() >= rect.get_area() * 0.8 for table in tables))
+                    regions.extend(rect for rect in page.drawing_clusters() if not any(_area(_intersect(rect, table)) >= _area(rect) * 0.8 for table in tables))
 
-                seen = set()
+                seen: dict[bytes, uuid.UUID] = {}
                 for rect in regions:
-                    rect &= page.rect
-                    area, page_area = rect.get_area(), page.rect.get_area()
-                    if rect.is_empty or area < page_area * 0.001 or area > page_area * 0.8:
+                    rect = _intersect(rect, page.rect)
+                    area, page_area = _area(rect), _area(page.rect)
+                    if area < page_area * 0.001 or area > page_area * 0.8:
                         continue
 
-                    rect = (rect + (-self.padding, -self.padding, self.padding, self.padding)) & page.rect
-                    content = page.get_pixmap(clip=rect, dpi=self.dpi, alpha=False).tobytes("png")
-                    if self.deduplicate and content in seen:
-                        continue
-                    seen.add(content)
-
-                    id = uuid.uuid4()
+                    rect = _intersect((rect[0] - self.padding, rect[1] - self.padding, rect[2] + self.padding, rect[3] + self.padding), page.rect)
+                    content = page.render_png(rect, self.dpi)
+                    duplicate = self.deduplicate and content in seen
+                    id = seen[content] if duplicate else uuid.uuid4()
+                    seen.setdefault(content, id)
                     marker = f'<image id="{id}"/>'
                     if self.mode == "redact":
-                        page.add_redact_annot(rect, text=marker, fontsize=6, cross_out=False)
+                        page.redact(rect, marker)
                     elif self.mode == "caption":
-                        page.insert_text((rect.x0, rect.y1 + 7), marker, fontsize=6)
+                        page.caption(rect, marker)
+                    if duplicate:
+                        continue
 
                     metadata = {"kind": "image", "parent_id": str(parent.id), "page": page_number, "bbox": [round(value, 3) for value in rect]}
                     extracted.append(KnowledgeItem(id=id, content=ByteContent.from_bytes(content, content_type="image/png", content_encoding="binary"), tenant_id=parent.tenant_id, source_uri=parent.source_uri, metadata=metadata))
 
-                if self.mode == "redact":
-                    page.apply_redactions()
-
             if self.mode != "preserve":
-                parent.content = ByteContent.from_bytes(pdf.tobytes(garbage=3, deflate=True), content_type="application/pdf", content_encoding=parent.content.encoding)
+                parent.content = ByteContent.from_bytes(pdf.to_bytes(), content_type="application/pdf", content_encoding=parent.content.encoding)
 
         return extracted
 
@@ -150,14 +155,10 @@ class RasterizeAgent(BaseModel, Step):
 
     async def _rasterize(self, item: KnowledgeItem, ctx: IngestionContext[ResolvedResource], sem: asyncio.Semaphore) -> None:
         async with sem:
-            await asyncio.to_thread(self._rasterize_pdf, item, await item.content.read(ctx))
+            await asyncio.get_running_loop().run_in_executor(PDFIUM, self._rasterize_pdf, item, await item.content.read(ctx))
 
     def _rasterize_pdf(self, item: KnowledgeItem, content: bytes) -> None:
-        with pymupdf.open(stream=content, filetype="pdf") as source, pymupdf.open() as output:
-            for page in source:
-                target = output.new_page(width=page.rect.width, height=page.rect.height)
-                target.insert_image(target.rect, stream=page.get_pixmap(dpi=self.dpi, alpha=False).tobytes("png"))
-            item.content = ByteContent.from_bytes(output.tobytes(deflate=True), content_type="application/pdf", content_encoding=item.content.encoding)
+        item.content = ByteContent.from_bytes(rasterize(content, self.dpi), content_type="application/pdf", content_encoding=item.content.encoding)
 
 
 class OcrAgent(BaseModel, Step):
