@@ -80,13 +80,13 @@ async def test_azure_stt_builder_missing_credentials():
 async def test_brf_parser_back_translates_grade2_braille(resources_dir):
     try:
         import louis  # noqa: F401
-    except OSError as e:
+    except (ImportError, OSError) as e:
         pytest.skip(f"liblouis unavailable: {e}")
 
-    with (resources_dir / "twinky-the-dinky-dog.brf").open("rb") as f:
+    with (resources_dir / "blueberries-are-now-green.brf").open("rb") as f:
         content, metadata = await parse_brf(f)
 
-    assert "twinky" in content.lower()
-    assert "dinky dog" in content.lower()
+    assert "shocking turn of events" in content.lower()
+    assert "unexpected transformation has challenged" in content.lower()
     assert metadata["original_length"] > 0
     assert metadata["parsed_length"] > 0

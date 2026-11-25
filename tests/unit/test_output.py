@@ -39,7 +39,7 @@ def test_parse_rejects_mongodb_uri_missing_db():
 def _skip_if_no_liblouis():
     try:
         import louis  # noqa: F401
-    except OSError as e:
+    except (ImportError, OSError) as e:
         pytest.skip(f"liblouis unavailable: {e}")
 
 
