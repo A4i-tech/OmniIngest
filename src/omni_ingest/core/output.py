@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlsplit
 
 import fsspec  # type: ignore[import-untyped]
-import pymupdf
 from pydantic import BaseModel, Field
 
 from ..agent.deduplication import DeduplicationStrategyConfig, NormalizedTextHashDeduplicationStrategy
+from ..pdf import to_png
 from .config import settings
 from .model import ByteContent, ResolvedResource, StepStatus
 from .protocol import GraphStore, VectorStore
@@ -178,7 +178,7 @@ class MarkdownDirOutput(FileOutput):
             if content_type.startswith("image/"):
                 raw = await item.content.read(ctx)
                 try:
-                    data, ext = pymupdf.Pixmap(raw).tobytes("png"), "png"
+                    data, ext = to_png(raw), "png"
                 except Exception:
                     data, ext = raw, content_type.split("/", 1)[-1]
                 filename = str(Path("out") / f"{md5(data).hexdigest()}.{ext}")

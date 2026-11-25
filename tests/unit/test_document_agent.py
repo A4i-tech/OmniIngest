@@ -1,4 +1,6 @@
-import pymupdf
+import io
+
+import pypdf
 import pytest
 
 from omni_ingest.agent.document import ImageExtractionAgent
@@ -6,18 +8,18 @@ from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
 from omni_ingest.core.pipeline import IngestionContext
 
 
-def pdf_with_image() -> bytes:
-    with pymupdf.open() as pdf:
-        page = pdf.new_page(width=400, height=200)
-        pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 16, 16), False)
-        pixmap.clear_with(0x336699)
-        page.insert_image(pymupdf.Rect(40, 60, 360, 140), stream=pixmap.tobytes("png"))
-        return bytes(pdf.tobytes())
+@pytest.fixture
+def original(resources_dir) -> bytes:
+    return (resources_dir / "pdf" / "single_image.pdf").read_bytes()
+
+
+
+def page_of(content: bytes) -> pypdf.PageObject:
+    return pypdf.PdfReader(io.BytesIO(content)).pages[0]
 
 
 @pytest.mark.asyncio
-async def test_image_extraction_preserves_parent_by_default():
-    original = pdf_with_image()
+async def test_image_extraction_preserves_parent_by_default(original):
     parent = KnowledgeItem(content=ByteContent.from_bytes(original))
     ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
@@ -27,8 +29,7 @@ async def test_image_extraction_preserves_parent_by_default():
 
 
 @pytest.mark.asyncio
-async def test_image_extraction_redacts_parent_with_extracted_item_id():
-    original = pdf_with_image()
+async def test_image_extraction_redacts_parent_with_extracted_item_id(original):
     parent = KnowledgeItem(content=ByteContent.from_bytes(original))
     ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(mode="redact", include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
@@ -36,14 +37,13 @@ async def test_image_extraction_redacts_parent_with_extracted_item_id():
     assert len(extracted) == 1
     content = await parent.content.read(ctx)
     assert content != original
-    with pymupdf.open(stream=content, filetype="pdf") as redacted:
-        assert f'<image id="{extracted[0].id}"/>' in redacted[0].get_text()
-        assert redacted[0].get_image_info() == []
+    page = page_of(content)
+    assert f'<image id="{extracted[0].id}"/>' in page.extract_text()
+    assert len(page.images) == 0
 
 
 @pytest.mark.asyncio
-async def test_image_extraction_captions_parent_with_extracted_item_id():
-    original = pdf_with_image()
+async def test_image_extraction_captions_parent_with_extracted_item_id(original):
     parent = KnowledgeItem(content=ByteContent.from_bytes(original))
     ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(b"")), items=[parent])
     extracted = ImageExtractionAgent(mode="caption", include_vector=False, padding=0, dpi=72)._extract_pdf(parent, original)
@@ -51,6 +51,6 @@ async def test_image_extraction_captions_parent_with_extracted_item_id():
     assert len(extracted) == 1
     content = await parent.content.read(ctx)
     assert content != original
-    with pymupdf.open(stream=content, filetype="pdf") as captioned:
-        assert f'<image id="{extracted[0].id}"/>' in captioned[0].get_text()
-        assert len(captioned[0].get_image_info()) == 1
+    page = page_of(content)
+    assert f'<image id="{extracted[0].id}"/>' in page.extract_text()
+    assert len(page.images) == 1
