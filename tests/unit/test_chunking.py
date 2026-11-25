@@ -4,7 +4,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
-import pymupdf
 import pytest
 from pypdf import PdfReader, PdfWriter
 
@@ -278,10 +277,12 @@ async def test_resource_page_parses_resource_once(monkeypatch):
 
     from omni_ingest.core import content
 
-    with pymupdf.open() as pdf:
-        pdf.new_page()
-        pdf.new_page()
-        data = pdf.tobytes()
+    writer = PdfWriter()
+    writer.add_blank_page(100, 100)
+    writer.add_blank_page(100, 100)
+    with io.BytesIO() as out:
+        writer.write(out)
+        data = out.getvalue()
     ctx = IngestionContext(resource=ResolvedResource(uri="", content=ByteContent.from_bytes(data)))
     parses = []
     real = content.PdfReader
