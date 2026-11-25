@@ -224,6 +224,8 @@ omni-ingest school_notes.yaml \
   | jq -r '.runs[] | [.resource.uri, (.items | length)] | @tsv'
 ```
 
+A glob or directory can match many resources. `--max-concurrent-resources` limits how many run at the same time. Default is 8. Lower it to stay inside model provider rate limits.
+
 Progress uses stderr so it does not corrupt JSON pipe. Add `--quiet` when progress is not useful in CI or cron:
 
 ```bash
