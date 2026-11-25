@@ -59,6 +59,32 @@ jobs:
       - name: Run mypy
         run: uv run mypy src
 
+  licenses:
+    name: Dependency Licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install runtime dependencies only
+        run: uv sync --no-dev
+      - name: Fail on strong-copyleft licences in core
+        run: >
+          uvx --from pip-licenses pip-licenses --python .venv/bin/python --from=mixed
+          --partial-match --fail-on="GPL;General Public;Affero;SSPL"
+          --format=markdown --output-file licenses.md
+      - name: Upload licence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: licenses
+          path: licenses.md
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest

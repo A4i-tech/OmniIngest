@@ -6,18 +6,44 @@ dist/
 wheels/
 *.egg-info
 
-# Environment variables
+# Environment variables (keep the example template)
 *.env
+.env
+.env.*
+!.env.example
 
 # Virtual environments
 .venv
+venv/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Test and coverage output
+.coverage
+.coverage.*
+coverage.json
+coverage.xml
+htmlcov/
 
 # Project-generated files
-.coverage
-coverage.json
 lancedb_data/
+omni_ingest.db
 site/
 
-# Other files
+# Editors and IDEs
 .vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# AI assistant local files
+.claude/
 .codex
+
+# Local-only real-world PDF corpus (symlinks to copyrighted textbooks; never commit)
+tests/local_corpus/
