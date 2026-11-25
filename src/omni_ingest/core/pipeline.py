@@ -221,6 +221,8 @@ class PipelineRunner:
             yield replace(ctx, run_id=uuid4(), resource=resource)
 
     async def run_flattened(self, ctx: IngestionContext[Any], max_concurrent: int = DEFAULT_MAX_CONCURRENT_RESOURCES) -> AsyncIterator[tuple[IngestionContext[ResolvedResource], list[StepResult]]]:
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be at least 1")
         semaphore = asyncio.Semaphore(max_concurrent)
         queue = asyncio.Queue[tuple[IngestionContext[ResolvedResource], list[StepResult]] | BaseException | None]()
         async def runner(child):
