@@ -4,6 +4,7 @@ import ctypes
 import io
 import math
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from functools import cached_property
 from typing import Any
 
@@ -15,6 +16,8 @@ from pypdf.generic import ArrayObject, ByteStringObject, ContentStream, Dictiona
 
 Rect = tuple[float, float, float, float]
 Matrix = tuple[float, float, float, float, float, float]
+
+PDFIUM = ThreadPoolExecutor(max_workers=1)  # PDFium is not thread-safe, even across documents
 
 _PNG_MODES = {"1", "L", "LA", "P", "RGB", "RGBA"}
 
@@ -239,6 +242,14 @@ class _Redactor:
         return out if removed else None
 
 
+def _is_encrypted(data: bytes) -> bool:
+    # Linux PDFium reports a zero-page PDF as a password error
+    try:
+        return pypdf.PdfReader(io.BytesIO(data)).is_encrypted
+    except pypdf.errors.PdfReadError:
+        return True
+
+
 class Pdf:
     def __init__(self, data: bytes, doc: pdfium.PdfDocument):
         self.data, self.doc = data, doc
@@ -249,7 +260,7 @@ class Pdf:
         try:
             return cls(data, pdfium.PdfDocument(data))
         except pdfium.PdfiumError as e:
-            if e.err_code == raw.FPDF_ERR_PASSWORD:
+            if e.err_code == raw.FPDF_ERR_PASSWORD and _is_encrypted(data):
                 raise ValueError("The PDF is password-protected. Remove the password and try again.") from e
             raise ValueError("The PDF is damaged and cannot be opened. Re-export the file or remove it from the batch.") from e
 
@@ -270,7 +281,7 @@ class Pdf:
         if not self.redactions:
             self.doc.save(out)
             return out.getvalue()
-        writer = pypdf.PdfWriter(clone_from=io.BytesIO(self.data))
+        writer = pypdf.PdfWriter(clone_from=self.reader)
         for index, regions in self.redactions.items():
             self.page(index).apply_redactions(writer, regions)
         writer.write(out)
@@ -278,7 +289,10 @@ class Pdf:
 
     @cached_property
     def reader(self) -> pypdf.PdfReader:
-        return pypdf.PdfReader(io.BytesIO(self.data))
+        try:
+            return pypdf.PdfReader(io.BytesIO(self.data))
+        except pypdf.errors.PdfReadError as e:
+            raise ValueError("The PDF has a broken cross-reference table and cannot be processed. Re-export the file or remove it from the batch.") from e
 
     @cached_property
     def font(self) -> raw.FPDF_FONT:

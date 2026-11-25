@@ -1,3 +1,4 @@
+import asyncio
 import io
 import struct
 from pathlib import Path
@@ -206,6 +207,27 @@ def test_user_password_pdf_raises_value_error():
     writer.write(buf)
     with pytest.raises(ValueError, match="password-protected"):
         ImageExtractionAgent(**RAW)._extract_pdf(item, buf.getvalue())
+
+
+def test_broken_startxref_raises_value_error():
+    item, data = load("single_image")
+    with pytest.raises(ValueError, match="cross-reference"):
+        ImageExtractionAgent(**RAW)._extract_pdf(item, data.replace(b"startxref", b"startxrfe"))
+
+
+def test_zero_page_pdf_raises_value_error():
+    buf = io.BytesIO()
+    pypdf.PdfWriter().write(buf)
+    with pytest.raises(ValueError, match="damaged"):
+        ImageExtractionAgent(**RAW)._extract_pdf(KnowledgeItem(content=ByteContent.from_bytes(buf.getvalue())), buf.getvalue())
+
+
+async def test_concurrent_rasterize_does_not_crash_pdfium():
+    agent, sem = RasterizeAgent(dpi=72), asyncio.Semaphore(4)
+    data = load("text3")[1]
+    items = [load("text3")[0] for _ in range(12)]
+    await asyncio.gather(*(agent._rasterize(item, data, sem) for item in items))
+    assert all(len(reader(item).pages) == 3 for item in items)
 
 
 def test_rasterize_keeps_page_count_and_sizes_and_removes_text_layer():

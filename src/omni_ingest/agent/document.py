@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 from ..core.config import settings
 from ..core.model import ByteContent, JqExpression, KnowledgeItem, ResolvedResource, Step, StepResult, StepStatus
 from ..core.ocr import Figure, OcrBuilderParams, OcrOutputFormat
-from ..pdf import Pdf, Rect, rasterize
+from ..pdf import PDFIUM, Pdf, Rect, rasterize
 
 
 def _intersect(a: Rect, b: Rect) -> Rect:
@@ -74,7 +74,7 @@ class ImageExtractionAgent(BaseModel, Step):
 
     async def _extract(self, parent: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> list[KnowledgeItem]:
         async with sem:
-            return await asyncio.to_thread(self._extract_pdf, parent, content)
+            return await asyncio.get_running_loop().run_in_executor(PDFIUM, self._extract_pdf, parent, content)
 
     def _extract_pdf(self, parent: KnowledgeItem, content: bytes) -> list[KnowledgeItem]:
         extracted = []
@@ -155,7 +155,7 @@ class RasterizeAgent(BaseModel, Step):
 
     async def _rasterize(self, item: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> None:
         async with sem:
-            await asyncio.to_thread(self._rasterize_pdf, item, content)
+            await asyncio.get_running_loop().run_in_executor(PDFIUM, self._rasterize_pdf, item, content)
 
     def _rasterize_pdf(self, item: KnowledgeItem, content: bytes) -> None:
         item.content = ByteContent.from_bytes(rasterize(content, self.dpi), content_type="application/pdf", content_encoding=item.content.encoding)
