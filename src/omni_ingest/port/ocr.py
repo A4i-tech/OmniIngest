@@ -54,9 +54,10 @@ def llm_ocr_builder(params: OcrBuilderParams) -> Ocr:
     ) if seg is not None)
 
     async def one(agent: Agent[object, str], item: ByteContent, sem: asyncio.Semaphore):
-        content_type = await item.content_type(params.ctx)
-        result = await agent.run(instructions=instructions, user_prompt=(BinaryContent(data=await item.read(params.ctx), media_type=content_type),))
-        return item, ByteContent.from_bytes(result.output.encode("utf-8"), params.format.mime_type)
+        async with sem:
+            content_type = await item.content_type(params.ctx)
+            result = await agent.run(instructions=instructions, user_prompt=(BinaryContent(data=await item.read(params.ctx), media_type=content_type),))
+            return item, ByteContent.from_bytes(result.output.encode("utf-8"), params.format.mime_type)
 
     agent = _DefaultAgentMixin()._agent(params.ctx)
     async def ocr(items: AsyncIterator[ByteContent]):
@@ -82,25 +83,26 @@ def sarvam_ocr_builder(params: OcrBuilderParams) -> Ocr:
         raise ValueError("SarvamAI does not support a destination language option")
 
     async def one(client: SarvamAI, item: ByteContent, sem: asyncio.Semaphore):
-        data = await item.read(params.ctx)
-        job = client.doc_ai.digitise(file=[data], output_format=output_format, **({"language": params.src_lang} if params.src_lang is not None else {}))
-        while True:
-            st = client.doc_ai.get_status(job_id=job.job_id)
-            print(f"status={st.status} pages={st.usage.pages_processed}/{st.usage.pages_total}")
-            if st.status.lower() in {"completed", "partially_completed", "failed", "rejected"}:
-                break
-            await asyncio.sleep(5)
+        async with sem:
+            data = await item.read(params.ctx)
+            job = client.doc_ai.digitise(file=[data], output_format=output_format, **({"language": params.src_lang} if params.src_lang is not None else {}))
+            while True:
+                st = client.doc_ai.get_status(job_id=job.job_id)
+                print(f"status={st.status} pages={st.usage.pages_processed}/{st.usage.pages_total}")
+                if st.status.lower() in {"completed", "partially_completed", "failed", "rejected"}:
+                    break
+                await asyncio.sleep(5)
 
-        if st.status not in {"completed", "partially_completed"}:
-            raise RuntimeError(f"SarvamAI job terminated unexpectedly ({st.status})")
+            if st.status not in {"completed", "partially_completed"}:
+                raise RuntimeError(f"SarvamAI job terminated unexpectedly ({st.status})")
 
-        dl = client.doc_ai.get_download_url(job_id=job.job_id)
-        resources = [r async for r in read_resources(dl.url, headers=dl.headers)]
-        if len(resources) != 1:
-            raise RuntimeError(f"SarvamAI returned unexpected number of resources ({len(resources)})")
+            dl = client.doc_ai.get_download_url(job_id=job.job_id)
+            resources = [r async for r in read_resources(dl.url, headers=dl.headers)]
+            if len(resources) != 1:
+                raise RuntimeError(f"SarvamAI returned unexpected number of resources ({len(resources)})")
 
-        with zipfile.ZipFile(io.BytesIO(await resources[0].content.read(params.ctx))) as output:
-            return item, ByteContent.from_bytes(output.read(f"upload/upload.{output_format}"), params.format.mime_type)
+            with zipfile.ZipFile(io.BytesIO(await resources[0].content.read(params.ctx))) as output:
+                return item, ByteContent.from_bytes(output.read(f"upload/upload.{output_format}"), params.format.mime_type)
 
     client = SarvamAI()
     async def ocr(items: AsyncIterator[ByteContent]):

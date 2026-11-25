@@ -146,16 +146,16 @@ class RasterizeAgent(BaseModel, Step):
 
         sem = asyncio.Semaphore(self.workers)
         ctx.progress(0, len(items), "rasterizing PDFs")
-        tasks = [self._rasterize(item, await item.content.read(ctx), sem) for item in items]
+        tasks = [self._rasterize(item, ctx, sem) for item in items]
         for i, task in enumerate(asyncio.as_completed(tasks), 1):
             await task
             ctx.progress(i, len(items), f"rasterized {i}/{len(items)}")
 
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items, metadata={"count": len(items), "dpi": self.dpi})
 
-    async def _rasterize(self, item: KnowledgeItem, content: bytes, sem: asyncio.Semaphore) -> None:
+    async def _rasterize(self, item: KnowledgeItem, ctx: IngestionContext[ResolvedResource], sem: asyncio.Semaphore) -> None:
         async with sem:
-            await asyncio.get_running_loop().run_in_executor(PDFIUM, self._rasterize_pdf, item, content)
+            await asyncio.get_running_loop().run_in_executor(PDFIUM, self._rasterize_pdf, item, await item.content.read(ctx))
 
     def _rasterize_pdf(self, item: KnowledgeItem, content: bytes) -> None:
         item.content = ByteContent.from_bytes(rasterize(content, self.dpi), content_type="application/pdf", content_encoding=item.content.encoding)
