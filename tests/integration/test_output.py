@@ -70,10 +70,10 @@ async def test_mongo_output_skips_when_no_items(mongo_collection, metadata_store
 async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path, resources_dir):
     try:
         import louis
-    except OSError as e:
+    except (ImportError, OSError) as e:
         pytest.skip(f"liblouis unavailable: {e}")
 
-    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "twinky-the-dinky-dog.brf")
+    ctx = IngestionContext(store=metadata_store, resource=resources_dir / "blueberries-are-now-green.brf")
     results = await PipelineRunner([TextAgent()]).run(ctx)
     assert results[-1].status == StepStatus.SUCCESS
 
@@ -84,7 +84,7 @@ async def test_brf_output_round_trips_through_pipeline(metadata_store, tmp_path,
 
     # Raw file on disk should hold braille cells, not literal print text.
     raw = out_path.read_text()
-    assert "Twinky" not in raw
+    assert "blueberries" not in raw
 
     text = louis.backTranslateString(list(output.tables), raw)
-    assert "In his heart Twinky knew he was a big dog." in text
+    assert "unexpected transformation has challenged" in text

@@ -4,7 +4,7 @@ version = "0.1.2"
 description = "Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines."
 readme = "docs/README.md"
 authors = [
-    {name = "A4i-tech"}
+    {name = "A4I, IIIT Bangalore", email = "dev.a4i@iiitb.ac.in"}
 ]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -45,7 +45,6 @@ dependencies = [
     "sarvamai>=0.1.30",
     "mistralai>=2.10.1",
     "openpyxl>=3.1.5",
-    "liblouis>=3.38.0; sys_platform == 'linux' or sys_platform == 'win32'",
 ]
 
 [project.urls]
@@ -58,6 +57,7 @@ omni-ingest = "omni_ingest.cli:main"
 
 [project.optional-dependencies]
 anthropic = ["pydantic-ai-slim[anthropic]>=2.0.0"]
+braille = ["liblouis>=3.38.0; sys_platform == 'linux' or sys_platform == 'win32'"]
 bedrock = ["pydantic-ai-slim[bedrock]>=2.0.0"]
 cohere = ["pydantic-ai-slim[cohere]>=2.0.0"]
 google = ["pydantic-ai-slim[google]>=2.0.0"]
