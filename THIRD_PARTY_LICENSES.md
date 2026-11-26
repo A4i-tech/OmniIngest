@@ -15,6 +15,5 @@ OmniIngest is MIT licensed (see `LICENSE`). This file lists components that are 
 Found by scanning the installed core dependency set (`pip-licenses`). All other packages are permissive (MIT, BSD, Apache-2.0, ISC, PSF).
 
 - **azure-cognitiveservices-speech** (Microsoft Speech SDK): proprietary Microsoft licence, installed from PyPI and not redistributed here. Use is governed by Microsoft's licence terms.
-- **sarvamai**: the package metadata declares no licence and its source repository is not publicly reachable. To be confirmed with the vendor before release.
 - **mistralai**: no licence in package metadata. Its upstream repository (`mistralai/client-python`) is Apache-2.0.
 - **certifi**, **pathspec**, **tqdm** (MPL-2.0 AND MIT): MPL-2.0 components, used unmodified.
