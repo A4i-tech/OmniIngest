@@ -1,4 +1,4 @@
-"""Run SEEDS-/Shiksha-shaped flows (page_chunking -> rasterize 180 dpi) on a local PDF and print numbers.
+"""Run the page_chunking and rasterize flows (page_chunking -> rasterize 180 dpi) on a local PDF and print numbers.
 
 Usage: python tests/tools/consumer_flow_run.py <pdf> [--max-pages N]
 Local-only helper; prints counts and timings, writes nothing.
@@ -19,7 +19,7 @@ from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_con
 from omni_ingest.port.metadata_store import NullMetadataStore
 
 YAML = """
-pipeline_id: shiksha_shaped
+pipeline_id: chunk_rasterize
 steps:
 - agent: page_chunking
   config: {mode: pdf}

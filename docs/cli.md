@@ -68,13 +68,13 @@ fi
 Each pipeline can declare parameters. OmniIngest reads their JSON Schema before building argument parser. Property names become flags and descriptions become help text.
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml --help
+omni-ingest chapter.yaml --help
 ```
 
 A parameter named `start_page` becomes `--start-page`. Types also come from schema. Integers become integer arguments. Enum values become choices. Boolean parameters gain `--name` and `--no-name` forms.
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml \
+omni-ingest chapter.yaml \
   --input textbooks/science-9.pdf \
   --output build/science-9.json \
   --start-page 3 \
@@ -304,7 +304,7 @@ Use same pipeline YAML. Runner restores resource, items, metadata, tenant, and c
 Pipeline parameters are still parsed during resume. Supply same values when they affect steps which remain to run:
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml \
+omni-ingest chapter.yaml \
   --resume 5fb58f3c-3a1c-47a1-9b12-7bb0d1a4c936 \
   --output build/chapter.json \
   --start-page 3 \

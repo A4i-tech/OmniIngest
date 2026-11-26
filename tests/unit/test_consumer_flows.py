@@ -1,8 +1,7 @@
-"""Pipelines shaped like the downstream consumers' YAML, run through the public API.
+"""Pipelines shaped like common downstream YAML, run through the public API.
 
-SEEDS (textbook_remediation) starts with `page_chunking` in pdf mode; Shiksha-Copilot's question
-pipeline runs `page_chunking` then `rasterize` at 180 dpi because KTBS text layers are unreadable.
-These tests pin what those flows see (item count, order, page metadata, content type, what survives
+One flow runs `page_chunking` in pdf mode only; the other runs `page_chunking` then `rasterize` at 180 dpi
+for PDFs whose text layer is unreadable (legacy font encodings). These tests pin what those flows see (item count, order, page metadata, content type, what survives
 rasterizing) so a PDF-backend swap cannot break them silently.
 """
 
@@ -20,7 +19,7 @@ from omni_ingest.port.metadata_store import NullMetadataStore
 from ._pdf_helpers import PDFS
 
 CHUNK_ONLY = """
-pipeline_id: seeds_shaped
+pipeline_id: chunk_only
 steps:
 - agent: page_chunking
   config:
@@ -28,7 +27,7 @@ steps:
 """
 
 CHUNK_RASTERIZE = """
-pipeline_id: shiksha_shaped
+pipeline_id: chunk_rasterize
 steps:
 - agent: page_chunking
   config:
@@ -64,7 +63,7 @@ async def _pdf_bytes(ctx, item) -> bytes:
 
 
 @pytest.mark.asyncio
-async def test_seeds_shaped_page_chunking_yields_one_pdf_item_per_page(tmp_path):
+async def test_chunk_only_page_chunking_yields_one_pdf_item_per_page(tmp_path):
     ctx, results = await _run(tmp_path, CHUNK_ONLY, PDFS / "multi_page.pdf")
     assert results[-1].status == StepStatus.SUCCESS, results[-1].error
     assert len(ctx.items) == 3
@@ -75,7 +74,7 @@ async def test_seeds_shaped_page_chunking_yields_one_pdf_item_per_page(tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_shiksha_shaped_rasterize_keeps_items_and_drops_text_layer(tmp_path):
+async def test_chunk_rasterize_keeps_items_and_drops_text_layer(tmp_path):
     source = PDFS / "metadata_rich.pdf"
     before, _ = await _run(tmp_path, CHUNK_ONLY, source)
     ctx, results = await _run(tmp_path, CHUNK_RASTERIZE, source)
@@ -92,7 +91,7 @@ async def test_shiksha_shaped_rasterize_keeps_items_and_drops_text_layer(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_shiksha_shaped_rasterize_resolution_follows_dpi(tmp_path):
+async def test_chunk_rasterize_resolution_follows_dpi(tmp_path):
     ctx, _ = await _run(tmp_path, CHUNK_RASTERIZE, PDFS / "one_image.pdf")
     page = PdfReader(io.BytesIO(await _pdf_bytes(ctx, ctx.items[0]))).pages[0]
     # 400x200 pt page at 180 dpi is 1000x500 px
