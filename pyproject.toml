@@ -1,6 +1,6 @@
 [project]
 name = "omni-ingest"
-version = "0.1.2"
+version = "2.0.1"
 description = "Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines."
 readme = "docs/README.md"
 authors = [

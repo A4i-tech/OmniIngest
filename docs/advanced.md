@@ -354,7 +354,7 @@ The `params` argument sets pipeline parameters. The `output` argument accepts an
 
 ## Braille (BRF)
 
-Reading `.brf` files and writing `brf:` output use [liblouis](https://github.com/liblouis/liblouis) (LGPL-2.1+). It is optional and is not installed with `pip install omni-ingest`, because liblouis does not publish its Python bindings on PyPI. Without it, every other feature works and BRF calls raise a `RuntimeError`.
+Reading `.brf` files and writing `brf:` output use [liblouis](https://github.com/liblouis/liblouis) (LGPL-2.1+). It is optional and is not installed with `pip install omni-ingest`, because liblouis does not publish its Python bindings on PyPI. Without it, every other feature works and BRF calls raise a `RuntimeError`. The `braille` extra in `pyproject.toml` only resolves from a source checkout with `uv`; `pip install "omni-ingest[braille]"` from PyPI fails because liblouis is not published there.
 
 Install it one of these ways:
 

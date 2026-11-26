@@ -286,6 +286,9 @@ CLI loads `.env` from current working directory before settings are created.
 !!! warning
     Null metadata store does not save checkpoints. Runs using it cannot be resumed. Use persistent metadata store for expensive jobs where recovery matters.
 
+!!! warning
+    Checkpoints are stored as Python pickles and `--resume` loads them. Treat the metadata database as trusted state, and do not resume from a database file or connection that someone you do not trust can write to.
+
 ## Resume failed work
 
 Persistent metadata store saves checkpoint after each completed stage. If later stage fails then rerun with run id printed by original command.

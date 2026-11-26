@@ -11,8 +11,10 @@ We aim to acknowledge a report within 5 working days and to share a plan or fix 
 
 ## Supported versions
 
-Security fixes go to the latest released version. OmniIngest is pre-1.0 in its public form; older versions are not patched.
+Security fixes go to the latest released version. Only the latest release is supported; older versions are not patched.
 
 ## Scope notes
 
 OmniIngest runs pipelines you define in YAML. It can read local files and remote resources and call cloud services with your credentials. Treat pipeline files and input documents from untrusted sources accordingly, and keep API keys out of pipeline files and logs.
+
+The metadata store (by default `./omni_ingest.db` in the working directory) holds run checkpoints as Python pickles, and `--resume` loads them. Treat the metadata database as trusted state: never resume from a database file or connection that someone you do not trust can write to.
