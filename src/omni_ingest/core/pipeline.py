@@ -101,6 +101,9 @@ class IngestionContext(Generic[ResourceT]):  # noqa: UP046
     items: list[KnowledgeItem] = field(default_factory=list)
     """The working set of knowledge items"""
 
+    resource_reader: Any = field(default=None, repr=False)
+    """Parsed resource PDF, shared by all page reads in this run"""
+
     def progress(self, completed: float, total: float, message: str | None = None) -> None:
         if current := _CURRENT_STEP.get():
             step_name, step = current

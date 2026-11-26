@@ -36,8 +36,10 @@ async def resource_page(parsed: ParseResult, ctx: IngestionContext[ResolvedResou
     if any(page < 1 for page in pages):
         raise ValueError(f"Invalid omni-ingest page numbers: {pages}")
 
-    source = io.BytesIO(await ctx.resource.content.read(ctx))
-    with source, PdfReader(source) as reader, io.BytesIO() as output, PdfWriter() as writer:
+    if ctx.resource_reader is None:
+        ctx.resource_reader = PdfReader(io.BytesIO(await ctx.resource.content.read(ctx)))
+    reader = ctx.resource_reader
+    with io.BytesIO() as output, PdfWriter() as writer:
         for page in pages:
             writer.add_page(reader.pages[page - 1])
         for pdf_page in writer.pages:
