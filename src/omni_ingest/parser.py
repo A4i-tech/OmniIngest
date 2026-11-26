@@ -151,8 +151,8 @@ def _parse_xlsx(content: bytes) -> tuple[str, dict[str, Any]]:
 async def parse_brf(stream: BinaryIO, *, encoding: str = "utf-8", tables: tuple[str, ...] | None = None) -> tuple[str, dict[str, Any]]:
     try:
         import louis
-    except OSError as e:
-        raise RuntimeError("Braille IO requires liblouis which is not supported for your platform.") from e
+    except (ImportError, OSError) as e:
+        raise RuntimeError("Braille IO requires the optional liblouis package. See the Braille (BRF) section of the docs for how to install it.") from e
     brf_text = stream.read().decode(encoding)
     content = str(await asyncio.to_thread(louis.backTranslateString, list(tables or ("en-us-brf.dis", "en-us-g2.ctb")), brf_text))
     return content, {"original_length": len(brf_text), "parsed_length": len(content)}

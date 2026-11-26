@@ -351,3 +351,15 @@ The `params` argument sets pipeline parameters. The `output` argument accepts an
 !!! note
     OmniIngest reads `Settings` once per process. Set environment variables before the first import of `omni_ingest`.
 
+
+## Braille (BRF)
+
+Reading `.brf` files and writing `brf:` output use [liblouis](https://github.com/liblouis/liblouis) (LGPL-2.1+). It is optional and is not installed with `pip install omni-ingest`, because liblouis does not publish its Python bindings on PyPI. Without it, every other feature works and BRF calls raise a `RuntimeError`. The `braille` extra in `pyproject.toml` only resolves from a source checkout with `uv`; `pip install "omni-ingest[braille]"` from PyPI fails because liblouis is not published there.
+
+Install it one of these ways:
+
+- **From a source checkout** (Linux or Windows x86_64): `uv sync --extra braille` uses the wheels in `dependencies/`.
+- **Linux package manager:** install `liblouis` and its Python bindings (for example `apt install python3-louis` on Debian or Ubuntu).
+- **Any platform:** build liblouis and its Python bindings from the upstream source.
+
+The default tables are `en-us-g2.ctb` (grade 2 English) and `en-us-brf.dis`. Pick others in the output URI, for example `brf:out.brf?table=hi-in-g1.utb&display=ru-brf.dis`.

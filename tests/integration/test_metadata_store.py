@@ -33,7 +33,7 @@ async def test_knowledge_item_crud(metadata_store):
 
     item_id = await metadata_store.create_knowledge_item(
         tenant_id=tenant.id,
-        domain_profile="education_shiksha",
+        domain_profile="education_example",
         modality="document",
         source_uri="blob://test/chapter1.pdf",
         title="Chapter 1: Introduction",
@@ -57,7 +57,7 @@ async def test_null_metadata_store_discards_knowledge_item_content():
 
         item_id = await store.create_knowledge_item(
             tenant_id=tenant.id,
-            domain_profile="education_shiksha",
+            domain_profile="education_example",
             modality="document",
             source_uri="blob://test/chapter1.pdf",
             content=b"content that should not be stored",
@@ -166,13 +166,13 @@ async def test_db_registry_logging(metadata_store):
 
 @pytest.mark.asyncio
 async def test_pipeline_registration(metadata_store):
-    pipeline_id = await metadata_store.upsert_pipeline("shiksha_v1", "education")
-    version_id = await metadata_store.upsert_pipeline_version(pipeline_id, "1.0", "shiksha_v1.yaml", is_default=True)
-    assert (await metadata_store.get_pipeline_version("shiksha_v1", "1.0")).id == version_id
-    assert (await metadata_store.get_default_pipeline_version("shiksha_v1")).id == version_id
-    await metadata_store.upsert_pipeline_version(pipeline_id, "1.1", "shiksha_v1_1.yaml", is_default=True)
-    assert (await metadata_store.get_pipeline_version("shiksha_v1", "1.0")).is_default is False
-    assert (await metadata_store.get_default_pipeline_version("shiksha_v1")).version == "1.1"
+    pipeline_id = await metadata_store.upsert_pipeline("example_v1", "education")
+    version_id = await metadata_store.upsert_pipeline_version(pipeline_id, "1.0", "example_v1.yaml", is_default=True)
+    assert (await metadata_store.get_pipeline_version("example_v1", "1.0")).id == version_id
+    assert (await metadata_store.get_default_pipeline_version("example_v1")).id == version_id
+    await metadata_store.upsert_pipeline_version(pipeline_id, "1.1", "example_v1_1.yaml", is_default=True)
+    assert (await metadata_store.get_pipeline_version("example_v1", "1.0")).is_default is False
+    assert (await metadata_store.get_default_pipeline_version("example_v1")).version == "1.1"
 
 
 @pytest.mark.asyncio

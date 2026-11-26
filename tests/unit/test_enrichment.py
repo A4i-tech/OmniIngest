@@ -217,6 +217,7 @@ async def test_concurrent_extract_agents_merge_root_metadata(monkeypatch):
 async def test_extract_agent_assertion_retries_with_feedback(monkeypatch):
     agent = ExtractAgent(
         foreach=".",
+        input='"content"',
         path=".metadata.quality",
         prompt="Quality.",
         assertions=[{"expr": ".score >= 0.7", "feedback": "Quality is too low"}],

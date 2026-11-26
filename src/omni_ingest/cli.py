@@ -17,7 +17,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from omni_ingest.core import event
 from omni_ingest.core.model import ByteContent, PipelineConfig, ResolvedResource, Resource, StepStatus
 from omni_ingest.core.output import parse as parse_output
-from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id
+from omni_ingest.core.pipeline import DEFAULT_MAX_CONCURRENT_RESOURCES, IngestionContext, create_pipeline_from_config, default_metadata_store, lookup_step_id
 
 
 def _parse_args() -> argparse.Namespace:
@@ -40,6 +40,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="Output URI, '-' for stdout, or configured store target")
     parser.add_argument("--format", choices=["brf", "json", "md", "pkl"], help="Output format, overrides filename extension")
     parser.add_argument("-q", "--quiet", action="store_true", help="Hide progress display")
+    parser.add_argument("--max-concurrent-resources", type=int, default=DEFAULT_MAX_CONCURRENT_RESOURCES, help="Maximum resources processed at the same time")
     for name, schema in properties.items():
         value_type = schema.get("type", "VALUE")
         value_type = next(value for value in value_type if value != "null") if isinstance(value_type, list) else value_type
@@ -55,6 +56,8 @@ def _parse_args() -> argparse.Namespace:
     stdin = args.input and any(str(resource) == "-" for resource in args.input)
     if stdin and len(args.input) != 1:
         parser.error("stdin input '-' cannot be combined with other inputs")
+    if args.max_concurrent_resources < 1:
+        parser.error("--max-concurrent-resources must be at least 1")
     if args.input_name and not stdin:
         parser.error("--input-name requires --input -")
     args.params = {name: getattr(args, name) for name in properties if hasattr(args, name)}
@@ -123,7 +126,13 @@ async def _main() -> int:
         listeners = [] if args.quiet else [asyncio.create_task(_events(ctx.run_id, p, tasks, summary)) for _, _, ctx, _ in jobs]
         await asyncio.sleep(0)  # listeners must register before runs publish
         try:
-            runs = await asyncio.gather(*(job[3] for job in jobs))
+            semaphore = asyncio.Semaphore(args.max_concurrent_resources)
+
+            async def limited(job):
+                async with semaphore:
+                    return await job
+
+            runs = await asyncio.gather(*(limited(job[3]) for job in jobs))
         finally:
             for _, _, ctx, _ in jobs:
                 event.shutdown(ctx.run_id)

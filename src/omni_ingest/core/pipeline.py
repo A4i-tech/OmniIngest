@@ -39,6 +39,7 @@ from .output import Output, OutputResult
 from .protocol import ContentResolver, MetadataStore, VectorStore
 from .speech import SttFactory, TTSFactory
 
+DEFAULT_MAX_CONCURRENT_RESOURCES = 8
 PIPELINE_RUNNERS: dict[UUID, PipelineRunner] = {}
 
 ResourceT = TypeVar("ResourceT", bound=Resource)
@@ -219,11 +220,16 @@ class PipelineRunner:
         async for resource in read_resources(str(ctx.resource)):
             yield replace(ctx, run_id=uuid4(), resource=resource)
 
-    async def run_flattened(self, ctx: IngestionContext[Any]) -> AsyncIterator[tuple[IngestionContext[ResolvedResource], list[StepResult]]]:
+    async def run_flattened(self, ctx: IngestionContext[Any], max_concurrent: int = DEFAULT_MAX_CONCURRENT_RESOURCES) -> AsyncIterator[tuple[IngestionContext[ResolvedResource], list[StepResult]]]:
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be at least 1")
+        semaphore = asyncio.Semaphore(max_concurrent)
         queue = asyncio.Queue[tuple[IngestionContext[ResolvedResource], list[StepResult]] | BaseException | None]()
         async def runner(child):
             try:
-                await queue.put((child, await self.run(child)))
+                async with semaphore:
+                    result = await self.run(child)
+                await queue.put((child, result))
             except BaseException as e:
                 await queue.put(e)
                 raise

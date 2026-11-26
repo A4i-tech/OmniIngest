@@ -68,13 +68,13 @@ fi
 Each pipeline can declare parameters. OmniIngest reads their JSON Schema before building argument parser. Property names become flags and descriptions become help text.
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml --help
+omni-ingest chapter.yaml --help
 ```
 
 A parameter named `start_page` becomes `--start-page`. Types also come from schema. Integers become integer arguments. Enum values become choices. Boolean parameters gain `--name` and `--no-name` forms.
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml \
+omni-ingest chapter.yaml \
   --input textbooks/science-9.pdf \
   --output build/science-9.json \
   --start-page 3 \
@@ -224,6 +224,8 @@ omni-ingest school_notes.yaml \
   | jq -r '.runs[] | [.resource.uri, (.items | length)] | @tsv'
 ```
 
+A glob or directory can match many resources. `--max-concurrent-resources` limits how many run at the same time. Default is 8. Lower it to stay inside model provider rate limits.
+
 Progress uses stderr so it does not corrupt JSON pipe. Add `--quiet` when progress is not useful in CI or cron:
 
 ```bash
@@ -284,6 +286,9 @@ CLI loads `.env` from current working directory before settings are created.
 !!! warning
     Null metadata store does not save checkpoints. Runs using it cannot be resumed. Use persistent metadata store for expensive jobs where recovery matters.
 
+!!! warning
+    Checkpoints are stored as Python pickles and `--resume` loads them. Treat the metadata database as trusted state, and do not resume from a database file or connection that someone you do not trust can write to.
+
 ## Resume failed work
 
 Persistent metadata store saves checkpoint after each completed stage. If later stage fails then rerun with run id printed by original command.
@@ -299,7 +304,7 @@ Use same pipeline YAML. Runner restores resource, items, metadata, tenant, and c
 Pipeline parameters are still parsed during resume. Supply same values when they affect steps which remain to run:
 
 ```bash
-omni-ingest profiles/shiksha_chapter.yaml \
+omni-ingest chapter.yaml \
   --resume 5fb58f3c-3a1c-47a1-9b12-7bb0d1a4c936 \
   --output build/chapter.json \
   --start-page 3 \

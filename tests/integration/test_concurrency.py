@@ -148,3 +148,17 @@ async def test_finished_run_shutdown_keeps_other_run_events(metadata_store):
     assert sum(isinstance(e, event.PipelineStepProgressEvent) for e in seen_b) == 8
     assert {e.run_id for e in seen_a} == {ctx_a.run_id}
     assert {e.run_id for e in seen_b} == {ctx_b.run_id}
+
+
+@pytest.mark.asyncio
+async def test_run_flattened_caps_in_flight_resources(metadata_store, tmp_path):
+    for i in range(6):
+        (tmp_path / f"{i}.txt").write_text("x")
+    active = {"count": 0, "max": 0}
+    runner = PipelineRunner(steps=[RecordingStep("s", [], active=active, delay=0.05)])
+    ctx = IngestionContext(store=metadata_store, resource=str(tmp_path / "*.txt"))
+
+    results = [r async for r in runner.run_flattened(ctx, max_concurrent=2)]
+
+    assert len(results) == 6
+    assert active["max"] == 2
