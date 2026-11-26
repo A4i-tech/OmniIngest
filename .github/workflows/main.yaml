@@ -182,7 +182,7 @@ jobs:
           echo "Coverage: $COVERAGE%"
       - name: Upload coverage badge
         if: ${{ vars.COVERAGE_GIST_ID != '' }}
-        uses: schneegans/dynamic-badges-action@v1.7.0
+        uses: schneegans/dynamic-badges-action@v1.9.0
         with:
           auth: ${{ secrets.COVERAGE_GIST_TOKEN }}
           gistID: ${{ vars.COVERAGE_GIST_ID }}
