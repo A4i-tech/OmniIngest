@@ -2,7 +2,7 @@
 
 Usage:  python tests/tools/pdf_corpus_snapshot.py <pdf-dir> <out.json> [--max-pages N]
 
-Run it once per backend (e.g. PyMuPDF now, the replacement later) and diff the two JSON files with
+Run it once per backend or per code version and diff the two JSON files with
 tests/tools/pdf_corpus_diff.py. Output holds counts, boxes and sizes only, never page content, so snapshots are safe
 to share. Only the public agent API and pypdf are used, so the script works on any backend.
 """

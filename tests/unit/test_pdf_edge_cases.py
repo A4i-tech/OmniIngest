@@ -1,4 +1,4 @@
-"""Edge-case characterization for the PDF backend (currently PyMuPDF).
+"""Edge-case characterization for the PDF backend (pypdfium2).
 
 Companion to test_pdf_characterization.py. These pin what the backend does implicitly: page geometry, hidden
 layers, damaged and encrypted files, what redaction destroys, what survives each mode, maths and chemistry

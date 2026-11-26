@@ -1,10 +1,9 @@
 """Characterization tests for PDF image extraction, rasterization and image output.
 
-These pin the behaviour of the PDF backend (currently PyMuPDF) so it can be swapped for an MIT-licensed
-replacement without silent changes. They must not import PyMuPDF: results are inspected with pypdf and
-the standard library only, so the same file runs unchanged against any backend.
+These pin the behaviour of the PDF backend (pypdfium2) so a backend change cannot alter results silently.
+Results are inspected with pypdf and the standard library only, so the same file runs unchanged against any backend.
 
-Numbers below were recorded from the PyMuPDF implementation. Geometry uses a 1pt tolerance, pixel sizes 2px.
+Geometry uses a 1pt tolerance, pixel sizes 2px.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Shared helpers for the PDF characterization tests. Backend agnostic: no PyMuPDF imports."""
+"""Shared helpers for the PDF characterization tests. Backend agnostic: no PDF backend imports."""
 
 from __future__ import annotations
 

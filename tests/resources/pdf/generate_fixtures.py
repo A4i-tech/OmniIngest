@@ -1,7 +1,7 @@
 """Regenerates the synthetic PDFs in this directory.
 
-One-off developer script. It uses PyMuPDF only to author the fixtures; the tests
-that consume them must not import PyMuPDF. Run: python tests/resources/pdf/generate_fixtures.py
+One-off developer script. It uses PyMuPDF (AGPL, not a project dependency; install it separately) only to author the fixtures; the tests
+that consume them must not import it. Run: python tests/resources/pdf/generate_fixtures.py
 """
 
 import math

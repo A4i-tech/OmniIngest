@@ -10,16 +10,11 @@ OmniIngest is MIT licensed (see `LICENSE`). This file lists components that are 
 - The library is loaded dynamically as a separate shared library through the `louis` module and is not statically linked into OmniIngest. You may replace it with any compatible liblouis build, for example your distribution's `liblouis` package and its `python3-louis` bindings.
 - Corresponding source for the shipped binaries: https://github.com/liblouis/liblouis/releases/tag/v3.38.0
 
-## PyMuPDF (AGPL-3.0 or Artifex commercial licence)
-
-- Used for: PDF rendering and editing in `omni_ingest/agent/document.py` and `omni_ingest/core/output.py`.
-- Status: currently a core dependency. It is being replaced with a permissively licensed alternative before the public release; this entry will be removed when that lands. Until then, do not redistribute a combined work under terms that conflict with the AGPL.
-
 ## Runtime dependencies with notable licences
 
 Found by scanning the installed core dependency set (`pip-licenses`). All other packages are permissive (MIT, BSD, Apache-2.0, ISC, PSF).
 
 - **azure-cognitiveservices-speech** (Microsoft Speech SDK): proprietary Microsoft licence, installed from PyPI and not redistributed here. Use is governed by Microsoft's licence terms.
 - **sarvamai**: the package metadata declares no licence and its source repository is not publicly reachable. To be confirmed with the vendor before release.
-- **mistralai** and **caio**: no licence in package metadata. Their upstream repositories (`mistralai/client-python`, `mosquito/caio`) are Apache-2.0.
-- **certifi**, **pathspec**: MPL-2.0, used unmodified.
+- **mistralai**: no licence in package metadata. Its upstream repository (`mistralai/client-python`) is Apache-2.0.
+- **certifi**, **pathspec**, **tqdm** (MPL-2.0 AND MIT): MPL-2.0 components, used unmodified.
