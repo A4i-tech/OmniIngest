@@ -352,6 +352,43 @@ The `params` argument sets pipeline parameters. The `output` argument accepts an
     OmniIngest reads `Settings` once per process. Set environment variables before the first import of `omni_ingest`.
 
 
+## PDF handling
+
+The PDF code lives in `omni_ingest/pdf.py`. It uses three libraries:
+
+- pypdfium2 renders pages and reads page objects.
+- pypdf reads hidden layers and applies redaction.
+- Pillow writes PNG files.
+
+Rotated pages report image boxes in visible coordinates. The box matches what a reader sees on screen.
+
+In `redact` mode, `ImageExtractionAgent` replaces each image with an `<image id="..."/>` marker. The marker stays on one line. The agent also removes duplicate images on the page. It edits the page content stream to do this.
+
+Images on an optional-content layer that is switched off are skipped. The agent does not extract them.
+
+Tables are ruled grids of at least 3 rows and 3 columns.
+
+### Errors
+
+These PDFs raise `ValueError`. Each message tells you the next action.
+
+- A damaged or truncated PDF raises `ValueError`. Re-export the file or remove it from the batch.
+- A PDF with a broken `startxref` raises `ValueError`. Re-export the file or remove it from the batch.
+- A PDF with zero pages raises `ValueError`.
+- A password-protected PDF raises `ValueError`. Remove the password and try again.
+
+PyMuPDF repaired damaged PDFs and PDFs with a broken `startxref`. It returned no items for a PDF with zero pages. These cases now fail.
+
+A PDF with an owner password and no user password opens without a password. It keeps its encryption when the agent saves it in `preserve` mode. In `redact` mode, pypdf writes the output file. The output file is not encrypted.
+
+### Images in Markdown output
+
+Markdown output converts WebP images and CMYK JPEG images to PNG. If the conversion fails, the output keeps the original bytes and file type.
+
+### Threads
+
+All pdfium work runs on one thread. pdfium is not thread-safe, even across documents. The `workers` setting limits how many jobs wait in the queue. It does not run pdfium work in parallel.
+
 ## Braille (BRF)
 
 Reading `.brf` files and writing `brf:` output use [liblouis](https://github.com/liblouis/liblouis) (LGPL-2.1+). It is optional and is not installed with `pip install omni-ingest`, because liblouis does not publish its Python bindings on PyPI. Without it, every other feature works and BRF calls raise a `RuntimeError`. The `braille` extra in `pyproject.toml` only resolves from a source checkout with `uv`; `pip install "omni-ingest[braille]"` from PyPI fails because liblouis is not published there.
